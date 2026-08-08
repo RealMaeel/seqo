@@ -1,0 +1,45 @@
+{
+  "name": "seqo",
+  "productName": "SEQO",
+  "version": "1.7.5",
+  "description": "SEQO - Simple EQ Overlay for EverQuest Legends",
+  "main": "main.js",
+  "author": "Ed",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.ed.seqo",
+    "productName": "SEQO",
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "SEQO-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "SEQO-Portable-${version}.${ext}"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "parser.js",
+      "updater.js",
+      "zones.js",
+      "worldmap.js",
+      "buffs.js",
+      "overlay.html",
+      "assets/**"
+    ]
+  }
+}
