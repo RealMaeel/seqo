@@ -60,6 +60,8 @@
 
   const YOU = 'You';
   const isYou = (n) => n === 'You' || n === 'YOU' || n === 'you';
+  // "yourself" (Cannibalization etc.) - self-inflicted, not an enemy
+  const isSelf = (n) => /^(?:your|him|her|it)self$/i.test(n);
   // "a skeleton's flames" -> "a skeleton"
   const stripPossessive = (n) => { const m = /^(.+?)'s .+$/.exec(n); return m ? m[1] : n; };
 
@@ -70,13 +72,22 @@
     const msg = ts[7];
     let m;
 
-    if ((m = RE_SPELL.exec(msg)))
+    if ((m = RE_SPELL.exec(msg))) {
+      // "You hit yourself for 80 points of unresistable damage by Cannibalization."
+      if (isSelf(m[2]))
+        return { type: 'selfdamage', when, attacker: isYou(m[1]) ? YOU : m[1],
+                 amount: +m[3], spell: m[5], kind: 'spell' };
       return { type: 'damage', when, attacker: isYou(m[1]) ? YOU : m[1], target: isYou(m[2]) ? YOU : m[2],
                amount: +m[3], spell: m[5], crit: !!m[6], kind: 'spell' };
+    }
 
-    if ((m = RE_MELEE.exec(msg)))
+    if ((m = RE_MELEE.exec(msg))) {
+      if (isSelf(m[2]))
+        return { type: 'selfdamage', when, attacker: isYou(m[1]) ? YOU : m[1],
+                 amount: +m[3], kind: 'melee' };
       return { type: 'damage', when, attacker: isYou(m[1]) ? YOU : m[1], target: isYou(m[2]) ? YOU : m[2],
                amount: +m[3], crit: !!m[4], kind: 'melee' };
+    }
 
     if ((m = RE_DOT_ON_YOU.exec(msg)))
       return { type: 'damage', when, attacker: m[3], target: YOU, amount: +m[1], spell: m[2], kind: 'dot' };
@@ -258,6 +269,12 @@
         // build the enemy set: whoever you attack, or attacks you, is an enemy
         if (attacker === YOU) f.enemies.add(target);
         if (target === YOU) f.enemies.add(attacker);
+      } else if (ev.type === 'selfdamage') {
+        // Cannibalization etc. - never starts a fight, never an enemy.
+        // If a fight is live, count it as damage you took (helps healing math).
+        if (this.current && ev.attacker === YOU)
+          this.current.events.push({ attacker: YOU, target: YOU, amount: ev.amount,
+                                     crit: false, source: ev.spell || 'Self', kind: ev.kind, proc: false });
       } else if (ev.type === 'heal' && this.current) {
         const healer = ev.healer === YOU ? YOU : normName(ev.healer);
         this.current.healingBy.set(healer, (this.current.healingBy.get(healer) || 0) + ev.amount);
