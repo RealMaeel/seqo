@@ -1,7 +1,7 @@
 {
   "name": "seqo",
   "productName": "SEQO",
-  "version": "1.7.5",
+  "version": "1.7.6",
   "description": "SEQO - Simple EQ Overlay for EverQuest Legends",
   "main": "main.js",
   "author": "Ed",
