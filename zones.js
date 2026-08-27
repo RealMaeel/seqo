@@ -10,28 +10,37 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   // Wiki page titles where they differ from the game's zone-entry names,
   // keyed by map short name ("The Ruins of Old Guk" in game = "Lower Guk" on the wiki)
+  // short map name -> the wiki's EXACT page title (audited against
+  // eqlwiki's Category:Zones page list, Aug 2026). Cities are merged
+  // pages on the wiki (all Neriak districts -> "Neriak", etc.).
   const wikiNames = {
     gukbottom: 'Lower Guk', guktop: 'Upper Guk',
     soldungb: "Nagafen's Lair", soldunga: "Solusek's Eye",
-    soltemple: 'Temple of Solusek Ro',
-    qey2hh1: 'West Karana', qeytoqrg: 'Qeynos Hills',
-    qeynos: 'South Qeynos', qeynos2: 'North Qeynos', qcat: 'Qeynos Aqueduct System',
-    freporte: 'East Freeport', freportw: 'West Freeport', freportn: 'North Freeport',
+    soltemple: 'The Temple of Solusek Ro',
+    qey2hh1: 'Western Karana', northkarana: 'Northern Plains of Karana',
+    eastkarana: 'Eastern Plains of Karana', southkarana: 'Southern Karana',
+    qeytoqrg: 'Qeynos Hills',
+    qeynos: 'Qeynos', qeynos2: 'Qeynos', qcat: 'Qeynos Aqueducts',
+    freporte: 'Freeport', freportw: 'Freeport', freportn: 'Freeport',
     ecommons: 'East Commonlands', commons: 'West Commonlands',
-    nro: 'North Ro', sro: 'South Ro',
-    runnyeye: 'Runnyeye', paw: 'Splitpaw',
+    nro: 'The Northern Desert of Ro', sro: 'Southern Desert of Ro', soro: 'Southern Desert of Ro',
+    runnyeye: 'Runnyeye', paw: 'Splitpaw Lair', permafrost: 'Permafrost',
     lakerathe: 'Lake Rathetear', rathemtn: 'Rathe Mountains',
-    erudnext: 'Erudin', tox: 'Toxxulia Forest', kerraridge: 'Kerra Isle',
-    hole: 'The Hole', mistmoore: 'Castle Mistmoore', unrest: 'Estate of Unrest',
+    erudnext: 'Erudin', erudnint: 'Erudin',
+    tox: 'Toxxulia Forest', kerraridge: 'Kerra Island',
+    hole: 'The Hole', mistmoore: 'Mistmoore Castle', unrest: 'The Estate of Unrest',
     kedge: 'Kedge Keep', cauldron: "Dagnor's Cauldron",
     butcher: 'Butcherblock Mountains', gfaydark: 'Greater Faydark',
     lfaydark: 'Lesser Faydark', steamfont: 'Steamfont Mountains',
-    kaladima: 'South Kaladim', kaladimb: 'North Kaladim',
-    felwithea: 'North Felwithe', felwitheb: 'South Felwithe',
+    kaladima: 'Kaladim', kaladimb: 'Kaladim',
+    felwithea: 'Felwithe', felwitheb: 'Felwithe',
+    akanon: "Ak'Anon", kelethin: 'Kelethin', arena: 'The Arena',
     oot: 'Ocean of Tears', erudsxing: "Erud's Crossing",
     fearplane: 'Plane of Fear', hateplane: 'Plane of Hate', airplane: 'Plane of Sky',
-    cazicthule: 'Cazic-Thule', highpass: 'Highpass Hold', highkeep: 'High Keep',
-    neriaka: 'Neriak Foreign Quarter', neriakb: 'Neriak Commons', neriakc: 'Neriak Third Gate',
+    growthplane: 'Plane of Growth', mischiefplane: 'Plane of Mischief',
+    cazicthule: 'Cazic Thule (Zone)', highpass: 'Highpass Hold', highkeep: 'High Keep',
+    neriaka: 'Neriak', neriakb: 'Neriak', neriakc: 'Neriak',
+    beholder: 'Gorge of King Xorbb',
     feerrott: 'The Feerrott', everfrost: 'Everfrost Peaks', blackburrow: 'Blackburrow'
   };
 

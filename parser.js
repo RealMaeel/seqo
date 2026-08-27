@@ -46,6 +46,12 @@
   const RE_LOOT_SIMPLE = /^-{0,2}You (?:have )?looted (?:(\d+) )?(.+?)\.-{0,2}$/;
   // "You receive 7 silver and 5 copper from the corpse."
   const RE_COIN = /^You receive (.+?) from the corpse\.$/;
+  // "You received 3 platinum, 5 gold, 7 silver and 1 copper from that item."  (destroying an item for coin)
+  const RE_COIN_ITEM = /^You received (.+?) from that item\.$/;
+  // "You successfully destroyed 1 Pearl Necklace +1."
+  const RE_DESTROYED = /^You successfully destroyed (\d+) (.+?)\.$/;
+  // "Fright scowls at you, ready to attack -- looks like it would wipe the floor with you! (Lvl: 55)"
+  const RE_CONSIDER = /^(.+?) (?:scowls|glares|glowers|regards|looks|judges|scoffs|considers)\b.*\(Lvl: (\d+)\)[.!]?$/;
 
   const COIN_VALUES = { platinum: 1000, gold: 100, silver: 10, copper: 1 };
   function parseCoins(str) {
@@ -99,6 +105,12 @@
       return { type: 'damage', when, attacker: isYou(m[4]) ? YOU : m[4], target: isYou(m[1]) ? YOU : m[1],
                amount: +m[2], spell: m[3], kind: 'dot' };
 
+    // "A spiroc banisher has taken 188 damage by Drifting Death."  (no caster named)
+    // "You have taken 188 damage by Drifting Death."
+    if ((m = /^(.+?) ha(?:s|ve) taken (\d+) damage by (.+?)\.$/.exec(msg)))
+      return { type: 'damage', when, attacker: '(unknown)', target: isYou(m[1]) ? YOU : m[1],
+               amount: +m[2], spell: m[3], kind: 'dot' };
+
     if ((m = RE_NONMELEE.exec(msg))) {
       // "... burned by YOUR flames ..." = your damage shield;
       // "... pierced by a ghoul knight's thorns ..." = someone else's
@@ -135,6 +147,16 @@
     if (/^Your spell fizzles!$/.test(msg))
       return { type: 'castfail', when, spell: null, reason: 'fizzled' };
 
+    // AE mez lands one line PER TARGET: "a spiroc expulser has been mesmerized."
+    if ((m = /^(.+?) has been mesmerized\.$/.exec(msg)))
+      return { type: 'mezzed', when, target: m[1] };
+    // mez broken by damage: "A spiroc expulser has been awakened by Maeel."
+    if ((m = /^(.+?) has been awakened by (.+?)\.$/.exec(msg)))
+      return { type: 'awakened', when, target: m[1], by: m[2] };
+    // charm landing: "a spiroc banisher has been charmed."
+    if ((m = /^(.+?) has been charmed\.$/.exec(msg)))
+      return { type: 'charmed', when, target: m[1] };
+
     // "Your Cajoling Whispers spell has worn off of a zol ghoul knight."
     if ((m = /^Your (.+?) spell has worn off of (.+?)\.$/.exec(msg)))
       return { type: 'wornoff', when, spell: m[1], target: m[2] };
@@ -154,8 +176,8 @@
       return { type: 'invisdrop', when };
 
     // EQ Legends uses a uniform fade format for effects ending on you:
-    // "The cool breeze fades." / "Your strength fades."
-    if ((m = /^(?:The|Your) (.+) fades\.$/.exec(msg)))
+    // "The cool breeze fades." / "Your strength fades." / "The spirit of the puma departs."
+    if ((m = /^(?:The|Your) (.+) (?:fades|departs)\.$/.exec(msg)))
       return { type: 'bufffade', when, effect: m[1] };
 
     if ((m = RE_LOOT.exec(msg)))
@@ -169,6 +191,18 @@
     if ((m = RE_COIN.exec(msg)))
       return { type: 'coin', when, copper: parseCoins(m[1]) };
 
+    if ((m = RE_COIN_ITEM.exec(msg)))
+      return { type: 'coin', when, copper: parseCoins(m[1]), fromItem: true };
+
+    if ((m = RE_DESTROYED.exec(msg)))
+      return { type: 'destroyed', when, count: +m[1], item: normItem(m[2]) };
+
+    if ((m = RE_CONSIDER.exec(msg)))
+      return { type: 'consider', when, mob: m[1], level: +m[2] };
+
+    if (/^You cannot loot this item no room in your inventory\.$/.test(msg))
+      return { type: 'lootfull', when };
+
     // pet speech addresses you as Master - covers summoned AND charmed pets:
     //   "Xonektik says, 'Sorry, Master... calming down.'"
     //   "A wan ghoul knight told you, 'Attacking a ghoul savant Master.'"
@@ -179,8 +213,15 @@
       // "Temple of Cazic-Thule 4 (Refined)": the number is an instance id
       // (discard), the parenthetical is the DIFFICULTY tier (keep separately)
       const vm = /\(([^)]+)\)\s*$/.exec(m[1]);
-      const variant = vm ? vm[1].trim() : '';
-      const zone = m[1].replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+\d+\s*$/, '').trim();
+      let variant = vm ? vm[1].trim() : '';
+      let zone = m[1].replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+\d+\s*$/, '').trim();
+      // instance-mode suffix: "The Plane of Fear - Solo". Only known mode
+      // words strip - real dash names like "Neriak - Commons" stay intact.
+      const mm = /\s+-\s+(Solo|Duo|Trio|Group|Raid|Party|Heroic|Event)$/i.exec(zone);
+      if (mm) {
+        variant = variant ? variant + ', ' + mm[1] : mm[1];
+        zone = zone.slice(0, mm.index).trim();
+      }
       return { type: 'zone', when, zone, variant };
     }
 
@@ -250,13 +291,23 @@
 
       if (ev.type === 'damage') {
         this._maybeEnd(ev.when);
+        const attacker = ev.attacker === YOU ? YOU : normName(ev.attacker);
+        const target = ev.target === YOU ? YOU : normName(ev.target);
+
+        // Bystander filter: other groups fighting nearby must not start
+        // fights for you or stretch your fight's clock. Combat matters only
+        // when it involves You, your pet, or a mob already in this fight.
+        const mine = attacker === YOU || target === YOU ||
+          !!(this.petNames && (this.petNames.has(attacker) || this.petNames.has(target)));
+        const inFight = !!this.current &&
+          (this.current.enemies.has(attacker) || this.current.enemies.has(target));
+        if (!mine && !inFight) return ev;
+
         if (!this.current) this.current = newFight(ev.when);
         const f = this.current;
         f.lastCombat = ev.when;
         this.lastFeedWallclock = Date.now();
 
-        const attacker = ev.attacker === YOU ? YOU : normName(ev.attacker);
-        const target = ev.target === YOU ? YOU : normName(ev.target);
         const proc = this._isProc(ev);
         const source =
           ev.kind === 'melee' ? 'Melee' :
@@ -268,7 +319,7 @@
 
         // build the enemy set: whoever you attack, or attacks you, is an enemy
         if (attacker === YOU) f.enemies.add(target);
-        if (target === YOU) f.enemies.add(attacker);
+        if (target === YOU && attacker !== '(unknown)') f.enemies.add(attacker);
       } else if (ev.type === 'selfdamage') {
         // Cannibalization etc. - never starts a fight, never an enemy.
         // If a fight is live, count it as damage you took (helps healing math).
@@ -280,7 +331,11 @@
         this.current.healingBy.set(healer, (this.current.healingBy.get(healer) || 0) + ev.amount);
       } else if (ev.type === 'miss' && this.current && ev.target !== YOU) {
         const attacker = ev.attacker === YOU ? YOU : normName(ev.attacker);
-        this.current.misses.set(attacker, (this.current.misses.get(attacker) || 0) + 1);
+        const target = normName(ev.target);
+        // same bystander rule: only swings at this fight's mobs count
+        if (attacker === YOU || (this.petNames && this.petNames.has(attacker)) ||
+            this.current.enemies.has(target))
+          this.current.misses.set(attacker, (this.current.misses.get(attacker) || 0) + 1);
       } else if (ev.type === 'death' && this.current) {
         this.current.kills.push(ev.target);
       } else if (ev.type === 'cast') {

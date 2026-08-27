@@ -32,6 +32,9 @@ const DEFAULT_SETTINGS = {
   buffAlerts: true,
   mutedAlerts: [],
   spellTimers: '',
+  posClasses: [],          // Plane of Sky quest tracker: classes shown (max 3)
+  updateRepo: 'RealMaeel/seqo',  // GitHub "user/repo" to check Releases for updates
+  autoCheckUpdates: true,  // check for a new release at launch
   buffWatch: 'Clarity = Your thoughts slow.\nSpirit of Wolf = You feel your feet slow.\nLevitate = You feel your feet touch the ground.',
   wikiUser: '',
   wikiPass: '',
@@ -398,20 +401,79 @@ ipcMain.handle('update-zone-data', async (_e, zone, aliases) => {
 
 ipcMain.handle('get-item-data', (_e, name) => gameDB.items[name.toLowerCase()] || null);
 
-ipcMain.handle('update-item-data', async (_e, name) => {
-  try {
-    const data = await updater.fetchItemData(name);
-    gameDB.items[name.toLowerCase()] = data;
-    saveGameDBSoon();
-    return data;
-  } catch (err) {
-    return { error: err.message };
+// eqlegendstools' data pages are JavaScript-rendered, so plain fetches see
+// empty shells. SEQO is a browser: render each page in a hidden window and
+// read the finished text. Used only on cache refresh (weekly), politely.
+function scrapeRenderedText(url) {
+  return new Promise((resolve) => {
+    let w = null;
+    let settled = false;
+    const done = (txt) => {
+      if (settled) return;
+      settled = true;
+      try { if (w && !w.isDestroyed()) w.destroy(); } catch {}
+      resolve(String(txt || ''));
+    };
+    try {
+      w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, images: false } });
+      w.webContents.once('did-finish-load', async () => {
+        await new Promise(r => setTimeout(r, 3500));   // let the JS render
+        try { done(await w.webContents.executeJavaScript('document.body.innerText', true)); }
+        catch { done(''); }
+      });
+      w.webContents.once('did-fail-load', () => done(''));
+      w.loadURL(url).catch(() => done(''));
+      setTimeout(() => done(''), 25000);               // hard cap
+    } catch { done(''); }
+  });
+}
+
+async function refreshToolsPages() {
+  const pages = { _updated: Date.now() };
+  for (const [name, url] of updater.EQLTOOLS_PAGES) {
+    const txt = await scrapeRenderedText(url);
+    const lines = txt.replace(/\t/g, ' | ').split('\n')
+      .map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l.length > 2);
+    if (lines.length > 20) pages[name] = { url, lines, updated: Date.now() };
   }
+  return pages;
+}
+
+ipcMain.handle('update-item-data', async (_e, name) => {
+  // "Update from sources": eqlwiki page + eqlegendstools matches, together.
+  let data = null, wikiError = null;
+  try {
+    data = await updater.fetchItemData(name);
+  } catch (err) {
+    wikiError = err.message;
+    data = gameDB.items[name.toLowerCase()] ||
+      { pageTitle: name, text: '', updated: Date.now() };
+  }
+  try {
+    // refresh the eqlegendstools page cache at most every 7 days
+    if (!gameDB.toolsPages || Date.now() - (gameDB.toolsPages._updated || 0) > 7 * 864e5) {
+      const fresh = await refreshToolsPages();
+      if (Object.keys(fresh).length > 1) gameDB.toolsPages = fresh;
+      else gameDB.toolsPages = gameDB.toolsPages || fresh; // keep trying next time
+    }
+    data.tools = updater.searchEqlTools(gameDB.toolsPages, name);
+  } catch { data.tools = data.tools || []; }
+  if (wikiError && !data.text && !(data.tools || []).length)
+    return { error: wikiError };
+  data.wikiError = wikiError || undefined;
+  gameDB.items[name.toLowerCase()] = data;
+  saveGameDBSoon();
+  return data;
 });
 
 ipcMain.handle('search-wiki', async (_e, query) => {
-  try { return { titles: await updater.searchWiki(query) }; }
-  catch (err) { return { error: err.message }; }
+  const out = { titles: [], tools: [] };
+  let wikiError = null;
+  try { out.titles = await updater.searchWiki(query); }
+  catch (err) { wikiError = err.message; }
+  try { out.tools = updater.searchEqlTools(gameDB.toolsPages, query); } catch {}
+  if (wikiError && !out.titles.length && !out.tools.length) return { error: wikiError };
+  return out;
 });
 
 // Manual "Check for updates": compare cached page revisions against the wiki,
@@ -687,6 +749,164 @@ ipcMain.on('set-ph-links', (_e, { zone, camp, phs }) => {
 });
 ipcMain.handle('get-ph-links', () => gameDB.phLinks || {});
 
+// Plane of Sky quest progress: reward -> { done: bool, items: {itemName: true} }
+// Lives in gameDB so it syncs across computers with the shared data folder.
+ipcMain.on('set-posquest', (_e, { reward, state }) => {
+  gameDB.posQuests = gameDB.posQuests || {};
+  if (state && (state.done || Object.keys(state.items || {}).length)) gameDB.posQuests[reward] = state;
+  else delete gameDB.posQuests[reward];
+  saveGameDBSoon();
+});
+ipcMain.handle('get-posquests', () => gameDB.posQuests || {});
+
+// personal loot verdicts: itemName(lower) -> 'keep' | 'junk' (synced)
+ipcMain.on('set-item-verdict', (_e, { item, verdict }) => {
+  gameDB.itemVerdicts = gameDB.itemVerdicts || {};
+  const k = String(item).toLowerCase();
+  if (verdict) gameDB.itemVerdicts[k] = verdict;
+  else delete gameDB.itemVerdicts[k];
+  saveGameDBSoon();
+});
+ipcMain.handle('get-item-verdicts', () => gameDB.itemVerdicts || {});
+
+// vendor sell list: itemName(lower) -> { name, count, reason } (synced)
+ipcMain.on('set-selllist', (_e, list) => {
+  gameDB.sellList = list && Object.keys(list).length ? list : undefined;
+  if (!gameDB.sellList) delete gameDB.sellList;
+  saveGameDBSoon();
+});
+ipcMain.handle('get-selllist', () => gameDB.sellList || {});
+
+// wish list: itemName(lower) -> { name, added } (synced)
+ipcMain.on('set-wishlist', (_e, list) => {
+  gameDB.wishList = list && Object.keys(list).length ? list : undefined;
+  if (!gameDB.wishList) delete gameDB.wishList;
+  saveGameDBSoon();
+});
+ipcMain.handle('get-wishlist', () => gameDB.wishList || {});
+
+// ---------------------------------------------------------------------------
+// Class quest index: the wiki files quests by CLASS, so we fetch the class
+// categories, pull each quest page, and detect which zone(s) it involves by
+// scanning the text against the audited zone-name table. Cached + synced.
+// ---------------------------------------------------------------------------
+const EQLZonesTable = require('./zones.js');
+
+function zoneMatcherList() {
+  // candidate display-name -> canonical long zone name; longest first so
+  // "Neriak Foreign Quarter" wins over "Neriak"
+  const map = new Map();
+  const add = (name, long) => {
+    const k = String(name || '').trim();
+    if (k.length >= 4 && !map.has(k.toLowerCase())) map.set(k.toLowerCase(), { name: k, long });
+  };
+  for (const [long, short] of Object.entries(EQLZonesTable.zones)) {
+    add(long, long);
+    if (long.startsWith('The ')) add(long.slice(4), long);
+    if (EQLZonesTable.wikiNames[short]) add(EQLZonesTable.wikiNames[short], long);
+  }
+  return [...map.values()].sort((a, b) => b.name.length - a.name.length);
+}
+
+ipcMain.handle('build-quest-index', async (_e, classes) => {
+  try {
+    const matcher = zoneMatcherList();
+    const progress = (msg) => { try { win.webContents.send('quest-index-progress', msg); } catch {} };
+    const quests = [];
+    for (const cls of classes || []) {
+      progress('Fetching ' + cls + ' quest list…');
+      let titles = [];
+      try { titles = await updater.getCategoryMembers(cls + ' Quests', 300); } catch {}
+      progress(cls + ': ' + titles.length + ' quests, reading pages…');
+      const pages = await updater.fetchPagesContent(titles);
+      for (const [title, text] of Object.entries(pages)) {
+        // rank matched zones by where they first appear; keep the top 3
+        const found = [];
+        const lower = text.toLowerCase();
+        for (const c of matcher) {
+          const idx = lower.indexOf(c.name.toLowerCase());
+          if (idx >= 0 && !found.some(f => f.long === c.long)) found.push({ long: c.long, idx });
+        }
+        found.sort((a, b) => a.idx - b.idx);
+        quests.push({ title, cls, zones: found.slice(0, 3).map(f => f.long) });
+      }
+    }
+    gameDB.questIndex = { classes: [...(classes || [])], built: Date.now(), quests };
+    saveGameDBSoon();
+    return { quests: quests.length, zoned: quests.filter(q => q.zones.length).length };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+ipcMain.handle('get-quest-index', () => gameDB.questIndex || null);
+
+// ---------------------------------------------------------------------------
+// Update check: GitHub Releases API, no dependencies. Compares the latest
+// release tag to the running version; the renderer offers the download link.
+// ---------------------------------------------------------------------------
+function cmpVersions(a, b) { // 1 if a>b
+  const pa = String(a).replace(/^v/i, '').split('.').map(Number);
+  const pb = String(b).replace(/^v/i, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+  }
+  return 0;
+}
+
+async function checkAppUpdate() {
+  const repo = String(settings.updateRepo || '').trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return { error: 'Set your GitHub repo (user/seqo) in Settings first.' };
+  try {
+    const res = await fetch('https://api.github.com/repos/' + repo + '/releases/latest', {
+      headers: { 'User-Agent': 'SEQO/' + app.getVersion(), Accept: 'application/vnd.github+json' }
+    });
+    if (res.status === 404) return { error: 'No releases found for ' + repo + ' yet.' };
+    if (!res.ok) return { error: 'GitHub returned HTTP ' + res.status };
+    const j = await res.json();
+    const latest = String(j.tag_name || j.name || '').replace(/^v/i, '');
+    const setup = (j.assets || []).find(a => /Setup.*\.exe$/i.test(a.name));
+    return {
+      current: app.getVersion(),
+      latest,
+      newer: cmpVersions(latest, app.getVersion()) > 0,
+      url: j.html_url || ('https://github.com/' + repo + '/releases/latest'),
+      setupUrl: setup ? setup.browser_download_url : null,
+      notes: String(j.body || '').slice(0, 400)
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+ipcMain.handle('check-app-update', () => checkAppUpdate());
+
+// auto-check shortly after launch, quietly
+app.whenReady().then(() => setTimeout(async () => {
+  if (!settings.autoCheckUpdates || !settings.updateRepo) return;
+  const r = await checkAppUpdate();
+  if (r && r.newer && win) win.webContents.send('app-update', r);
+}, 10000));
+
+// open a community database site in the user's default browser (https only)
+ipcMain.on('open-external', (_e, url) => {
+  try {
+    if (/^https:\/\/[\w.-]+\//.test(String(url))) require('electron').shell.openExternal(url);
+  } catch {}
+});
+
+// Inventory import (in game: /outputfile inventory). Returns the raw text;
+// the renderer parses it and reconciles quest progress.
+ipcMain.handle('import-inventory', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Choose your inventory file (type /outputfile inventory in game first)',
+    filters: [{ name: 'Inventory dump (*.txt)', extensions: ['txt'] }, { name: 'All files', extensions: ['*'] }],
+    properties: ['openFile']
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  try { return { text: fs.readFileSync(res.filePaths[0], 'latin1') }; }
+  catch (e) { return { error: e.message }; }
+});
+
 // ---------------------------------------------------------------------------
 // Wiki submission: post observed drop rates using the user's bot password.
 // mode 'sandbox': one page (User:<name>/SEQO Drop Data), replaced wholesale.
@@ -806,6 +1026,7 @@ ipcMain.on('record-mob-stats', (_e, entries) => {
     m.maxHit = Math.max(m.maxHit || 0, s.maxHit || 0);
     m.hitCount = (m.hitCount || 0) + (s.hits || 0);
     m.hitTotal = (m.hitTotal || 0) + (s.total || 0);
+    if (s.level) m.level = s.level;   // latest /con wins
     if (s.spells && s.spells.length) {
       m.spells = [...new Set([...(m.spells || []), ...s.spells])].slice(0, 25);
     }

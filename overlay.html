@@ -87,9 +87,9 @@
   }
 
   /* ------- tab strip ------- */
-  #tabs { display: flex; gap: 4px; align-items: center; }
+  #tabs { display: flex; gap: 3px; align-items: center; }
   .tab {
-    font-size: 10.5px; padding: 2px 7px; border-radius: 10px;
+    font-size: 10px; padding: 2px 5px; border-radius: 10px;
     color: #aaa; background: rgba(255,255,255,.07);
     cursor: pointer; border: 1px solid transparent;
     white-space: nowrap; flex: none;
@@ -181,6 +181,64 @@
   .itemlink:hover { color: #ffd766; }
   .l-divider { margin: 6px 0 2px; color: #ffd766; font-weight: 600; font-size: 12px; }
 
+  /* ------- quests view ------- */
+  #view-quests { font-size: 11.5px; }
+  .q-cls {
+    padding: 1px 7px; border-radius: 9px; font-size: 10.5px; cursor: pointer;
+    background: rgba(255,255,255,.07); color: #bbb; border: 1px solid transparent;
+  }
+  .q-cls:hover { background: rgba(255,255,255,.14); }
+  .q-cls.on { background: rgba(255,215,102,.16); color: #ffd766; border-color: rgba(255,215,102,.5); }
+  .q-quest {
+    margin-top: 3px; border-radius: 5px; background: rgba(255,255,255,.05);
+    padding: 3px 6px;
+  }
+  .q-quest.done { opacity: .45; }
+  .q-quest.ready { background: rgba(125,255,160,.10); box-shadow: inset 0 0 0 1px rgba(125,255,160,.35); }
+  .q-head { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .q-head .rw { flex: 1; font-weight: 600; }
+  .q-head .cls { color: #999; font-size: 10px; }
+  .q-head .st { font-size: 10px; color: #999; white-space: nowrap; }
+  .q-quest.ready .q-head .st { color: #7dffa0; font-weight: 600; }
+  .q-donebtn {
+    cursor: pointer; border-radius: 4px; padding: 0 6px; font-size: 12px;
+    background: rgba(255,255,255,.08); color: #888;
+  }
+  .q-donebtn:hover { background: rgba(125,255,160,.25); color: #7dffa0; }
+  .q-quest.done .q-donebtn { background: rgba(125,255,160,.25); color: #7dffa0; }
+  .q-items { padding: 2px 0 1px 4px; }
+  .q-it { display: flex; align-items: baseline; gap: 6px; padding: 1px 0; color: #bbb; cursor: pointer; }
+  .q-it .box { font-size: 11px; width: 13px; text-align: center; color: #777; }
+  .q-it.have .box { color: #7dffa0; }
+  .q-it.have .nm { color: #7dffa0; }
+  .q-it .loc { color: #777; font-size: 10px; flex: 1; text-align: right; }
+  .q-it .cnt { color: #ffd766; font-size: 10px; }
+  .q-it .rune { font-size: 9px; }
+  .q-npc { color: #888; font-size: 10px; padding: 1px 0 2px 4px; }
+
+  /* ------- loot verdict badges ------- */
+  .v-badge {
+    margin-left: 6px; padding: 0 5px; border-radius: 3px;
+    font-size: 9px; font-weight: 700; letter-spacing: .4px; vertical-align: 1px;
+  }
+  .v-keep  { background: rgba(125,255,160,.18); color: #7dffa0; }
+  .v-junk  { background: rgba(255,110,110,.18); color: #ff8a8a; }
+  .v-spare { background: rgba(255,215,102,.14); color: #d8b95c; }
+  .v-sell  { background: rgba(255,215,102,.14); color: #d8b95c; }
+  .v-other { background: rgba(255,255,255,.08); color: #999; }
+  .v-flag { margin-left: 5px; cursor: pointer; color: #555; font-size: 10px; }
+  .v-flag:hover { color: #ffd766; }
+  .v-flag.on { color: #ffd766; }
+  .v-wish  { background: rgba(255,215,102,.25); color: #ffd766; }
+  .wish-row { padding: 2px 6px; margin-top: 2px; border-radius: 4px; background: rgba(255,215,102,.05); }
+  .wish-row .wish-x { cursor: pointer; color: #666; font-size: 10px; }
+  .wish-row .wish-x:hover { color: #ff8a8a; }
+  .wish-src { color: #8a8a8a; font-size: 10px; white-space: pre-wrap; padding-left: 8px; }
+  .sell-row { cursor: pointer; border-radius: 4px; }
+  .sell-row:hover { background: rgba(125,255,160,.10); text-decoration: line-through; }
+  .sell-row .nm { color: #ddd; }
+  .sell-row .why { color: #777; font-size: 10px; }
+
   /* ------- lookup view ------- */
   #view-lookup { font-size: 11.5px; }
   #k-searchrow { display: flex; gap: 4px; margin-bottom: 5px; }
@@ -219,16 +277,31 @@
     background: rgba(14,14,20,.98);
     border: 1px solid rgba(255,215,102,.4); border-radius: 8px;
     display: none; flex-direction: column; padding: 10px; z-index: 45;
+    overflow: hidden;
   }
   #k-detail.open { display: flex; }
+  #k-dclose-x {
+    cursor: pointer; color: #999; font-size: 14px; line-height: 1;
+    padding: 0 2px; flex: none;
+  }
+  #k-dclose-x:hover { color: #ff8a8a; }
   #k-dtitle { color: #ffd766; font-weight: 600; font-size: 13px; margin-bottom: 4px; flex: none; }
   #k-upgrade { flex: none; }
-  #k-stats { max-height: 105px; overflow-y: auto; }
+  #k-stats { max-height: 84px; overflow-y: auto; }
   #k-stats::-webkit-scrollbar { width: 6px; }
   #k-stats::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 3px; }
-  #k-dtext { flex: 1; min-height: 30px; overflow-y: auto; white-space: pre-wrap; color: #ccc; font-size: 11px; line-height: 1.45; }
+  #k-dtext { flex: 1; min-height: 30px; overflow-y: auto; white-space: pre-wrap; color: #d8d8d8; font-size: 11.5px; line-height: 1.55; }
+  .k-sect-h {
+    color: #d8b95c; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .8px; margin: 10px 0 3px; padding-bottom: 2px;
+    border-bottom: 1px solid rgba(255,215,102,.25); white-space: normal;
+  }
+  .k-sect-h:first-child { margin-top: 2px; }
+  .k-sect-b { white-space: pre-wrap; margin-bottom: 2px; }
+  .k-cached { color: #666; font-size: 10px; margin-top: 8px; }
   #k-dtext::-webkit-scrollbar { width: 6px; }
   #k-dtext::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 3px; }
+  #k-sources { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; margin: 6px 0 2px; }
   #k-dbtns { display: flex; gap: 6px; margin-top: 8px; flex: none; }
 
   /* ------- toast ------- */
@@ -318,17 +391,17 @@
             <div class="tab active" data-tab="meter">&#9876; Meter</div>
             <div class="tab" data-tab="breakdown">&#128202; Spells</div>
             <div class="tab" data-tab="loot">&#128176; Loot</div>
-            <div class="tab" data-tab="lookup">&#128214; Lookup</div>
+            <div class="tab" data-tab="lookup">&#128214; Data</div>
             <div class="tab" data-tab="map">&#128506; Map</div>
             <div class="tab" data-tab="timers">&#9202; Timers</div>
+            <div class="tab" data-tab="quests">&#128220; Quests</div>
             <div style="flex:1"></div>
-            <div class="tab" id="unlock-btn" title="Unlock the overlay (back to edit mode)">&#128275;</div>
             <div class="tab" id="afk-btn" title="AFK watch: loud alert if you're attacked. Click again when you're back.">&#128564; AFK</div>
+            <div class="tab" id="unlock-btn" title="Unlock the overlay (back to edit mode)">&#128275;</div>
           </div>
 
           <!-- METER -->
           <div class="view active" id="view-meter">
-            <div id="spelltimers" style="display:none;flex:none;gap:5px;flex-wrap:wrap;margin-bottom:4px"></div>
             <div id="c-head">
               <span id="c-title">&#9876; Combat</span>
               <span id="c-live">LIVE</span>
@@ -370,6 +443,7 @@
             </div>
             <div id="l-scroll" data-interactive>
               <div id="l-recent-box"></div>
+              <div id="l-sell-box"></div>
               <div class="l-divider">Drop rates (all time)</div>
               <div id="l-mobs"></div>
               <div class="emptymsg" id="l-empty" style="padding:10px 0">No loot recorded yet.<br>Kills and drops are tracked automatically.</div>
@@ -381,10 +455,11 @@
             <div id="k-searchrow">
               <input id="k-query" type="text" placeholder="Search items, mobs, drops&hellip;" spellcheck="false">
               <button class="kbtn" id="k-go">Local</button>
-              <button class="kbtn gold" id="k-wiki" title="Search the wiki online and cache results">Wiki &#8635;</button>
+              <button class="kbtn gold" id="k-wiki" title="Search all online sources (eqlwiki + eqlegendstools) and cache results">Sources &#8635;</button>
             </div>
             <div id="k-scroll">
               <div id="k-results"></div>
+              <div id="k-wishbox"></div>
               <div id="k-zonehead">
                 <span class="zn" id="k-zonename">Zone: unknown</span>
                 <button class="kbtn gold" id="k-zoneupdate" title="Fetch this zone's named drops from the wiki">Update &#8635;</button>
@@ -393,18 +468,24 @@
               <div id="k-zone"></div>
             </div>
             <div id="k-detail">
-              <div id="k-dtitle"></div>
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <div id="k-dtitle" style="flex:1"></div>
+                <button class="kbtn" id="k-wish" title="Wish list: get alerted where this drops and when it drops">☆ Wish</button>
+                <span id="k-dclose-x" title="Close">✕</span>
+              </div>
               <div id="k-upgrade" style="display:none">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <div id="k-tier-row" style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
                   <span style="color:#999;font-size:10.5px">Upgrade tier</span>
                   <input type="range" id="k-tier" min="0" max="10" value="0" step="1" style="flex:1">
                   <span id="k-tierval" style="color:#ffd766;font-weight:700;width:26px">+0</span>
                 </div>
                 <div id="k-stats" style="white-space:pre-wrap;font-family:Consolas,monospace;font-size:10.5px;color:#cfe3cf;background:rgba(255,255,255,.05);border-radius:6px;padding:6px 8px;margin-bottom:6px"></div>
               </div>
+              <div id="k-ddrops" style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin:2px 0 4px;flex:none;max-height:64px;overflow-y:auto"></div>
               <div id="k-dtext"></div>
+              <div id="k-sources"></div>
               <div id="k-dbtns">
-                <button class="kbtn gold" id="k-dupdate">Update from wiki &#8635;</button>
+                <button class="kbtn gold" id="k-dupdate" title="Fetch this item from eqlwiki AND search eqlegendstools' databases, then cache both locally">Update from sources &#8635;</button>
                 <button class="kbtn" id="k-dclose">Close</button>
               </div>
             </div>
@@ -422,8 +503,46 @@
               <datalist id="t-suggest"></datalist>
               <button class="kbtn gold" id="t-addbtn">★ Camp</button>
             </div>
+            <div style="display:flex;gap:4px;margin-bottom:5px">
+              <input id="mt-name" type="text" placeholder="Manual timer label (optional)" spellcheck="false"
+                     style="flex:1;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 8px;font-size:12px;outline:none">
+              <input id="mt-dur" type="text" placeholder="1:30" spellcheck="false" title="Seconds (90), m:ss (1:30), or 5m / 2h"
+                     style="width:56px;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 8px;font-size:12px;outline:none;text-align:center">
+              <button class="kbtn gold" id="mt-start" title="Start a countdown chip (visible on every tab). Click the chip to cancel it.">&#9201; Start</button>
+            </div>
             <div id="t-rows" style="flex:1;min-height:0;overflow-y:auto;padding-right:4px"></div>
             <div class="emptymsg" id="t-empty">Every kill starts a repop timer automatically.<br>★ a row (or add a camp above) to pin it to the<br>camp bar and get alerts when it's due.<br>Timers use the wiki's zone spawn time, or learn<br>the cycle from your second kill of the same mob.</div>
+          </div>
+
+          <!-- QUESTS (Plane of Sky) -->
+          <div class="view" id="view-quests" data-interactive>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+              <span style="color:#ffd766;font-weight:600;font-size:12px">Quests</span>
+              <select id="q-zone" title="Which zone's quests to show. Auto follows you as you zone." style="flex:1;min-width:0;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px">
+                <option value="">Current zone (auto)</option>
+              </select>
+              <span id="q-progress" style="color:#888;font-size:10px"></span>
+              <button class="kbtn gold" id="q-import" title="Check off quest items you already own from an inventory dump">Import inventory</button>
+            </div>
+            <div id="q-help" style="color:#888;font-size:10px;line-height:1.45;margin-bottom:4px">
+              Import: in game type <b style="color:#bbb">/outputfile inventory</b> (or <b style="color:#bbb">/outputfile inventory myname.txt</b> per character),
+              then click Import and pick the file from your EverQuest Legends folder — items you already own get checked off.
+              <span style="color:#7da7d9">💠 Wind Runes convert to currency and won't appear in the file unless they're physically in your bags</span> —
+              runes check off automatically as you loot them, or click them by hand.
+            </div>
+            <div id="q-classes" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px"></div>
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:5px">
+              <select id="q-isle" style="background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px">
+                <option value="">All isles</option>
+              </select>
+              <label style="color:#aaa;font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer">
+                <input type="checkbox" id="q-hidedone"> hide completed
+              </label>
+              <span style="flex:1"></span>
+              <span id="q-runehint" style="color:#888;font-size:10px" title="Wind Runes drop from trash mobs anywhere in the plane"></span>
+            </div>
+            <div id="q-list" style="flex:1;min-height:0;overflow-y:auto;padding-right:4px"></div>
+            <div class="emptymsg" id="q-empty" style="display:none"></div>
           </div>
 
           <!-- MAP -->
@@ -443,6 +562,8 @@
 
           <div id="text" spellcheck="false"></div>
 
+          <!-- spell + manual timer chips: visible on every tab -->
+          <div id="spelltimers" data-interactive style="display:none;flex:none;gap:5px;flex-wrap:wrap;padding-top:2px"></div>
           <!-- camp bar: pinned timers, visible on every tab -->
           <div id="campbar" data-interactive style="display:none;flex:none;gap:5px;flex-wrap:wrap;padding-top:2px"></div>
 
@@ -535,6 +656,14 @@
 
       <details>
         <summary>📖 Wiki &amp; Data</summary>
+        <label>SEQO updates (GitHub)</label>
+        <input type="text" id="upd-repo" placeholder="yourname/seqo" spellcheck="false" style="margin-bottom:4px" title="The GitHub repository SEQO checks for new releases">
+        <div class="row"><input type="checkbox" id="autoupdcheck"><span>Check for a new SEQO release at launch</span></div>
+        <div class="row" style="margin-top:2px">
+          <span id="appupd-status" style="flex:1;color:#bbb;font-size:11px"></span>
+          <button id="btn-appupd">Check now</button>
+          <button id="btn-appupd-get" style="display:none">Get update ⬆</button>
+        </div>
         <div class="row"><input type="checkbox" id="autozone"><span>Auto-fetch zone data on zone entry</span></div>
         <label>Game database</label>
         <div class="row" style="margin-top:2px">
@@ -583,6 +712,7 @@
   </div>
 
 <script src="parser.js"></script>
+<script src="posquests.js"></script>
 <script src="zones.js"></script>
 <script src="worldmap.js"></script>
 <script src="buffs.js"></script>
@@ -722,19 +852,47 @@
         let mob = ev.mob;
         if (!mob && lastCorpse && ev.when - lastCorpse.when < 120000) mob = lastCorpse.mob;
         if (mob) window.overlay.recordDrop(mob, ev.item, currentZone);
+        // verdict BEFORE the quest auto-check, so THIS copy isn't judged a spare
+        const verdict = lootVerdict(ev.item);
+        // auto-sold-at-loot items ("...and sold it for...") never need vendoring
+        if (!ev.soldFor && (verdict.kind === 'junk' || verdict.kind === 'sell' || verdict.kind === 'spare'))
+          addToSellList(ev.item, verdict.kind === 'junk' ? 'on your junk list' : verdict.reason);
+        posQuestLoot(ev.item);
         if (ev.mob) lastCorpse = { mob: ev.mob, when: ev.when };
-        recentDrops.unshift({ item: ev.item, mob: mob || '(unknown)' });
+        recentDrops.unshift({ item: ev.item, mob: mob || '(unknown)', verdict });
         recentDrops = recentDrops.slice(0, 8);
         if (ev.soldFor) sessionCoin += ev.soldFor;
-        toast('\u{1F4B0} ' + ev.item + (mob ? '  —  ' + mob : ''));
+        // notable-only toasts: personal keep/junk speak up; quest keeps already
+        // toast via the quest tracker; everything else stays quiet
+        if (verdict.kind === 'wish')
+          alertFX('🌟 WISH LIST DROP: ' + ev.item + '!', 'rare');
+        else if (itemVerdicts[verdictKey(ev.item)])
+          toast((verdict.kind === 'junk' ? '🗑 ' : '⭐ ') + ev.item + ' — ' + verdict.label + ' (' + verdict.reason + ')');
+        else
+          toast('\u{1F4B0} ' + ev.item + (mob ? '  —  ' + mob : ''));
         lootDirty = true;
+      } else if (ev.type === 'destroyed') {
+        // destroying an item IS how you dispose of loot: check the sell list off
+        const key = verdictKey(ev.item);
+        const e = sellList[key];
+        if (e) {
+          e.count -= ev.count;
+          if (e.count <= 0) delete sellList[key];
+          pushSellList();
+          toast('💸 ' + ev.item + (ev.count > 1 ? ' ×' + ev.count : '') + ' — off the sell list');
+          if (activeTab === 'loot') renderLoot();
+        }
+      } else if (ev.type === 'consider') {
+        noteMobLevel(ev.mob, ev.level);
+      } else if (ev.type === 'lootfull') {
+        alertFX('🎒 Inventory FULL — item left on the corpse!', 'repop');
       } else if (ev.type === 'coin') {
         sessionCoin += ev.copper;
         lootDirty = true;
       } else if (ev.type === 'zone') {
         currentZoneVariant = ev.variant || '';
         setZone(ev.zone, { autoFetch: true });
-        save({ lastZone: ev.zone });
+        save({ lastZone: cleanZoneName(ev.zone) });
         if (currentZoneVariant) toast('Zone tier: ' + currentZoneVariant + ' — data recorded separately');
       } else if (ev.type === 'loc') {
         onLoc(ev);
@@ -761,6 +919,7 @@
       } else if (ev.type === 'invisdrop') {
         invisAlert('👁 You are VISIBLE!');
       } else if (ev.type === 'wornoffself') {
+        onSpellWornOff(ev.spell);
         if (/invis|camouflage|gather shadows/i.test(ev.spell)) {
           invisAlert('👁 ' + ev.spell + ' wore off — you are VISIBLE!');
         } else if (spellClass[ev.spell] !== 'detrimental') {
@@ -768,7 +927,20 @@
         }
       } else if (ev.type === 'wornoffpet') {
         buffAlert("Pet's buff dropped: " + ev.spell, 'pet:' + ev.spell);
+      } else if (ev.type === 'mezzed') {
+        // AE mez: one landing line per target -> one labeled chip per mob
+        onSpellLanded(mobKey(ev.target), ev.when);
+      } else if (ev.type === 'awakened') {
+        // mez broken by damage: only THAT mob's chip retires
+        onSpellBroken(mobKey(ev.target));
+      } else if (ev.type === 'charmed') {
+        // direct charm landing line: bulletproof charm identity
+        setActiveCharm(mobKey(ev.target));
+        meterDirty = true;
+        toast('🐾 Charmed: ' + mobKey(ev.target));
       } else if (ev.type === 'wornoff') {
+        // a tracked spell wore off one mob: retire that mob's timer chip
+        onSpellWornOff(ev.spell, ev.target);
         // a charm spell wearing off IS a break, whether or not the pet ever spoke
         if (CHARM_SPELLS.has(ev.spell)) {
           alertFX('💔 Charm broke: ' + mobKey(ev.target) + '!', 'charm');
@@ -1063,13 +1235,25 @@
   }
 
   // ---- manual spell timers: "Mesmerization = 42" -> countdown on cast ----
+  // Every cast gets its OWN timer instance (mez on 3 mobs = 3 chips).
+  // A "worn off of X" removes one instance; the rest keep counting.
   let spellTimerConfig = [];        // [{name(lower), label, seconds}]
-  const activeSpellTimers = new Map(); // label -> {expires, seconds, castSpell}
+  let activeSpellTimers = [];       // [{label, cfgName, expires, seconds, castSpell, warned}]
+  const MAX_TIMERS_PER_SPELL = 8;
+
+  // "Mesmerization VI" -> "mesmerization" (rank-insensitive matching)
+  const spellBase = (s) => s.toLowerCase().replace(/ (?:[ivxl]+|\d+)$/, '');
 
   function parseDuration(s) {
     s = s.trim();
     const mmss = /^(\d+):(\d{1,2})$/.exec(s);
     if (mmss) return +mmss[1] * 60 + +mmss[2];
+    const suffixed = /^(\d+(?:\.\d+)?)\s*(h|hr|m|min|s|sec)?s?\.?$/i.exec(s);
+    if (suffixed) {
+      const n = +suffixed[1];
+      const u = (suffixed[2] || 's').toLowerCase();
+      return u.startsWith('h') ? n * 3600 : u.startsWith('m') ? n * 60 : n;
+    }
     const n = parseFloat(s);
     return isNaN(n) ? 0 : n;
   }
@@ -1091,7 +1275,15 @@
       // configured name matches the cast exactly or as a rank prefix
       // ("Mesmerization" tracks "Mesmerization VI")
       if (s === cfg.name || s.startsWith(cfg.name + ' ')) {
-        activeSpellTimers.set(cfg.label, {
+        const count = activeSpellTimers.filter(t => t.label === cfg.label).length;
+        if (count >= MAX_TIMERS_PER_SPELL) {
+          // safety cap: drop the oldest instead of growing forever
+          const oldest = activeSpellTimers.findIndex(t => t.label === cfg.label);
+          if (oldest >= 0) activeSpellTimers.splice(oldest, 1);
+        }
+        activeSpellTimers.push({
+          label: cfg.label,
+          cfgName: cfg.name,
           expires: Date.now() + cfg.seconds * 1000,
           seconds: cfg.seconds,
           castSpell: spell,
@@ -1103,43 +1295,109 @@
   }
 
   function onCastFail(spell) {
-    // the cast never landed: kill any timer just started for it
-    for (const [label, t] of activeSpellTimers) {
+    // the cast never landed: kill the NEWEST young timer for it
+    // (one fail = one cast; older instances are still live on their mobs)
+    for (let i = activeSpellTimers.length - 1; i >= 0; i--) {
+      const t = activeSpellTimers[i];
+      if (t.manual) continue;   // hand-started timers ignore cast failures
       if (spell === null || t.castSpell.toLowerCase() === spell.toLowerCase()) {
-        // only cancel if the timer is young (a fail refers to the recent cast)
-        if (Date.now() - (t.expires - t.seconds * 1000) < 15000) activeSpellTimers.delete(label);
+        if (Date.now() - (t.expires - t.seconds * 1000) < 15000) {
+          activeSpellTimers.splice(i, 1);
+          break;
+        }
       }
     }
     renderSpellTimers();
   }
 
+  function onSpellWornOff(spell, target) {
+    // "Your Mesmerization spell has worn off of X." - retire X's chip when we
+    // have per-target chips; otherwise fall back to the oldest generic chip.
+    // Wear-off lines may omit the rank, so match rank-insensitively.
+    const base = spellBase(spell);
+    const matches = (t) => !t.manual && (spellBase(t.castSpell) === base || t.cfgName === base);
+    const tk = target ? mobKey(target) : null;
+    let i = tk ? activeSpellTimers.findIndex(t => matches(t) && t.target === tk) : -1;
+    if (i < 0) i = activeSpellTimers.findIndex(t => matches(t) && !t.target);
+    if (i < 0 && !tk) i = activeSpellTimers.findIndex(matches);
+    if (i >= 0) { activeSpellTimers.splice(i, 1); renderSpellTimers(); }
+  }
+
+  // AE-landing spells (mez): "X has been mesmerized." names each target,
+  // so chips become per-mob - the generic chip from the cast is replaced.
+  function onSpellLanded(target, when) {
+    if (!lastYouCast || (when - lastYouCast.when) > 8000) return;
+    const s = lastYouCast.spell.toLowerCase();
+    const cfg = spellTimerConfig.find(c => s === c.name || s.startsWith(c.name + ' '));
+    if (!cfg) return;
+    // retire the untargeted chip this cast created
+    const gi = activeSpellTimers.findIndex(t => !t.manual && !t.target &&
+      t.castSpell.toLowerCase() === s);
+    if (gi >= 0) activeSpellTimers.splice(gi, 1);
+    // fresh landing on an already-mezzed mob refreshes its chip
+    const existing = activeSpellTimers.find(t => t.target === target && t.cfgName === cfg.name);
+    if (existing) { existing.expires = Date.now() + cfg.seconds * 1000; existing.warned = false; }
+    else activeSpellTimers.push({
+      label: cfg.label, cfgName: cfg.name, target,
+      expires: Date.now() + cfg.seconds * 1000, seconds: cfg.seconds,
+      castSpell: lastYouCast.spell, warned: false
+    });
+    renderSpellTimers();
+  }
+
+  function onSpellBroken(target) {
+    const before = activeSpellTimers.length;
+    activeSpellTimers = activeSpellTimers.filter(t => t.target !== target);
+    if (activeSpellTimers.length !== before) renderSpellTimers();
+  }
+
   function renderSpellTimers() {
     const bar = $('spelltimers');
-    if (!activeSpellTimers.size) { bar.style.display = 'none'; return; }
+    if (!activeSpellTimers.length) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
     bar.innerHTML = '';
     const now = Date.now();
-    for (const [label, t] of activeSpellTimers) {
+    // soonest-to-expire first: the leftmost chip is the next re-cast you owe
+    for (const t of [...activeSpellTimers].sort((a, b) => a.expires - b.expires)) {
       const left = (t.expires - now) / 1000;
       const chip = document.createElement('span');
       chip.className = 'stchip' + (left <= 6 ? ' low' : '');
-      chip.innerHTML = '⏱ <span class="sn"></span><span class="st"></span>';
-      chip.querySelector('.sn').textContent = label;
+      chip.innerHTML = (t.manual ? '⏲ ' : '⏱ ') + '<span class="sn"></span><span class="st"></span>';
+      chip.querySelector('.sn').textContent = t.target
+        ? t.label + ' · ' + t.target.replace(/^(?:a|an|the) /i, '')
+        : t.label;
+      if (t.target) chip.title = t.castSpell + ' on ' + t.target;
       chip.querySelector('.st').textContent = left > 0 ? fmtDur(Math.max(0, left)) : 'UP!';
+      if (t.manual) {
+        chip.title = 'Manual timer — click to cancel';
+        chip.style.cursor = 'pointer';
+        chip.addEventListener('click', () => {
+          activeSpellTimers = activeSpellTimers.filter(x => x !== t);
+          renderSpellTimers();
+        });
+      }
       bar.appendChild(chip);
     }
   }
 
+  function startManualTimer(label, seconds) {
+    activeSpellTimers.push({
+      label: label || 'Timer', cfgName: null, manual: true,
+      expires: Date.now() + seconds * 1000, seconds, castSpell: '', warned: false
+    });
+    renderSpellTimers();
+  }
+
   setInterval(() => { // countdowns + expiry alerts
-    if (!activeSpellTimers.size) return;
+    if (!activeSpellTimers.length) return;
     const now = Date.now();
-    for (const [label, t] of activeSpellTimers) {
+    for (const t of activeSpellTimers) {
       if (!t.warned && now >= t.expires) {
         t.warned = true;
-        alertFX('⏱ ' + label + ' timer up!', 'repop');
+        alertFX('⏱ ' + t.label + (t.target ? ' up: ' + t.target.replace(/^(?:a|an|the) /i, '') + '!' : ' timer up!'), 'repop');
       }
-      if (now - t.expires > 5000) activeSpellTimers.delete(label); // linger 5s then clear
     }
+    activeSpellTimers = activeSpellTimers.filter(t => now - t.expires <= 5000); // linger 5s then clear
     renderSpellTimers();
   }, 500);
 
@@ -1329,6 +1587,17 @@
     if (e.key === 'Enter') { addCamp($('t-add').value); $('t-add').value = ''; }
   });
 
+  // manual countdown timers: label + duration -> chip on every tab
+  function mtStart() {
+    const secs = parseDuration($('mt-dur').value);
+    if (!secs || secs <= 0) { toast('Enter a time first — e.g. 90, 1:30, or 5m'); $('mt-dur').focus(); return; }
+    startManualTimer($('mt-name').value.trim(), secs);
+    $('mt-name').value = ''; $('mt-dur').value = '';
+  }
+  $('mt-start').addEventListener('click', mtStart);
+  $('mt-dur').addEventListener('keydown', (e) => { if (e.key === 'Enter') mtStart(); });
+  $('mt-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { $('mt-dur').focus(); } });
+
   // tick: countdowns + due notifications
   setInterval(() => {
     const now = Date.now();
@@ -1341,6 +1610,590 @@
     if (activeTab === 'timers') renderTimers();
     renderCampBar();
   }, 1000);
+
+  // ================= Plane of Sky quest tracker =================
+  const POS = window.EQLPosQuests;
+  const ISLE_ORDER = ['1.5', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+  let posDone = {};                 // reward -> { done: bool, items: {itemName: true} }
+  const qExpanded = new Set();
+  window.overlay.getPosQuests().then((d) => { posDone = d || {}; if (activeTab === 'quests') renderQuests(); });
+
+  const qState = (reward) => posDone[reward] || { done: false, items: {} };
+  function qSave(reward, st) {
+    if (st.done || Object.keys(st.items).length) posDone[reward] = st;
+    else delete posDone[reward];
+    window.overlay.setPosQuest(reward, st);
+  }
+  const qSelClasses = () => (settings && settings.posClasses) || [];
+
+  function renderQuestClasses() {
+    const box = $('q-classes');
+    box.innerHTML = '';
+    const sel = qSelClasses();
+    for (const c of POS.classes) {
+      const chip = document.createElement('span');
+      chip.className = 'q-cls' + (sel.includes(c) ? ' on' : '');
+      chip.textContent = c;
+      chip.addEventListener('click', () => {
+        let next = qSelClasses().slice();
+        if (next.includes(c)) next = next.filter(x => x !== c);
+        else {
+          next.push(c);
+          if (next.length > 3) { const dropped = next.shift(); toast('Up to 3 classes (your multiclass) — dropped ' + dropped); }
+        }
+        save({ posClasses: next });
+        settings.posClasses = next;   // reflect immediately
+        renderQuestClasses(); renderQuests();
+      });
+      box.appendChild(chip);
+    }
+  }
+
+  // lifetime looted counts per quest item (from the shared loot DB)
+  function questLootCounts() {
+    const counts = new Map();
+    for (const m of Object.values(lootDB.mobs || {}))
+      for (const d of Object.values(m.drops || {})) {
+        const k = d.name.toLowerCase();
+        counts.set(k, (counts.get(k) || 0) + d.count);
+      }
+    return counts;
+  }
+
+  function questIsles(q) {
+    const set = new Set();
+    for (const it of q.items) { const i = POS.isleOf(it.loc); if (i) set.add(i); }
+    return set;
+  }
+
+  // which zone the Quests tab is looking at ('' in the select = follow the game)
+  function questZone() {
+    return $('q-zone').value || currentZone || 'Plane of Sky';
+  }
+  const isPosZone = (z) => /plane of sky/i.test(z || '');
+
+  function renderQuests() {
+    const zone = questZone();
+    const pos = isPosZone(zone);
+    // PoS-only controls hide for wiki-listed zones
+    $('q-import').style.display = pos ? '' : 'none';
+    $('q-help').style.display = pos ? '' : 'none';
+    $('q-classes').style.display = 'flex';   // classes matter in every mode
+    $('q-isle').style.display = pos ? '' : 'none';
+    $('q-runehint').style.display = pos ? '' : 'none';
+    if (!pos) { renderWikiQuests(zone); return; }
+
+    const list = $('q-list');
+    list.innerHTML = '';
+    const sel = qSelClasses();
+    setQuestEmpty(sel.length ? '' :
+      'Pick your class(es) above to see their\nPlane of Sky turn-in quests.\nItems check off automatically as you loot them;\nclick a quest\'s ✓ when you turn it in.');
+    $('q-runehint').textContent = 'Wind Runes: trash mobs';
+    if (!sel.length) { $('q-progress').textContent = ''; return; }
+
+    const isle = $('q-isle').value;
+    const hideDone = $('q-hidedone').checked;
+    const counts = questLootCounts();
+    let total = 0, done = 0;
+
+    for (const cls of sel) {
+      const qs = POS.quests.filter(q => q.cls === cls);
+      const div = document.createElement('div');
+      div.className = 'l-divider';
+      div.textContent = cls + ' — ' + qs[0].npc;
+      list.appendChild(div);
+
+      for (const q of qs) {
+        const st = qState(q.reward);
+        total++; if (st.done) done++;
+        if (st.done && hideDone) continue;
+        if (isle && !questIsles(q).has(isle)) continue;
+
+        const got = q.items.filter(it => st.items[it.name]).length;
+        const ready = !st.done && got === q.items.length;
+
+        const card = document.createElement('div');
+        card.className = 'q-quest' + (st.done ? ' done' : ready ? ' ready' : '');
+
+        const head = document.createElement('div');
+        head.className = 'q-head';
+        head.innerHTML = '<span>' + (qExpanded.has(q.reward) ? '▾' : '▸') +
+          '</span><span class="rw itemlink"></span><span class="st"></span><span class="q-donebtn" title="Mark turned in / not turned in">✓</span>';
+        head.querySelector('.rw').textContent = q.reward;
+        head.querySelector('.st').textContent = st.done ? 'TURNED IN' : ready ? 'READY — see ' + q.npc : got + '/' + q.items.length;
+        head.querySelector('.rw').addEventListener('click', (e) => { e.stopPropagation(); openItemLink(q.reward); });
+        head.querySelector('.q-donebtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const s = qState(q.reward);
+          qSave(q.reward, { ...s, done: !s.done });
+          renderQuests();
+        });
+        head.addEventListener('click', () => {
+          qExpanded.has(q.reward) ? qExpanded.delete(q.reward) : qExpanded.add(q.reward);
+          renderQuests();
+        });
+        card.appendChild(head);
+
+        if (qExpanded.has(q.reward)) {
+          const npc = document.createElement('div');
+          npc.className = 'q-npc';
+          npc.textContent = 'Turn in to ' + q.npc;
+          card.appendChild(npc);
+          const box = document.createElement('div');
+          box.className = 'q-items';
+          for (const it of q.items) {
+            const row = document.createElement('div');
+            const have = !!st.items[it.name];
+            const isRune = /^Wind Rune /.test(it.name);
+            row.className = 'q-it' + (have ? ' have' : '');
+            const looted = counts.get(it.name.toLowerCase()) || 0;
+            row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') +
+              '</span><span class="nm itemlink"></span>' + (isRune ? '<span class="rune">💠</span>' : '') +
+              (looted ? '<span class="cnt">×' + looted + ' looted</span>' : '') +
+              '<span class="loc"></span>';
+            row.querySelector('.nm').textContent = it.name;
+            row.querySelector('.loc').textContent = it.loc;
+            row.title = (isRune ? 'Currency: not visible to inventory import — loot it or check by hand. ' : '') +
+                        it.loc + ' — click ☐ to check off, click the name for item details';
+            // name opens the item in the Wiki tab; anywhere else toggles collected
+            row.querySelector('.nm').addEventListener('click', (e) => { e.stopPropagation(); openItemLink(it.name); });
+            row.addEventListener('click', () => {
+              const s = qState(q.reward);
+              const items = { ...s.items };
+              if (items[it.name]) delete items[it.name]; else items[it.name] = true;
+              qSave(q.reward, { ...s, items });
+              renderQuests();
+            });
+            box.appendChild(row);
+          }
+          card.appendChild(box);
+        }
+        list.appendChild(card);
+      }
+    }
+    $('q-progress').textContent = done + '/' + total + ' turned in';
+  }
+
+  // ---- loot verdicts: "should I keep this?" ----
+  // Layer 1: your personal keep/junk list (always wins, synced).
+  // Layer 2: the PoS quest database vs your live quest progress.
+  // Unknown items stay quiet — flag them once (⚑) and SEQO remembers.
+  let itemVerdicts = {};   // itemName(lower) -> 'keep' | 'junk'
+  window.overlay.getItemVerdicts().then((v) => { itemVerdicts = v || {}; });
+  const verdictKey = (n) => n.replace(/ \+\d+$/, '').toLowerCase();
+
+  function lootVerdict(itemName) {
+    const key = verdictKey(itemName);
+    if (wishList[key]) return { kind: 'wish', label: 'WISH', reason: 'on your wish list!' };
+    if (itemVerdicts[key] === 'keep') return { kind: 'keep', label: 'KEEP', reason: 'on your keep list' };
+    if (itemVerdicts[key] === 'junk') return { kind: 'junk', label: 'JUNK', reason: 'on your junk list' };
+    const sel = qSelClasses();
+    const others = new Set();
+    let dup = null, doneQ = null;
+    for (const q of POS.quests) {
+      const it = q.items.find(x => x.name.toLowerCase() === key);
+      if (!it) continue;
+      if (sel.includes(q.cls)) {
+        const st = qState(q.reward);
+        if (!st.done && !st.items[it.name]) {
+          const got = q.items.filter(i => st.items[i.name]).length;
+          return { kind: 'keep', label: 'KEEP', reason: q.reward + ' (' + (got + 1) + '/' + q.items.length + ')' };
+        }
+        if (!st.done) dup = q.reward; else doneQ = q.reward;
+      } else others.add(q.cls);
+    }
+    if (dup) return { kind: 'spare', label: 'SPARE', reason: 'already collected for ' + dup };
+    if (doneQ) return { kind: 'sell', label: 'SELLABLE', reason: doneQ + ' already turned in' };
+    if (others.size) return { kind: 'other', label: 'OTHER CLASS', reason: 'PoS quest for ' + [...others].join(', ') };
+    return { kind: 'unknown', label: '', reason: '' };
+  }
+
+  // ---- vendor sell list: fills itself from verdicts; click a row when sold ----
+  let sellList = {};   // key -> { name, count, reason }
+  window.overlay.getSellList().then((l) => { sellList = l || {}; });
+  const pushSellList = () => window.overlay.setSellList(sellList);
+
+  function addToSellList(itemName, reason, n) {
+    const key = verdictKey(itemName);
+    const e = sellList[key] || (sellList[key] = { name: itemName.replace(/ \+\d+$/, ''), count: 0, reason });
+    e.count += (n || 1);
+    e.reason = reason;   // freshest reason wins
+    pushSellList();
+    if (activeTab === 'loot') renderLoot();
+  }
+
+  function renderSellList() {
+    const box = $('l-sell-box');
+    box.innerHTML = '';
+    const entries = Object.entries(sellList);
+    if (!entries.length) return;
+    const head = document.createElement('div');
+    head.className = 'l-divider';
+    head.style.display = 'flex'; head.style.alignItems = 'baseline'; head.style.gap = '8px';
+    head.innerHTML = '<span style="flex:1">Sell list (' + entries.reduce((a, [,e]) => a + e.count, 0) +
+      ')</span><button class="kbtn" id="l-sellscan" title="Add sellables already in your bags: type /outputfile inventory in game, then pick the file">Scan inventory</button>' +
+      '<button class="kbtn" id="l-sellclear" title="Empty the whole sell list">Clear</button>';
+    box.appendChild(head);
+    for (const [key, e] of entries.sort((a, b) => a[1].name.localeCompare(b[1].name))) {
+      const row = document.createElement('div');
+      row.className = 'l-item sell-row';
+      row.title = e.reason + ' — click when sold';
+      row.innerHTML = '<span class="nm"></span><span class="why"></span>';
+      row.querySelector('.nm').textContent = e.name + (e.count > 1 ? '  ×' + e.count : '');
+      row.querySelector('.why').textContent = e.reason;
+      row.addEventListener('click', () => {
+        delete sellList[key];
+        pushSellList();
+        toast('💸 Sold: ' + e.name + (e.count > 1 ? ' ×' + e.count : ''));
+        renderLoot();
+      });
+      box.appendChild(row);
+    }
+    $('l-sellscan').addEventListener('click', scanInventoryForSellables);
+    $('l-sellclear').addEventListener('click', () => { sellList = {}; pushSellList(); renderLoot(); });
+  }
+
+  // inventory scan: junk-flagged items + items whose quest is already turned in.
+  // (Held quest pieces for OPEN quests are your collected copies - never listed.)
+  async function scanInventoryForSellables() {
+    const res = await window.overlay.importInventory();
+    if (!res) return;
+    if (res.error) { toast('Scan failed: ' + res.error); return; }
+    const have = new Map();
+    for (const line of res.text.split(/\r?\n/)) {
+      const cols = line.split('\t');
+      if (cols.length < 2 || cols[1] === 'Name' || cols[1] === 'Empty' || !cols[1]) continue;
+      const k = cols[1].trim().replace(/ \+\d+$/, '');
+      have.set(k, (have.get(k) || 0) + (+(cols[3] || 1) || 1));
+    }
+    let added = 0;
+    for (const [name, count] of have) {
+      const key = verdictKey(name);
+      if (sellList[key]) continue;             // already listed
+      if (itemVerdicts[key] === 'junk') { addToSellList(name, 'on your junk list', count); added++; continue; }
+      if (itemVerdicts[key] === 'keep') continue;
+      const v = lootVerdict(name);
+      if (v.kind === 'sell') { addToSellList(name, v.reason, count); added++; }
+    }
+    toast(added ? '🧾 Sell list: ' + added + ' item' + (added === 1 ? '' : 's') + ' added from your bags'
+                : 'Nothing sellable found in that inventory file.');
+  }
+
+  // ---- wish list: items/spells you're hunting ----
+  let wishList = {};   // key -> { name, added }
+  window.overlay.getWishList().then((l) => { wishList = l || {}; });
+  const pushWishList = () => window.overlay.setWishList(wishList);
+  const isWished = (n) => !!wishList[verdictKey(n)];
+
+  function toggleWish(name) {
+    if (!name) return;
+    const key = verdictKey(name);
+    if (wishList[key]) { delete wishList[key]; toast('☆ Removed from wish list: ' + name); }
+    else { wishList[key] = { name: name.replace(/ \+\d+$/, ''), added: Date.now() }; toast('🌟 Added to wish list: ' + name); }
+    pushWishList();
+    updateWishBtn();
+    renderWishList();
+  }
+
+  function updateWishBtn() {
+    const b = $('k-wish');
+    const on = detailName && isWished(detailName);
+    b.textContent = on ? '★ Wished' : '☆ Wish';
+    b.classList.toggle('gold', !!on);
+  }
+
+  // where can a wished item come from? your own drop history + PoS + cached wiki
+  function wishObservedSources(key) {
+    const out = [];
+    for (const m of Object.values(lootDB.mobs || {})) {
+      for (const d of Object.values(m.drops || {})) {
+        if (d.name.toLowerCase() !== key) continue;
+        out.push({ mob: m.name, zone: m.zone || '', count: d.count, kills: m.kills || 0 });
+      }
+    }
+    return out.sort((a, b) => (b.count / Math.max(1, b.kills)) - (a.count / Math.max(1, a.kills)));
+  }
+
+  async function wishSourceText(e) {
+    const key = verdictKey(e.name);
+    const lines = [];
+    for (const s of wishObservedSources(key).slice(0, 2)) {
+      const pct = s.kills ? (s.count / s.kills * 100) : 0;
+      lines.push('seen: ' + s.mob + (s.zone ? ' — ' + s.zone : '') + '  ' + s.count + '/' + s.kills +
+                 (s.kills ? ' (' + (pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)) + '%)' : ''));
+    }
+    const pq = POS.quests.find(q => q.reward.toLowerCase() === key);
+    if (pq) {
+      lines.push('PoS quest (' + pq.cls + ') — turn in to ' + pq.npc + ':');
+      for (const i of pq.items) {
+        const st = qState(pq.reward);
+        lines.push((st.items[i.name] ? ' ☑ ' : ' ☐ ') + i.name + ' — ' + i.loc);
+      }
+    }
+    // a wished QUEST (from the class index): show which zones it involves
+    const qi = questIndex && questIndex.quests &&
+      questIndex.quests.find(q => q.title.toLowerCase() === key);
+    if (qi && qi.zones.length) lines.push('quest zones (' + qi.cls + '): ' + qi.zones.join(', '));
+    const cached = await window.overlay.getItemData(e.name);
+    if (cached && cached.dropsfrom) lines.push('wiki: drops from ' + cached.dropsfrom);
+    return lines.length ? lines.join('\n') : 'no known source yet — click the name and Update from wiki';
+  }
+
+  let wishSeq = 0;
+  async function renderWishList() {
+    const box = $('k-wishbox');
+    const seq = ++wishSeq;
+    const entries = Object.values(wishList);
+    box.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'l-divider';
+    head.textContent = '🌟 Wish list';
+    box.appendChild(head);
+    if (!entries.length) {
+      const hint = document.createElement('div');
+      hint.style.cssText = 'color:#888;font-size:10.5px;padding:1px 6px 4px';
+      hint.textContent = 'Empty — open any item below and click ☆ Wish to track where it drops and get alerted when it does.';
+      box.appendChild(hint);
+      return;
+    }
+    for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      const row = document.createElement('div');
+      row.className = 'wish-row';
+      row.innerHTML = '<div style="display:flex;gap:6px;align-items:baseline"><span class="itemlink nm"></span>' +
+        '<span style="flex:1"></span><span class="wish-x" title="Remove from wish list">✕</span></div>' +
+        '<div class="wish-src"></div>';
+      row.querySelector('.nm').textContent = e.name;
+      row.querySelector('.nm').addEventListener('click', () => openItem(e.name));
+      row.querySelector('.wish-x').addEventListener('click', () => toggleWish(e.name));
+      box.appendChild(row);
+      wishSourceText(e).then((t) => { if (seq === wishSeq) row.querySelector('.wish-src').textContent = t; });
+    }
+  }
+
+  // zone-entry heads-up: something you wish for drops here (per your history / PoS)
+  const wishZoneToasted = new Set();
+  function wishZoneCheck(zone) {
+    if (!zone || !Object.keys(wishList).length || wishZoneToasted.has(zone)) return;
+    const hits = [];
+    for (const e of Object.values(wishList)) {
+      const key = verdictKey(e.name);
+      const src = wishObservedSources(key).find(s => s.zone && zone.startsWith(s.zone.replace(/ \(.+\)$/, '')));
+      const iq = questIndex && questIndex.quests &&
+        questIndex.quests.find(q => q.title.toLowerCase() === key && q.zones.includes(zone));
+      if (src) hits.push(e.name + ' (' + src.mob + ')');
+      else if (/plane of sky/i.test(zone) && POS.quests.some(q => q.reward.toLowerCase() === key)) hits.push(e.name + ' (PoS quest)');
+      else if (iq) hits.push(e.name + ' (quest here)');
+    }
+    if (hits.length) {
+      wishZoneToasted.add(zone);
+      toast('🌟 Wish list here: ' + hits.slice(0, 3).join(', ') + (hits.length > 3 ? ' +' + (hits.length - 3) : ''));
+    }
+  }
+
+  function cycleItemVerdict(itemName) {
+    const key = verdictKey(itemName);
+    const cur = itemVerdicts[key];
+    const next = cur === 'keep' ? 'junk' : cur === 'junk' ? null : 'keep';
+    if (next) itemVerdicts[key] = next; else delete itemVerdicts[key];
+    window.overlay.setItemVerdict(key, next);
+    toast(next === 'keep' ? '⚑ ' + itemName + ' — always KEEP'
+        : next === 'junk' ? '⚑ ' + itemName + ' — marked JUNK'
+        : '⚑ ' + itemName + ' — flag cleared');
+    renderLoot();
+  }
+
+  function setQuestEmpty(msg) {
+    const el = $('q-empty');
+    el.style.display = msg ? 'flex' : 'none';
+    el.innerHTML = '';
+    if (msg) msg.split('\n').forEach((line, i) => {
+      if (i) el.appendChild(document.createElement('br'));
+      el.appendChild(document.createTextNode(line));
+    });
+  }
+
+  // wiki-listed quests for any other zone: names from the local cache,
+  // persistent ✓ done-state, click a name to read the quest on the Wiki tab
+  const wikiQuestKey = (zone, title) => 'Z|' + zone + '|' + title;
+  let wikiQuestSeq = 0;
+  let questIndex = null;   // { classes, built, quests: [{title, cls, zones}] }
+  window.overlay.getQuestIndex().then((qi) => { questIndex = qi; });
+  window.overlay.onQuestIndexProgress((msg) => {
+    const b = document.getElementById('q-buildindex');
+    if (b) b.textContent = msg;
+  });
+
+  async function buildQuestIndex() {
+    const sel = qSelClasses();
+    if (!sel.length) { toast('Pick your class(es) above first — the index is built from class quest lists.'); return; }
+    const b = $('q-buildindex');
+    if (b) { b.disabled = true; b.textContent = 'Building…'; }
+    const res = await window.overlay.buildQuestIndex(sel);
+    if (res && res.error) toast('⚠ Index build failed: ' + res.error);
+    else toast('📇 Quest index built: ' + res.quests + ' quests, ' + res.zoned + ' matched to zones');
+    questIndex = await window.overlay.getQuestIndex();
+    renderQuests();
+  }
+
+  async function renderWikiQuests(zone) {
+    const seq = ++wikiQuestSeq;              // guard against out-of-order async renders
+    const list = $('q-list');
+    list.innerHTML = '';
+    setQuestEmpty('');
+    const hideDone = $('q-hidedone').checked;
+    const data = await window.overlay.getZoneData(zone);
+    if (seq !== wikiQuestSeq || activeTab !== 'quests' || questZone() !== zone) return;
+
+    const head = document.createElement('div');
+    head.className = 'l-divider';
+    head.style.display = 'flex'; head.style.alignItems = 'baseline'; head.style.gap = '8px';
+    head.innerHTML = '<span style="flex:1"></span>' +
+      '<button class="kbtn" id="q-buildindex" title="Fetch your classes\' quest lists from the wiki and match each quest to its zone(s). One-time; cached and synced.">Index my classes 📇</button>' +
+      '<button class="kbtn gold" id="q-wupdate" title="Fetch this zone\'s quest list from eqlwiki.com">Update ⟳</button>';
+    head.querySelector('span').textContent = zone;
+    list.appendChild(head);
+    $('q-buildindex').addEventListener('click', buildQuestIndex);
+    $('q-wupdate').addEventListener('click', async () => {
+      $('q-wupdate').textContent = 'Fetching…';
+      const res = await window.overlay.updateZoneData(zone, wikiCandidates(zone));
+      if (res && res.error) toast('⚠ ' + res.error);
+      renderQuests();
+    });
+
+    // a quest row shared by both sources (zone page + class index)
+    let done = 0, shown = 0;
+    const addQuestRow = (title, tag) => {
+      const st = qState(wikiQuestKey(zone, title));
+      if (st.done) done++;
+      shown++;
+      if (st.done && hideDone) return;
+      const card = document.createElement('div');
+      card.className = 'q-quest' + (st.done ? ' done' : '');
+      const head2 = document.createElement('div');
+      head2.className = 'q-head';
+      head2.innerHTML = '<span class="rw itemlink"></span>' +
+        (tag ? '<span class="cls"></span>' : '') +
+        '<span class="st"></span><span class="q-donebtn" title="Mark done / not done">✓</span>';
+      head2.querySelector('.rw').textContent = title;
+      if (tag) head2.querySelector('.cls').textContent = tag;
+      head2.querySelector('.st').textContent = st.done ? 'DONE' : '';
+      head2.querySelector('.rw').addEventListener('click', (e) => { e.stopPropagation(); openItemLink(title); });
+      head2.querySelector('.q-donebtn').addEventListener('click', () => {
+        const s = qState(wikiQuestKey(zone, title));
+        qSave(wikiQuestKey(zone, title), { done: !s.done, items: {} });
+        renderQuests();
+      });
+      card.appendChild(head2);
+      list.appendChild(card);
+    };
+
+    const quests = (data && data.quests) || [];
+    for (const title of quests) addQuestRow(title, '');
+
+    // class quest index: quests of YOUR classes the wiki text ties to this zone
+    const sel = qSelClasses();
+    const idx = (questIndex && questIndex.quests || [])
+      .filter(q => (!sel.length || sel.includes(q.cls)) &&
+                   q.zones.includes(zone) && !quests.includes(q.title));
+    if (idx.length) {
+      const d = document.createElement('div');
+      d.className = 'l-divider';
+      d.textContent = 'Class quests involving this zone (' + idx.length + ')';
+      list.appendChild(d);
+      for (const q of idx.sort((a, b) => a.cls.localeCompare(b.cls) || a.title.localeCompare(b.title)))
+        addQuestRow(q.title, q.cls);
+    }
+
+    $('q-progress').textContent = shown ? done + '/' + shown + ' done' : '';
+
+    if (!data && !idx.length)
+      setQuestEmpty('No wiki data cached for "' + zone + '" yet.\nClick Update ⟳ above to fetch its quest list\nfrom eqlwiki.com (one-time, then it\'s local).');
+    else if (!quests.length && !idx.length) {
+      setQuestEmpty('The wiki has no quest list for "' + zone + '" —\nquests there are organized by class, not zone.\nTry 📇 Index my classes above: it scans your classes\'\nquest pages and matches them to zones.');
+      // still give a path forward: full-text wiki search for this zone's quests
+      const btn = document.createElement('button');
+      btn.className = 'kbtn gold';
+      btn.style.margin = '6px auto 0';
+      btn.style.display = 'block';
+      btn.textContent = 'Search the wiki: "' + zone.replace(/^The /, '') + ' quest" ⌕';
+      btn.addEventListener('click', () => {
+        setTab('lookup');
+        $('k-query').value = zone.replace(/^The /, '') + ' quest';
+        runWikiSearch();
+      });
+      list.appendChild(btn);
+    }
+  }
+
+  // auto-mark: a looted item that an unfinished quest (for your classes) needs
+  function posQuestLoot(itemName) {
+    const sel = qSelClasses();
+    if (!sel.length || !itemName) return;
+    const want = itemName.toLowerCase();
+    for (const q of POS.quests) {
+      if (!sel.includes(q.cls)) continue;
+      const st = qState(q.reward);
+      if (st.done) continue;
+      const it = q.items.find(x => x.name.toLowerCase() === want);
+      if (!it || st.items[it.name]) continue;
+      qSave(q.reward, { ...st, items: { ...st.items, [it.name]: true } });
+      toast('📜 Quest item: ' + it.name + ' → ' + q.reward);
+    }
+    if (activeTab === 'quests') renderQuests();
+  }
+
+  // inventory reconcile: /outputfile inventory -> check off what you hold
+  async function importInventory() {
+    const res = await window.overlay.importInventory();
+    if (!res) return;
+    if (res.error) { toast('Import failed: ' + res.error); return; }
+    const have = new Map(); // lower name -> count
+    for (const line of res.text.split(/\r?\n/)) {
+      const cols = line.split('\t');
+      if (cols.length < 2 || cols[1] === 'Name' || cols[1] === 'Empty' || !cols[1]) continue;
+      const k = cols[1].trim().replace(/ \+\d+$/, '').toLowerCase();
+      have.set(k, (have.get(k) || 0) + (+(cols[3] || 1) || 1));
+    }
+    if (!have.size) { toast('That file had no inventory rows — use /outputfile inventory in game.'); return; }
+    const sel = qSelClasses();
+    const scope = sel.length ? POS.quests.filter(q => sel.includes(q.cls)) : POS.quests;
+    let newDone = 0, newItems = 0;
+    for (const q of scope) {
+      const st = qState(q.reward);
+      let changed = false;
+      if (!st.done && have.has(q.reward.toLowerCase())) { st.done = true; newDone++; changed = true; }
+      const items = { ...st.items };
+      for (const it of q.items) {
+        if (!items[it.name] && have.has(it.name.toLowerCase())) { items[it.name] = true; newItems++; changed = true; }
+      }
+      if (changed) qSave(q.reward, { done: st.done, items });
+    }
+    toast('Inventory: ' + newItems + ' quest item' + (newItems === 1 ? '' : 's') + ' found, ' +
+          newDone + ' reward' + (newDone === 1 ? '' : 's') + ' marked turned in');
+    renderQuests();
+  }
+
+  // quests view wiring
+  (function initQuests() {
+    const sels = $('q-isle');
+    for (const i of ISLE_ORDER) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = 'Isle ' + i;
+      sels.appendChild(o);
+    }
+    sels.addEventListener('change', renderQuests);
+    const zsel = $('q-zone');
+    const names = ['Plane of Sky', ...Object.keys(EQLZones.zones)].sort();
+    for (const z of [...new Set(names)]) {
+      const o = document.createElement('option');
+      o.value = z; o.textContent = z;
+      zsel.appendChild(o);
+    }
+    zsel.addEventListener('change', renderQuests);
+    $('q-hidedone').addEventListener('change', renderQuests);
+    $('q-import').addEventListener('click', importInventory);
+    renderQuestClasses();
+  })();
 
   // ================= tabs =================
   let activeTab = 'meter';
@@ -1420,6 +2273,11 @@
       return;
     }
     if (tab.startsWith('feed:')) { handleLogLines([tab.slice(5)]); return; }
+    if (tab.startsWith('mtimer:')) { // dev-only: 'mtimer:Label=1:30'
+      const [l, d] = tab.slice(7).split('=');
+      startManualTimer(l, parseDuration(d || '60'));
+      return;
+    }
     if (tab.startsWith('world')) { // dev-only: 'world' or 'world:targetshort'
       setTab('map');
       if (!worldState.on) $('m-world').click();
@@ -1622,6 +2480,7 @@
   // ================= render: loot =================
   function renderLoot() {
     $('l-coin').textContent = sessionCoin ? 'Session coin: ' + fmtCoin(sessionCoin) : '';
+    renderSellList();
 
     const rec = $('l-recent-box');
     rec.innerHTML = '';
@@ -1638,6 +2497,21 @@
         a.textContent = d.item;
         a.addEventListener('click', () => openItemLink(d.item));
         div.appendChild(a);
+        // verdict badge: a user flag set later overrides the loot-time verdict
+        const v = itemVerdicts[verdictKey(d.item)] ? lootVerdict(d.item) : (d.verdict || lootVerdict(d.item));
+        if (v.label) {
+          const b = document.createElement('span');
+          b.className = 'v-badge v-' + v.kind;
+          b.textContent = v.label;
+          b.title = v.reason;
+          div.appendChild(b);
+        }
+        const flag = document.createElement('span');
+        flag.className = 'v-flag' + (itemVerdicts[verdictKey(d.item)] ? ' on' : '');
+        flag.textContent = '⚑';
+        flag.title = 'Flag this item: click cycles always-keep → junk → clear';
+        flag.addEventListener('click', () => cycleItemVerdict(d.item));
+        div.appendChild(flag);
         const m = document.createElement('span');
         m.className = 'mob';
         m.textContent = ' — ' + d.mob;
@@ -1708,10 +2582,24 @@
 
   function setStatus(msg) { $('k-status').textContent = msg || ''; }
 
+  // instance decorations can arrive from old saved settings or /who lines,
+  // not just entry events - sanitize EVERY path into currentZone
+  function cleanZoneName(z) {
+    if (!z) return z;
+    let zone = z.replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+\d+\s*$/, '').trim();
+    const mm = /\s+-\s+(Solo|Duo|Trio|Group|Raid|Party|Heroic|Event)$/i.exec(zone);
+    if (mm) zone = zone.slice(0, mm.index).trim();
+    return zone;
+  }
+
   async function setZone(zone, { autoFetch } = {}) {
+    zone = cleanZoneName(zone);
     currentZone = zone;
     $('k-zonename').textContent = 'Zone: ' + (zone || 'unknown');
     loadMapForZone(zone);
+    // Quests tab in auto mode follows you as you zone
+    if (activeTab === 'quests' && !$('q-zone').value) renderQuests();
+    wishZoneCheck(zone);
     zoneData = zone ? await window.overlay.getZoneData(zone) : null;
     rebuildNamedSet();
     if (!zoneData && zone && autoFetch && settings && settings.autoZoneUpdate) {
@@ -1751,6 +2639,7 @@
   }
 
   function renderZone() {
+    renderWishList();
     const el = $('k-zone');
     el.innerHTML = '';
     if (!zoneData) {
@@ -1820,11 +2709,22 @@
   async function runWikiSearch() {
     const q = $('k-query').value.trim();
     if (!q) return;
-    setStatus('Searching eqlwiki.com…');
+    setStatus('Searching sources…');
     const res = await window.overlay.searchWiki(q);
     if (res.error) { setStatus('⚠ ' + res.error); return; }
     setStatus('');
-    renderResults((res.titles || []).map(t => ({ kind: 'wiki', name: t, detail: 'wiki page — click to fetch & cache' })), q);
+    const results = (res.titles || []).map(t =>
+      ({ kind: 'wiki', name: t, detail: 'eqlwiki — click to fetch & cache' }));
+    const seen = new Set(results.map(r => r.name.toLowerCase()));
+    for (const t of res.tools || []) {
+      for (const line of t.lines) {
+        const name = line.split(' | ')[0].replace(/ \+\d+$/, '').trim() || q;
+        if (seen.has(name.toLowerCase())) continue;
+        seen.add(name.toLowerCase());
+        results.push({ kind: 'tools', name, detail: 'eqlegendstools · ' + t.source, page: name });
+      }
+    }
+    renderResults(results, q);
   }
 
   function renderResults(results, q) {
@@ -1832,13 +2732,13 @@
     el.innerHTML = '';
     if (!results.length) {
       el.innerHTML = '<div class="k-result"><span class="d">No local matches for “' +
-        escapeHtml(q) + '” — try Wiki ⟳ to search online.</span></div>';
+        escapeHtml(q) + '” — try Sources ⟳ to search online.</span></div>';
       return;
     }
     for (const r of results) {
       const div = document.createElement('div');
       div.className = 'k-result';
-      const icon = r.kind === 'seen' ? '💰' : r.kind === 'wiki' ? '🌐' : r.kind === 'mob' ? '👹' : '📦';
+      const icon = r.kind === 'seen' ? '💰' : r.kind === 'wiki' ? '🌐' : r.kind === 'tools' ? '🧰' : r.kind === 'mob' ? '👹' : '📦';
       div.innerHTML = icon + ' <b></b> <span class="d"></span>';
       div.querySelector('b').textContent = r.name;
       div.querySelector('.d').textContent = '— ' + r.detail;
@@ -1891,15 +2791,121 @@
     if (cached.statsblock) {
       detailStats = cached.statsblock;
       $('k-upgrade').style.display = 'block';
+      $('k-tier-row').style.display = 'flex';
       $('k-tier').value = 0;
       renderTier();
+    } else if (cached.mobsheet) {
+      // mob/god statsheet: same box, no upgrade slider
+      $('k-upgrade').style.display = 'block';
+      $('k-tier-row').style.display = 'none';
+      $('k-stats').textContent = cached.mobsheet;
+      $('k-dtitle').textContent = cached.pageTitle || detailName;
     } else {
       $('k-upgrade').style.display = 'none';
       $('k-dtitle').textContent = cached.pageTitle || detailName;
     }
-    $('k-dtext').textContent =
-      (cached.dropsfrom ? 'Drops from: ' + cached.dropsfrom + '\n\n' : '') +
-      cached.text + '\n\n(cached ' + new Date(cached.updated).toLocaleDateString() + ')';
+    // mob/boss loot table: clickable chips (from the wiki's Loot/Drops sections)
+    const dd = $('k-ddrops');
+    dd.innerHTML = '';
+    if ((cached.dropsList || []).length) {
+      const lbl = document.createElement('span');
+      lbl.style.cssText = 'color:#777;font-size:10px;margin-right:2px';
+      lbl.textContent = 'Known loot:';
+      dd.appendChild(lbl);
+      for (const it of cached.dropsList) {
+        const c = document.createElement('span');
+        c.className = 'q-cls';
+        c.textContent = it;
+        c.title = 'Open ' + it;
+        c.addEventListener('click', () => openItem(it));
+        dd.appendChild(c);
+      }
+    }
+
+    // per-source sections, each credited
+    const sections = [];
+    // your own kill data beats any database
+    {
+      const mobLower = (cached.pageTitle || detailName || '').toLowerCase();
+      const obs = [];
+      const tiers = new Map();   // strength scales D0-D4 with zone difficulty
+      for (const m of Object.values(lootDB.mobs || {})) {
+        if ((m.name || '').toLowerCase() !== mobLower) continue;
+        if (m.kills) {
+          for (const d of Object.values(m.drops || {}))
+            obs.push(d.name + '  ' + d.count + '/' + m.kills +
+              ' (' + (d.count / m.kills * 100).toFixed(d.count / m.kills >= 0.1 ? 0 : 1) + '%)' +
+              (m.zone ? '  — ' + m.zone : ''));
+        }
+        if (m.maxHit || m.hitCount || m.level) {
+          const tl = tierOf(m.zone || '').tier || 'D0 (base)';
+          const t = tiers.get(tl) || { maxHit: 0, hits: 0, total: 0, level: 0 };
+          t.maxHit = Math.max(t.maxHit, m.maxHit || 0);
+          t.hits += m.hitCount || 0;
+          t.total += m.hitTotal || 0;
+          if (m.level) t.level = m.level;
+          tiers.set(tl, t);
+        }
+      }
+      if (obs.length) sections.push({ label: 'Your own kills', body: obs.join('\n') });
+      if (tiers.size) {
+        const lines = [];
+        for (const [tl, t] of [...tiers.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+          lines.push(tl + ':  ' + (t.level ? 'level ' + t.level + ', ' : '') +
+            'max hit ' + (t.maxHit || '—') +
+            (t.hits ? ', avg ' + Math.round(t.total / t.hits) + ' (' + t.hits + ' hits)' : ''));
+        }
+        sections.push({ label: 'Your observations by difficulty', body: lines.join('\n') });
+      }
+    }
+    if (cached.text) {
+      sections.push({ label: 'eqlwiki.com', body:
+        (cached.dropsfrom ? 'Drops from: ' + cached.dropsfrom + '\n\n' : '') + cached.text });
+    } else if (cached.wikiError) {
+      sections.push({ label: 'eqlwiki.com', body: '⚠ ' + cached.wikiError });
+    }
+    for (const t of cached.tools || []) {
+      sections.push({ label: 'eqlegendstools.com · ' + t.source, body: t.lines.join('\n') });
+    }
+    const dt = $('k-dtext');
+    dt.innerHTML = '';
+    if (!sections.length) dt.textContent = 'No source had data for this item.';
+    for (const s of sections) {
+      const h = document.createElement('div');
+      h.className = 'k-sect-h';
+      h.textContent = s.label;
+      const b = document.createElement('div');
+      b.className = 'k-sect-b';
+      b.textContent = s.body;
+      dt.appendChild(h); dt.appendChild(b);
+    }
+    const c = document.createElement('div');
+    c.className = 'k-cached';
+    c.textContent = 'cached ' + new Date(cached.updated).toLocaleDateString();
+    dt.appendChild(c);
+  }
+
+  // community databases: credited deep links that open in the default
+  // browser. SEQO stays local-first; these are the "go deeper" buttons.
+  const ITEM_SOURCES = [
+    { name: 'eqlwiki',        url: (q) => 'https://eqlwiki.com/index.php?search=' + encodeURIComponent(q) },
+    { name: 'EQLBase',        url: (q) => 'https://eqlbase.com/items/?q=' + encodeURIComponent(q) },
+    { name: 'EQ Legends Tools', url: (q) => 'https://eqlegendstools.com/?s=' + encodeURIComponent(q) },
+    { name: 'Loadout Legends', url: (q) => 'https://www.loadoutlegends.com/database?search=' + encodeURIComponent(q) },
+    { name: 'Gnoll Guard',    url: (q) => 'https://www.gnollguard.com/items?search=' + encodeURIComponent(q) }
+  ];
+
+  function renderItemSources(name) {
+    const box = $('k-sources');
+    box.innerHTML = '<span style="color:#777;font-size:10px;margin-right:2px">Look up on:</span>';
+    for (const s of ITEM_SOURCES) {
+      const b = document.createElement('span');
+      b.className = 'q-cls';
+      b.textContent = s.name + ' ↗';
+      b.title = 'Search "' + name + '" on ' + s.name + ' (opens your browser). Community database — all credit to its maintainers.';
+      b.addEventListener('click', () => window.overlay.openExternal(s.url(name)));
+      box.appendChild(b);
+    }
   }
 
   async function openItem(name) {
@@ -1908,18 +2914,23 @@
     $('k-dtitle').textContent = name;
     $('k-upgrade').style.display = 'none';
     $('k-detail').classList.add('open');
+    $('k-ddrops').innerHTML = '';
+    updateWishBtn();
+    renderItemSources(name);
     const cached = await window.overlay.getItemData(name);
     if (cached) showItemData(cached);
-    else $('k-dtext').textContent = 'Not in the local database yet.\n\nClick "Update from wiki" to fetch this page once — after that it\'s available offline.';
+    else $('k-dtext').textContent = 'Not in the local database yet.\n\nClick "Update from sources" to fetch it once (eqlwiki + eqlegendstools) — after that it\'s available offline.';
   }
 
   $('k-dupdate').addEventListener('click', async () => {
-    $('k-dtext').textContent = 'Fetching from eqlwiki.com…';
+    $('k-dtext').textContent = 'Fetching from sources… (the first run also caches eqlegendstools\'s databases — that one can take ~30 seconds)';
     const res = await window.overlay.updateItemData(detailName);
     if (res.error) { $('k-dtext').textContent = '⚠ ' + res.error; return; }
     showItemData(res);
   });
   $('k-dclose').addEventListener('click', () => $('k-detail').classList.remove('open'));
+  $('k-dclose-x').addEventListener('click', () => $('k-detail').classList.remove('open'));
+  $('k-wish').addEventListener('click', () => toggleWish(detailName));
   $('k-go').addEventListener('click', runLocalSearch);
   $('k-wiki').addEventListener('click', runWikiSearch);
   $('k-query').addEventListener('keydown', (e) => {
@@ -1952,6 +2963,16 @@
     pendingMobEntry(n).spells.add(spell);
   }
 
+  // /con lines carry the mob's level - free wiki data. Named mobs don't use
+  // articles, so also accept anything currently in the fight's enemy set.
+  function noteMobLevel(name, level) {
+    const n = mobKey(name);
+    if (n === 'You' || petNames.has(n)) return;
+    const enemy = tracker.current && tracker.current.enemies.has(n);
+    if (!isMobName(n) && !enemy) return;   // avoids logging /con of players
+    pendingMobEntry(n).level = level;
+  }
+
   setInterval(() => {
     if (!mobStatsPending.size) return;
     window.overlay.recordMobStats([...mobStatsPending.values()]
@@ -1981,13 +3002,14 @@
         const f = a.drops[d.name] || (a.drops[d.name] = { name: d.name, count: 0 });
         f.count += d.count;
       }
-      if (m.maxHit || m.hitCount || (m.spells || []).length) {
+      if (m.maxHit || m.hitCount || m.level || (m.spells || []).length) {
         const tl = tier || 'D0 (base)';
         let t = a.tiers.get(tl);
-        if (!t) a.tiers.set(tl, t = { maxHit: 0, hits: 0, total: 0, spells: new Set() });
+        if (!t) a.tiers.set(tl, t = { maxHit: 0, hits: 0, total: 0, spells: new Set(), level: 0 });
         t.maxHit = Math.max(t.maxHit, m.maxHit || 0);
         t.hits += m.hitCount || 0;
         t.total += m.hitTotal || 0;
+        if (m.level) t.level = m.level;
         for (const s of m.spells || []) t.spells.add(s);
       }
       const rs = respawnDB[(m.zone || '') + '|' + m.name];
@@ -2016,9 +3038,9 @@
     }
     if (a.tiers.size) {
       t += 'Mob strength by difficulty:\n';
-      t += '{| class="wikitable"\n! Difficulty !! Max hit !! Avg hit !! Sample !! Casts seen\n';
+      t += '{| class="wikitable"\n! Difficulty !! Level !! Max hit !! Avg hit !! Sample !! Casts seen\n';
       for (const [tl, st] of [...a.tiers.entries()].sort((x, y) => x[0].localeCompare(y[0]))) {
-        t += '|-\n| ' + tl + ' || ' + (st.maxHit || '—') +
+        t += '|-\n| ' + tl + ' || ' + (st.level || '—') + ' || ' + (st.maxHit || '—') +
           ' || ' + (st.hits ? Math.round(st.total / st.hits) : '—') +
           ' || ' + st.hits + ' hits || ' +
           ([...st.spells].map(s => '[[' + s + ']]').join(', ') || '—') + '\n';
@@ -2502,6 +3524,7 @@
     else if (activeTab === 'loot') renderLoot();
     else if (activeTab === 'map') { sizeCanvas(); refreshMapPicker(); }
     else if (activeTab === 'timers') renderTimers();
+    else if (activeTab === 'quests') renderQuests();
     else renderZone();
   }
 
@@ -2594,6 +3617,10 @@
     rebuildSpellTimerConfig();
     $('wiki-user').value = settings.wikiUser || '';
     $('wiki-pass').value = settings.wikiPass || '';
+    if (document.activeElement !== $('upd-repo')) $('upd-repo').value = settings.updateRepo || '';
+    $('autoupdcheck').checked = settings.autoCheckUpdates !== false;
+    renderQuestClasses();
+    if (activeTab === 'quests') renderQuests();
     document.body.classList.toggle('show-notes', !!settings.showNotes);
     if (settings.lastZone && !currentZone) setZone(settings.lastZone);
     rescale();
@@ -2705,6 +3732,37 @@
   $('wiki-user').addEventListener('change', (e) => { settings.wikiUser = e.target.value.trim(); window.overlay.updateSettings({ wikiUser: settings.wikiUser }); });
   $('wiki-pass').addEventListener('change', (e) => { settings.wikiPass = e.target.value; window.overlay.updateSettings({ wikiPass: settings.wikiPass }); });
 
+  // ---- SEQO self-update via GitHub Releases ----
+  let updateInfo = null;
+  function showUpdateResult(r) {
+    updateInfo = r;
+    const st = $('appupd-status'), get = $('btn-appupd-get');
+    if (!r) { st.textContent = ''; get.style.display = 'none'; return; }
+    if (r.error) { st.textContent = '⚠ ' + r.error; get.style.display = 'none'; return; }
+    if (r.newer) {
+      st.textContent = '⬆ v' + r.latest + ' available (you have v' + r.current + ')';
+      st.style.color = '#7dffa0';
+      get.style.display = '';
+    } else {
+      st.textContent = '✔ Up to date (v' + r.current + ')';
+      st.style.color = '#bbb';
+      get.style.display = 'none';
+    }
+  }
+  $('upd-repo').addEventListener('change', (e) => save({ updateRepo: e.target.value.trim() }));
+  $('autoupdcheck').addEventListener('change', (e) => save({ autoCheckUpdates: e.target.checked }));
+  $('btn-appupd').addEventListener('click', async () => {
+    $('appupd-status').textContent = 'Checking GitHub…';
+    showUpdateResult(await window.overlay.checkAppUpdate());
+  });
+  $('btn-appupd-get').addEventListener('click', () => {
+    if (updateInfo) window.overlay.openExternal(updateInfo.setupUrl || updateInfo.url);
+  });
+  window.overlay.onAppUpdate((r) => {
+    showUpdateResult(r);
+    alertFX('⬆ SEQO v' + r.latest + ' is available — Settings → Wiki & Data → Get update', 'repop');
+  });
+
   const fmtBytes = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB'
                         : n >= 1024 ? (n / 1024).toFixed(0) + ' KB' : n + ' B';
   async function refreshLogSize() {
@@ -2787,6 +3845,11 @@
     respawnDB = await window.overlay.getRespawns() || {};
     learnedZoneMap = await window.overlay.getZoneMap() || {};
     sourceClass = await window.overlay.getSourceClasses() || {};
+    posDone = await window.overlay.getPosQuests() || {};
+    itemVerdicts = await window.overlay.getItemVerdicts() || {};
+    sellList = await window.overlay.getSellList() || {};
+    wishList = await window.overlay.getWishList() || {};
+    if (activeTab === 'quests') renderQuests();
     // refill the shared pet set in place (the tracker holds a reference to it)
     const freshPets = await window.overlay.getPets() || [];
     petNames.clear();

@@ -101,6 +101,157 @@ async function resolvePage(name) {
 //    [[Thaumaturgist's Robe]] (Rare)"
 // plus bullet lists under Drops/Loot/Named headings.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// eqlegendstools.com: fan-curated item-effect and BiS databases (credit:
+// FlammHammer / Urgar of Halas). Server-rendered pages, cached locally and
+// searched offline - same local-first pattern as the wiki.
+// ---------------------------------------------------------------------------
+const EQLTOOLS_PAGES = [
+  ['Weapon search', 'https://eqlegendstools.com/weapon-search/'],
+  ['BiS gear', 'https://eqlegendstools.com/bis-gear/'],
+  ['Weapon procs', 'https://eqlegendstools.com/weapon-procs/'],
+  ['Focus effects', 'https://eqlegendstools.com/focus-effects/'],
+  ['Clickies', 'https://eqlegendstools.com/clickies/'],
+  ['Worn effects', 'https://eqlegendstools.com/worn-effects/']
+];
+
+function htmlToLines(html) {
+  return String(html)
+    .replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<\/(?:tr|p|div|li|h\d)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/t[dh]>/gi, ' | ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#8217;|&rsquo;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .split('\n').map(l => l.replace(/\s+/g, ' ').replace(/\s*\|\s*$/, '').trim())
+    .filter(l => l.length > 2);
+}
+
+async function fetchEqlToolsPages() {
+  const out = { _updated: Date.now() };
+  for (const [name, url] of EQLTOOLS_PAGES) {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'SEQO/1.1 (personal overlay tool)' } });
+      if (res.ok) out[name] = { url, lines: htmlToLines(await res.text()), updated: Date.now() };
+    } catch { /* offline or page moved - skip */ }
+    await new Promise(r => setTimeout(r, 400)); // be polite
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Mob/god pages are one big {{Namedmobpage}} template - all the data lives in
+// template parameters, which the generic text converter strips. Parse them.
+// ---------------------------------------------------------------------------
+function parseTemplateParams(wikitext, tplName) {
+  const start = String(wikitext || '').indexOf('{{' + tplName);
+  if (start < 0) return null;
+  let depth = 0, i = start;
+  for (; i < wikitext.length - 1; i++) {
+    if (wikitext[i] === '{' && wikitext[i + 1] === '{') { depth++; i++; }
+    else if (wikitext[i] === '}' && wikitext[i + 1] === '}') { depth--; i++; if (!depth) break; }
+  }
+  const body = wikitext.slice(start, Math.max(start, i - 1));
+  const params = {};
+  const re = /\n\|\s*([\w ]+?)\s*=([\s\S]*?)(?=\n\|\s*[\w ]+?\s*=|$)/g;
+  let m;
+  while ((m = re.exec(body))) params[m[1].trim()] = m[2].trim();
+  return params;
+}
+
+function cleanParamValue(v) {
+  return String(v || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(?:ul|ol|b|i|small|span|div)[^>]*>/gi, '')
+    .replace(/<li[^>]*>/gi, '\n• ').replace(/<\/li>/gi, '')
+    .replace(/\[\[([^\]|#]+?)\|([^\]]*)\]\]/g, '$2')
+    .replace(/\[\[([^\]|#]+?)\]\]/g, '$1')
+    .replace(/\{\{[^{}]*\}\}/g, '')
+    .replace(/^=+\s*(.+?)\s*=+\s*$/gm, '\n$1:')   // ===Lore=== -> Lore:
+    .replace(/[}{]+\s*$/g, '')
+    .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+const MOB_FIELDS = [
+  ['level', 'Level'], ['class', 'Class'], ['zone', 'Zone'], ['location', 'Location'],
+  ['respawn_time', 'Respawn'], ['AC', 'AC'], ['HP', 'HP'],
+  ['attacks_per_round', 'Attacks/round'], ['attack_speed', 'Attack speed'],
+  ['damage_per_hit', 'Damage per hit'], ['special', 'Special'],
+  ['agro_radius', 'Aggro radius'], ['run_speed', 'Run speed']
+];
+
+function parseMobPage(wikitext) {
+  const p = parseTemplateParams(wikitext, 'Namedmobpage') ||
+            parseTemplateParams(wikitext, 'Mobpage') ||
+            parseTemplateParams(wikitext, 'NPCpage');
+  if (!p) return null;
+  const sheet = MOB_FIELDS.filter(([k]) => p[k])
+    .map(([k, label]) => label + ': ' + cleanParamValue(p[k])).join('\n');
+  const desc = cleanParamValue(p.description || '').slice(0, 3000);
+  const drops = [];
+  for (const [k, v] of Object.entries(p))
+    if (/loot|drops/i.test(k)) for (const l of extractLinks(v)) drops.push(l.page);
+  return { sheet, desc, drops };
+}
+
+// Mob/boss pages keep loot in "Loot"/"Drops"/"Treasure" sections as links -
+// extract them so the overlay can render a clickable loot table.
+function parseDropSections(wikitext) {
+  const out = new Set();
+  const sections = String(wikitext || '').split(/^(=+[^=\n]+=+)\s*$/m);
+  for (let i = 1; i < sections.length - 1; i += 2) {
+    if (!/loot|drops|treasure|rewards/i.test(sections[i])) continue;
+    for (const l of extractLinks(sections[i + 1])) out.add(l.page);
+  }
+  return [...out].slice(0, 40);
+}
+
+// offline search across the cached tool pages: rows mentioning the item
+function searchEqlTools(pagesCache, itemName) {
+  const want = String(itemName).replace(/ \+\d+$/, '').toLowerCase();
+  if (want.length < 4) return [];
+  const out = [];
+  for (const [name, page] of Object.entries(pagesCache || {})) {
+    if (name.startsWith('_') || !page || !page.lines) continue;
+    const hits = page.lines.filter(l => l.toLowerCase().includes(want)).slice(0, 4);
+    if (hits.length) out.push({ source: name, url: page.url, lines: hits });
+  }
+  return out;
+}
+
+// Fetch raw wikitext for many pages, batched 50 per API call.
+// Returns { title: wikitext }. Missing pages are skipped.
+async function fetchPagesContent(titles) {
+  const out = {};
+  for (let i = 0; i < titles.length; i += 50) {
+    const batch = titles.slice(i, i + 50);
+    const j = await api({
+      action: 'query', prop: 'revisions', rvprop: 'content',
+      titles: batch.join('|'), redirects: '1'
+    });
+    for (const p of Object.values((j.query && j.query.pages) || {})) {
+      const rev = p.revisions && p.revisions[0];
+      const content = rev && (rev['*'] || (rev.slots && rev.slots.main &&
+        (rev.slots.main['*'] || rev.slots.main.content)));
+      if (content) out[p.title] = content;
+    }
+    await new Promise(r => setTimeout(r, 300)); // be polite to the wiki
+  }
+  return out;
+}
+
+// Pull quest links out of any zone-page section whose heading mentions
+// quests ("== Quests ==", "== Related Quests ==", "== Quest Rewards ==" ...).
+function parseZoneQuestSections(wikitext) {
+  const out = new Set();
+  const sections = String(wikitext || '').split(/^(=+[^=\n]+=+)\s*$/m);
+  for (let i = 1; i < sections.length - 1; i += 2) {
+    if (!/quest/i.test(sections[i])) continue;
+    for (const l of extractLinks(sections[i + 1])) out.add(l.page);
+  }
+  return [...out];
+}
+
 function extractLinks(text) {
   const out = [];
   // [[Page]] / [[Page|Label]] links, and {{:Page}} template transclusions
@@ -196,11 +347,14 @@ async function fetchZoneData(zoneName, aliases = []) {
   const rt = /Spawn Timer[^0-9]{0,30}(\d{1,3}):(\d{2})/i.exec(page.wikitext);
   if (rt) respawnSeconds = (+rt[1]) * 60 + (+rt[2]);
 
-  // quests that start in this zone, if the wiki has a category for it
+  // quests for this zone. The wiki organizes quests BY CLASS, so a
+  // "<Zone> Quests" category rarely exists - the reliable source is the
+  // zone page's own quest section(s), when editors have written one.
   let quests = [];
   try {
     quests = await getCategoryMembers(page.title + ' Quests', 100);
   } catch { /* no category or API hiccup - fine */ }
+  if (!quests.length) quests = parseZoneQuestSections(page.wikitext);
 
   return {
     zone: zoneName,
@@ -223,20 +377,43 @@ async function fetchItemData(itemName) {
     .replace(/\[\[([^\]|#]+?)\]\]/g, '$1')
     .trim();
   const dropsfrom = wikitextToText(extractTemplateParam(page.wikitext, 'dropsfrom')).slice(0, 300);
+  const dropsList = parseDropSections(page.wikitext);
+  // mob/god pages: the whole page is a template; recover its data
+  const mob = parseMobPage(page.wikitext);
+  let mobsheet = '';
+  let text = wikitextToText(page.wikitext);
+  if (mob) {
+    mobsheet = mob.sheet;
+    for (const d of mob.drops) if (!dropsList.includes(d)) dropsList.push(d);
+    if (mob.desc && (!text.trim() || !text.includes(mob.desc.slice(0, 40))))
+      text = (mob.desc + '\n\n' + text).trim();
+  }
   return {
+    dropsList,
+    mobsheet,
     name: itemName,
     pageTitle: page.title,
     url: WIKI_PAGE(page.title),
     revid: page.revid,
     statsblock,
     dropsfrom,
-    text: wikitextToText(page.wikitext),
+    text,
     updated: Date.now()
   };
 }
 
 async function searchWiki(query) {
-  return searchTitles(query, 10);
+  // prefixsearch catches partial names ("innoruu" -> Innoruuk) that
+  // full-text search misses; merge both, prefix matches first
+  const [prefix, full] = await Promise.all([
+    api({ action: 'query', list: 'prefixsearch', pssearch: query, pslimit: '8' })
+      .then(j => ((j.query && j.query.prefixsearch) || []).map(p => p.title))
+      .catch(() => []),
+    searchTitles(query, 10).catch(() => [])
+  ]);
+  const merged = [...new Set([...prefix, ...full])].slice(0, 14);
+  if (!merged.length) throw new Error('No wiki matches for "' + query + '"');
+  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -386,6 +563,9 @@ async function wikiEdit({ title, text, newSectionTitle, summary, csrf }) {
 
 module.exports = {
   fetchZoneData, fetchItemData, searchWiki, getLatestRevisions,
-  parseZoneDrops, wikitextToText, extractTemplateParam, downloadMaps,
-  wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE
+  parseZoneDrops, parseZoneQuestSections, wikitextToText, extractTemplateParam,
+  downloadMaps, wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE,
+  getCategoryMembers, fetchPagesContent,
+  fetchEqlToolsPages, searchEqlTools, parseDropSections, EQLTOOLS_PAGES,
+  parseMobPage, parseTemplateParams
 };
