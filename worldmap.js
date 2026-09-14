@@ -21,6 +21,7 @@
     permafrost:  { name: 'Permafrost',         x: 415, y: 150 },
     blackburrow: { name: 'Blackburrow',        x: 330, y: 225 },
     qrg:         { name: 'Surefall Glade',     x: 240, y: 225 },
+    jaggedpine:  { name: 'Jaggedpine Forest',  x: 245, y: 160 },
     qeytoqrg:    { name: 'Qeynos Hills',       x: 300, y: 275 },
     qeynos2:     { name: 'North Qeynos',       x: 230, y: 320 },
     qeynos:      { name: 'South Qeynos',       x: 230, y: 365 },
@@ -35,7 +36,7 @@
     lakerathe:   { name: 'Lake Rathetear',     x: 500, y: 450 },
     arena:       { name: 'Arena',              x: 425, y: 470 },
     rathemtn:    { name: 'Rathe Mountains',    x: 520, y: 510 },
-    gorge:       { name: "Beholder's Maze",    x: 650, y: 260 },
+    beholder:    { name: 'Gorge of King Xorbb', x: 650, y: 260 },
     runnyeye:    { name: 'Runnyeye',           x: 680, y: 315 },
     misty:       { name: 'Misty Thicket',      x: 745, y: 340 },
     rivervale:   { name: 'Rivervale',          x: 745, y: 290 },
@@ -62,6 +63,7 @@
 
     // --- Antonica: desert & south ---
     nro:         { name: 'North Ro',           x: 900, y: 420 },
+    newsebexp:   { name: 'New Sebilis Exped.', x: 985, y: 445 },
     oasis:       { name: 'Oasis of Marr',      x: 880, y: 475 },
     sro:         { name: 'South Ro',           x: 850, y: 530 },
     innothule:   { name: 'Innothule Swamp',    x: 740, y: 560 },
@@ -81,6 +83,7 @@
     kedge:       { name: 'Kedge Keep',         x: 1175, y: 465 },
     unrest:      { name: 'Estate of Unrest',   x: 1290, y: 470 },
     gfaydark:    { name: 'Greater Faydark',    x: 1340, y: 350 },
+    kelethin:    { name: 'Kelethin',           x: 1405, y: 400 },
     crushbone:   { name: 'Crushbone',          x: 1340, y: 285 },
     felwithea:   { name: 'North Felwithe',     x: 1425, y: 330 },
     felwitheb:   { name: 'South Felwithe',     x: 1470, y: 355 },
@@ -105,11 +108,12 @@
   const E = [
     ['halas', 'everfrost'], ['everfrost', 'permafrost'], ['everfrost', 'blackburrow'],
     ['blackburrow', 'qeytoqrg'], ['qeytoqrg', 'qrg'], ['qeytoqrg', 'qeynos2'],
+    ['qrg', 'jaggedpine', 2], ['blackburrow', 'jaggedpine', 2],
     ['qeynos2', 'qeynos'], ['qeynos', 'qcat'], ['qeynos2', 'qcat'], ['qeytoqrg', 'qey2hh1'],
     ['qey2hh1', 'northkarana'], ['northkarana', 'eastkarana'], ['northkarana', 'southkarana'],
     ['southkarana', 'paw'], ['southkarana', 'lakerathe'], ['lakerathe', 'arena'],
-    ['lakerathe', 'rathemtn'], ['rathemtn', 'feerrott'], ['eastkarana', 'gorge'],
-    ['gorge', 'runnyeye'], ['runnyeye', 'misty'], ['misty', 'rivervale'],
+    ['lakerathe', 'rathemtn'], ['rathemtn', 'feerrott'], ['eastkarana', 'beholder'],
+    ['beholder', 'runnyeye'], ['runnyeye', 'misty'], ['misty', 'rivervale'],
     ['rivervale', 'kithicor'], ['eastkarana', 'highpass'], ['highpass', 'highkeep'],
     ['highpass', 'kithicor'], ['kithicor', 'commons'], ['commons', 'befallen'],
     ['commons', 'ecommons'], ['ecommons', 'nektulos'], ['nektulos', 'neriaka'],
@@ -117,13 +121,15 @@
     ['lavastorm', 'soldunga'], ['lavastorm', 'soldungb'], ['lavastorm', 'najena'],
     ['lavastorm', 'soltemple'], ['ecommons', 'freportw'], ['freportw', 'freportn'],
     ['freportw', 'freporte'], ['freportn', 'freporte'], ['ecommons', 'nro'],
-    ['nro', 'freporte'], ['nro', 'oasis'], ['oasis', 'sro'], ['sro', 'innothule'],
+    ['nro', 'freporte'], ['nro', 'oasis'], ['nro', 'newsebexp', 2],
+    ['oasis', 'sro'], ['sro', 'innothule'],
     ['innothule', 'grobb'], ['innothule', 'guktop'], ['guktop', 'gukbottom'],
     ['innothule', 'feerrott'], ['feerrott', 'cazicthule'], ['feerrott', 'oggok'],
     ['feerrott', 'fearplane', 2],
     ['freporte', 'oot', 1], ['oot', 'butcher', 1],
     ['butcher', 'kaladima'], ['kaladima', 'kaladimb'], ['butcher', 'gfaydark'],
     ['butcher', 'cauldron'], ['cauldron', 'kedge'], ['cauldron', 'unrest'],
+    ['gfaydark', 'kelethin', 2],
     ['gfaydark', 'crushbone'], ['gfaydark', 'felwithea'], ['felwithea', 'felwitheb'],
     ['gfaydark', 'lfaydark'], ['lfaydark', 'mistmoore'], ['lfaydark', 'steamfont'],
     ['steamfont', 'akanon'],
@@ -139,6 +145,20 @@
     { x: 95, y: 610, label: 'ODUS' },
     { x: 760, y: 25, label: 'THE PLANES' }
   ];
+
+  // Teleport destinations (classic-era druid rings / wizard spires)
+  const PORTS = {
+    commons:     'Druid ring & Wizard spires',
+    tox:         'Druid ring & Wizard spires',
+    northkarana: 'Druid ring & Wizard spires',
+    gfaydark:    'Wizard spires',
+    soro:        'Druid ring',
+    lavastorm:   'Druid ring',
+    feerrott:    'Druid ring',
+    misty:       'Druid ring',
+    steamfont:   'Druid ring',
+    butcher:     'Druid ring'
+  };
 
   // adjacency for routing
   const ADJ = {};
@@ -171,5 +191,27 @@
     return path;
   }
 
-  return { nodes: N, edges: E, continents: CONTINENTS, route };
+  // closest teleport destination to a zone (BFS, fewest crossings)
+  function nearestPort(from) {
+    if (!N[from]) return null;
+    if (PORTS[from]) return { short: from, dist: 0, kind: PORTS[from] };
+    const seen = new Set([from]);
+    let ring = [from], dist = 0;
+    while (ring.length) {
+      dist++;
+      const next = [];
+      for (const cur of ring) {
+        for (const e of ADJ[cur]) {
+          if (seen.has(e.to)) continue;
+          if (PORTS[e.to]) return { short: e.to, dist, kind: PORTS[e.to] };
+          seen.add(e.to);
+          next.push(e.to);
+        }
+      }
+      ring = next;
+    }
+    return null;
+  }
+
+  return { nodes: N, edges: E, continents: CONTINENTS, route, PORTS, nearestPort };
 });

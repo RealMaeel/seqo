@@ -80,6 +80,8 @@ Your damage by source — melee, each spell, each proc, damage shield — with t
 
 ## 💰 Loot
 
+**▶ Run tracker** (new in 2.1.0): click **Start run** before a personal instance (or any farming session) and SEQO counts every item and every coin split from that moment — a live strip shows duration, coin, item count and coin/hour, updating each second. **End run** freezes the summary (with the item tally) and keeps your recent runs listed below it for comparing clears.
+
 Every kill and every looted item is recorded automatically to a permanent database.
 
 - **Recent drops** as they happen (with an on-screen toast), session coin earned.
@@ -116,11 +118,11 @@ Every item detail also has a **"Look up on"** row — one credited button per co
 
 ## 🗺 Map
 
-Real zone maps with your position — safely.
+A world travel map of all of Norrath — every zone, every connection (⛵ boats, ✦ portals), with **the zone you're standing in glowing green** (zone detection is automatic from the log). **Click any destination** and SEQO highlights the shortest route and spells it out — crossings counted, boats and portals marked.
 
-- Type **/loc** in game (put it on a hotbutton) — every press moves your dot, with a trail and a freshness timer. This is the nParse technique: log-based, ban-safe.
-- Zone maps auto-load on zone entry; resolution self-heals and learns. If a zone isn't recognized, pick its map from the dropdown once — SEQO remembers.
-- **🌍 World** toggles a travel map of all of Norrath: every zone, every connection (⛵ boats, ✦ portals), your location in green. **Click any destination** and SEQO highlights the shortest route and spells it out — crossings counted, boats marked.
+The map matches EQ Legends' actual world: **New Sebilis Expedition** (door in NW North Ro), **Jaggedpine Forest** (teleporters in Surefall Glade and at the bottom of Blackburrow), **Kelethin** as its own zone, and **Gorge of King Xorbb** under its Legends name.
+
+*(The old per-zone /loc dot map is gone as of v2.1.0 — it needed constant /loc pressing to be useful. The world map does the job it was actually used for: "how do I get there?")*
 
 ![World map routing](docs/images/seqo-worldmap.png)
 
@@ -149,9 +151,10 @@ The zone selector defaults to wherever you are (it follows you as you zone) and 
 
 **Plane of Sky** gets the full treatment: every turn-in quest — all 95 rewards across all 16 classes — with the required items, where each one drops, and which Wind Rune the turn-in needs.
 
-- **Pick your classes** (up to 3, your multiclass) — they persist, and the list shows just your quests grouped by class with the turn-in NPC.
+- **Pick your classes** — any number, or the **All** chip for all 16 (progress syncs from your game files either way). They persist, and the list shows your quests grouped by class with the turn-in NPC.
 - **Items check off automatically as you loot them.** SEQO already watches your loot; when a quest piece drops for one of your classes, it's marked and you get a toast. A ×N badge shows how many you've looted all-time.
-- **Import inventory** closes the gap for items you picked up before installing SEQO (or on trades): type `/outputfile inventory` in game, click the button, pick the file the game wrote in your EQ folder. Anything you're holding gets checked off — and if you're holding a *reward*, the quest is marked turned in automatically (item upgrades like +3 are recognized).
+- **Zero-click sync** (new in 2.1.0): type `/outputfile inventory` and `/outputfile achievements` in game — SEQO finds the files next to your log, watches them, and refreshes the moment the game writes them. Items you hold (bags **and bank**) check off, key-ring rewards and completed achievements mark quests **turned in**, and a status line shows how fresh each file is. No buttons.
+- A **summary strip** shows Turned in · Ready · Missing one at a glance, and quests sort **ready-first** within each class.
 - When every item is checked the quest lights up **READY — see \<NPC\>**. Click ✓ when you hand it in.
 - Filter by isle to see what you can work on where you're camping; "hide completed" keeps the list short. Click a reward's name to look it up in the wiki tab.
 - Progress lives in the shared game database, so it **syncs between your computers** like the rest of your data.
@@ -163,6 +166,23 @@ Click any item name in a quest to open its stats (with the upgrade slider) on th
 PoS quest data compiled from the excellent [eqlegendstools.com](https://eqlegendstools.com/plane-of-sky-quests/).
 
 ![Plane of Sky quest tracker](docs/images/seqo-quests.png)
+
+### 🔓 Unlocks (new in 2.1.0)
+
+The first entry in the Quests dropdown shows every **race, class and deity unlock** with live progress from your game files:
+
+- **Races** — each race's required factions as progress bars (from `/outputfile faction`), with the fastest known grind route and which drop items to hoard for turn-ins. Routes courtesy of **Alanna's Race Unlock Guide** on eqlwiki.com — please support her work.
+- **Classes** — each class's Primary Class Unlock as a reward checklist straight from your achievements file; click any reward to jump to its Plane of Sky quest.
+- **Deities** — current status per deity (all "future placeholder" in game today except Agnostic's task).
+- Everything is bypassable with store Unlock Tokens; the view just tracks the earned path.
+
+### ⚔ Epics prep (new in 2.1.0)
+
+Every class's epic quest components with **the exact EQ Legends item names**, following the community ["Epic Items To Keep" checklist by Manlaan](https://eqlwiki.com/User:Manlaan/Epic_Items_To_Keep) on eqlwiki.com — please support the wiki. Auto-checked against your inventory file **including your bank and key ring**, quantities shown (Gnoll Pup Scalp ×4), ⚠ marking entries the wiki hasn't verified, and a toast + automatic KEEP verdict when a piece you still need drops. Full walkthroughs live on each class's Epic Quest wiki page.
+
+### 🏆 BiS gear (new in 2.1.0)
+
+Per-class best-in-slot lists for all 16 classes — **courtesy of [eqlegendstools.com](https://eqlegendstools.com/bis-gear/), please support them**. Pick a class, see the top items per slot with AC/HP/mana and source, with ✓ on everything you already own (worn, bags, or bank). Ships with a built-in snapshot; **Update list ⟳** re-reads the live site any time. BiS drops you're missing get a toast and an automatic KEEP verdict.
 
 ## 🔔 Alerts
 
@@ -192,6 +212,8 @@ Every alert type has its own sound, so you know what happened without looking:
 
 - **Shared data folder:** point it at a folder inside Dropbox / Google Drive / OneDrive. Your loot database and game database (drop rates, learned respawns, zone mappings, pet names, PH links, corrections, cached wiki pages) live there and sync via your cloud client. Changes from the other computer reload live with a toast. Play on one computer at a time; window layout and log paths stay per-machine on purpose.
 - **Synced game files:** add your character's loadout/UI files (like `Maeel_neriak_LO1.ini`) and they mirror through the shared folder — newest copy wins, with a `.seqo.bak` backup before every overwrite. Camp your character before switching PCs so the game writes its files first.
+- **Synced folders** (new in 2.1.0): **Add folder…** mirrors a whole directory the same way — point it at your custom UI skin (`uifiles\<skinname>`) and every file in it syncs, including files added later.
+- **Which file holds which option?** Settings has a built-in cheat-sheet: spell loadouts = `<Name>_<server>_LO1.ini`; character options / blocked spells / hotbuttons = `<Name>_<server>.ini`; autosell = most likely the same character ini (unconfirmed — change one setting, camp, and sort the game folder by date modified to see which file just changed); UI layout = `UI_<Name>_<server>.ini`; and **avoid syncing `eqclient.ini`** between different machines (per-machine video settings).
 
 ---
 
@@ -199,17 +221,23 @@ Every alert type has its own sound, so you know what happened without looking:
 
 - **Overlay not visible over the game** → switch EQ Legends to borderless/windowed fullscreen.
 - **Nothing updating** → check the log file is selected (Settings → Character & Log) and logging is on in game.
-- **Map dropdown only says "auto"** → you have no map files yet; click **Download all maps ⟳**.
-- **Dot moves the wrong way on the map** → tell us the zone; it's a one-line axis fix.
+- **Game data line says ✗** → run the matching command in game: `/outputfile inventory`, `/outputfile achievements`, `/outputfile faction`. SEQO reads the files from your EQ folder automatically.
 - **Hotkeys don't work** → another app owns them; SEQO warns at launch, and every function has an on-screen or tray alternative.
 - **Wiki login fails** → use a **bot password** from `Special:BotPasswords` (format `YourName@botname`), not your account password.
 
+## Contributing to the wiki
+
+SEQO can submit your observed drop data to eqlwiki.com (Settings → **🌐 Wiki Contribution**). It works — but please use it the way the wiki's developers prefer: **check in on their Discord first**, submit to your **sandbox page** (the default), and keep volumes reasonable. Reading the wiki requires none of this.
+
 ## Credits
 
-- Zone maps: the [nParse](https://github.com/nomns/nparse) project's classic map set and [Brewall's maps](https://www.eqmaps.info/); EQ Legends zone fixes from [crande25/eql-maps](https://github.com/crande25/eql-maps).
-- Plane of Sky quest data: [eqlegendstools.com](https://eqlegendstools.com/plane-of-sky-quests/) by FlammHammer (Urgar of Halas).
-- Item lookups link out to the community databases, with thanks: [eqlwiki](https://eqlwiki.com/), [EQLBase](https://eqlbase.com/), [EQ Legends Tools](https://eqlegendstools.com/), [Loadout Legends](https://www.loadoutlegends.com/), [Gnoll Guard](https://www.gnollguard.com/).
-- Game data: [eqlwiki.com](https://eqlwiki.com) via its MediaWiki API — support the wiki, contribute your drop data.
+All of SEQO's data views stand on community work — please support these people:
+
+- **Plane of Sky quest data & BiS gear lists:** [eqlegendstools.com](https://eqlegendstools.com/) by FlammHammer (Urgar of Halas) — the BiS list ships courtesy of their gear database.
+- **Race unlock grind routes:** [Alanna's Race Unlock Guide](https://eqlwiki.com/Alanna's_Race_Unlock_Guide) on eqlwiki.com.
+- **Epic 1.0 pre-loot knowledge:** the classic-EQ community — Project 1999 forums/wiki, EQProgression, Zliz's Compendium.
+- **Game data:** [eqlwiki.com](https://eqlwiki.com) via its MediaWiki API — support the wiki.
+- **Item lookups** link out to the community databases, with thanks: [eqlwiki](https://eqlwiki.com/), [EQLBase](https://eqlbase.com/), [EQ Legends Tools](https://eqlegendstools.com/), [Loadout Legends](https://www.loadoutlegends.com/), [Gnoll Guard](https://www.gnollguard.com/).
 - Built with Electron. Field-tested and shaped by real EverQuest Legends combat logs.
 
 ## License

@@ -417,61 +417,6 @@ async function searchWiki(query) {
 }
 
 // ---------------------------------------------------------------------------
-// EQ Legends community map repo (github.com/crande25/eql-maps):
-// maps for zones Legends changed or added. Downloaded on demand into the
-// user's maps folder, overwriting older copies of the same files.
-// ---------------------------------------------------------------------------
-// Base pack: nParse's classic map set (200+ zones, GPL, community-maintained).
-// Overrides: the EQ Legends repo for zones the new game changed or added.
-const MAP_SOURCES = [
-  { repo: 'nomns/nparse', branch: 'master', filter: (p) => p.startsWith('data/maps/map_files/') && /\.txt$/i.test(p) },
-  { repo: 'crande25/eql-maps', branch: 'main', filter: (p) => /\.txt$/i.test(p) } // last wins on same filename
-];
-
-async function listRepoFiles(repo, branch, filter) {
-  const res = await fetch(
-    'https://api.github.com/repos/' + repo + '/git/trees/' + branch + '?recursive=1',
-    { headers: { 'User-Agent': 'SEQO', 'Accept': 'application/vnd.github+json' } });
-  if (!res.ok) throw new Error('GitHub API returned HTTP ' + res.status + ' for ' + repo);
-  const tree = await res.json();
-  return (tree.tree || [])
-    .filter(e => e.type === 'blob' && filter(e.path))
-    .map(e => ({ repo, branch, path: e.path }));
-}
-
-async function downloadMaps(destDir, fsModule, pathModule, onProgress) {
-  let files = [];
-  for (const src of MAP_SOURCES) {
-    try { files = files.concat(await listRepoFiles(src.repo, src.branch, src.filter)); }
-    catch (e) { if (!files.length && src === MAP_SOURCES[0]) throw e; /* overrides repo optional */ }
-  }
-  if (!files.length) throw new Error('No map files found');
-
-  let done = 0, downloaded = 0;
-  const CONCURRENCY = 8;
-  const queue = files.slice();
-  async function worker() {
-    while (queue.length) {
-      const f = queue.shift();
-      try {
-        const raw = await fetch(
-          'https://raw.githubusercontent.com/' + f.repo + '/' + f.branch + '/' + f.path,
-          { headers: { 'User-Agent': 'SEQO' } });
-        if (raw.ok) {
-          const text = await raw.text();
-          fsModule.writeFileSync(pathModule.join(destDir, pathModule.basename(f.path)), text, 'latin1');
-          downloaded++;
-        }
-      } catch { /* skip failed file */ }
-      done++;
-      if (onProgress && done % 20 === 0) onProgress(done, files.length);
-    }
-  }
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-  return { total: files.length, downloaded };
-}
-
-// ---------------------------------------------------------------------------
 // Authenticated wiki editing (bot password) - used to submit observed drop
 // rates. MediaWiki auth is cookie-based, so we keep a small cookie jar.
 // ---------------------------------------------------------------------------
@@ -564,7 +509,7 @@ async function wikiEdit({ title, text, newSectionTitle, summary, csrf }) {
 module.exports = {
   fetchZoneData, fetchItemData, searchWiki, getLatestRevisions,
   parseZoneDrops, parseZoneQuestSections, wikitextToText, extractTemplateParam,
-  downloadMaps, wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE,
+  wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE,
   getCategoryMembers, fetchPagesContent,
   fetchEqlToolsPages, searchEqlTools, parseDropSections, EQLTOOLS_PAGES,
   parseMobPage, parseTemplateParams

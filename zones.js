@@ -41,7 +41,8 @@
     cazicthule: 'Cazic Thule (Zone)', highpass: 'Highpass Hold', highkeep: 'High Keep',
     neriaka: 'Neriak', neriakb: 'Neriak', neriakc: 'Neriak',
     beholder: 'Gorge of King Xorbb',
-    feerrott: 'The Feerrott', everfrost: 'Everfrost Peaks', blackburrow: 'Blackburrow'
+    feerrott: 'The Feerrott', everfrost: 'Everfrost Peaks', blackburrow: 'Blackburrow',
+    newsebexp: 'New Sebilis Expedition', jaggedpine: 'Jaggedpine Forest'
   };
 
   const zones = {
@@ -52,6 +53,8 @@
     'North Qeynos': 'qeynos2', 'South Qeynos': 'qeynos',
     'Qeynos Hills': 'qeytoqrg', 'Surefall Glade': 'qrg',
     'The Qeynos Aqueduct System': 'qcat', 'Qeynos Aqueducts': 'qcat',
+    'Qeynos Catacombs': 'qcat', 'The Qeynos Catacombs': 'qcat',
+    'Jaggedpine Forest': 'jaggedpine', 'The Jaggedpine Forest': 'jaggedpine',
     'Blackburrow': 'blackburrow', 'Everfrost': 'everfrost', 'Everfrost Peaks': 'everfrost',
     'Halas': 'halas', 'Permafrost Caverns': 'permafrost',
     'The Plains of Karana': 'qey2hh1', 'West Karana': 'qey2hh1',
@@ -65,6 +68,9 @@
     'Oggok': 'oggok', 'Mountains of Rathe': 'rathemtn', 'Lake Rathetear': 'lakerathe',
     'Arena': 'arena', 'South Ro': 'soro', 'North Ro': 'nro', 'Oasis of Marr': 'oasis',
     'The Desert of Ro': 'sro',
+    'New Sebilis Expedition': 'newsebexp', 'The New Sebilis Expedition': 'newsebexp',
+    'Gorge of King Xorbb': 'beholder', 'The Gorge of King Xorbb': 'beholder',
+    "Beholder's Maze": 'beholder',
     'Nektulos Forest': 'nektulos', 'Lavastorm Mountains': 'lavastorm',
     'Neriak - Foreign Quarter': 'neriaka', 'Neriak - Commons': 'neriakb',
     'Neriak - Third Gate': 'neriakc', 'Neriak Foreign Quarter': 'neriaka',
@@ -76,7 +82,7 @@
     'The Estate of Unrest': 'unrest', 'Split Paw': 'paw', 'The Lair of the Splitpaw': 'paw',
     'Erud\'s Crossing': 'erudsxing', 'Kerra Isle': 'kerraridge',
     // Faydwer
-    'Greater Faydark': 'gfaydark', 'Lesser Faydark': 'lfaydark', 'Kelethin': 'gfaydark',
+    'Greater Faydark': 'gfaydark', 'Lesser Faydark': 'lfaydark', 'Kelethin': 'kelethin',
     'Crushbone': 'crushbone', 'Castle Mistmoore': 'mistmoore',
     'The Estate of Mistmoore': 'mistmoore',
     'Butcherblock Mountains': 'butcher', 'Kaladim': 'kaladima', 'North Kaladim': 'kaladimb',

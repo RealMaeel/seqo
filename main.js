@@ -294,37 +294,72 @@ function copyPreservingTime(src, dst) {
   fs.utimesSync(dst, st.atime, st.mtime); // keep mtimes equal so sync converges
 }
 
+function syncOnePair(local, shared, label, results) {
+  try {
+    const le = fs.existsSync(local), se = fs.existsSync(shared);
+    if (le && se) {
+      const lm = fs.statSync(local).mtimeMs, sm = fs.statSync(shared).mtimeMs;
+      if (Math.abs(lm - sm) < 2000) { results.push(label + ': in sync'); return; }
+      if (lm > sm) {
+        copyPreservingTime(local, shared);
+        results.push(label + ': → shared (local was newer)');
+      } else {
+        fs.copyFileSync(local, local + '.seqo.bak');
+        copyPreservingTime(shared, local);
+        results.push(label + ': ← shared (backup kept)');
+      }
+    } else if (le) {
+      fs.mkdirSync(path.dirname(shared), { recursive: true });
+      copyPreservingTime(local, shared);
+      results.push(label + ': seeded to shared');
+    } else if (se) {
+      fs.mkdirSync(path.dirname(local), { recursive: true });
+      copyPreservingTime(shared, local);
+      results.push(label + ': pulled from shared');
+    } else {
+      results.push(label + ': ⚠ missing on both sides');
+    }
+  } catch (e) {
+    results.push(label + ': ⚠ ' + e.message);
+  }
+}
+
+// list files (relative paths) under dir, up to `depth` levels down
+function listFilesRel(dir, depth, prefix = '') {
+  const out = [];
+  let entries = [];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  for (const e of entries) {
+    if (e.name.endsWith('.seqo.bak')) continue;
+    if (e.isDirectory()) {
+      if (depth > 0) out.push(...listFilesRel(path.join(dir, e.name), depth - 1, path.join(prefix, e.name)));
+    } else {
+      out.push(path.join(prefix, e.name));
+    }
+  }
+  return out;
+}
+
 function syncGameFiles() {
   if (!settings.dataDir) return { error: 'Set a shared data folder first' };
   const results = [];
   try { fs.mkdirSync(gamefilesDir(), { recursive: true }); } catch (e) { return { error: e.message }; }
   for (const local of settings.syncFiles || []) {
     const base = path.basename(local);
-    const shared = path.join(gamefilesDir(), base);
-    try {
-      const le = fs.existsSync(local), se = fs.existsSync(shared);
-      if (le && se) {
-        const lm = fs.statSync(local).mtimeMs, sm = fs.statSync(shared).mtimeMs;
-        if (Math.abs(lm - sm) < 2000) { results.push(base + ': in sync'); continue; }
-        if (lm > sm) {
-          copyPreservingTime(local, shared);
-          results.push(base + ': → shared (local was newer)');
-        } else {
-          fs.copyFileSync(local, local + '.seqo.bak');
-          copyPreservingTime(shared, local);
-          results.push(base + ': ← shared (backup kept)');
-        }
-      } else if (le) {
-        copyPreservingTime(local, shared);
-        results.push(base + ': seeded to shared');
-      } else if (se) {
-        copyPreservingTime(shared, local);
-        results.push(base + ': pulled from shared');
-      } else {
-        results.push(base + ': ⚠ missing on both sides');
-      }
-    } catch (e) {
-      results.push(base + ': ⚠ ' + e.message);
+    let isDir = false;
+    try { isDir = fs.statSync(local).isDirectory(); } catch { /* may only exist on shared side */ }
+    const sharedFolder = path.join(gamefilesDir(), 'folders', base);
+    if (isDir || fs.existsSync(sharedFolder)) {
+      // whole-folder sync (e.g. a custom UI skin folder): newest-wins per file,
+      // union of both sides so files added later on either machine are picked up
+      const rels = new Set([...listFilesRel(local, 3), ...listFilesRel(sharedFolder, 3)]);
+      const sub = [];
+      for (const rel of rels) syncOnePair(path.join(local, rel), path.join(sharedFolder, rel), rel, sub);
+      const changed = sub.filter(r => !r.includes('in sync'));
+      results.push('📁 ' + base + ': ' + (changed.length ? changed.length + ' of ' + rels.size + ' files updated' : rels.size + ' files in sync'));
+      for (const c of changed.slice(0, 6)) results.push('   ' + c);
+    } else {
+      syncOnePair(local, path.join(gamefilesDir(), base), base, results);
     }
   }
   return { results };
@@ -352,6 +387,20 @@ ipcMain.handle('add-sync-file', async () => {
   const res = await dialog.showOpenDialog(win, {
     title: 'Choose game file(s) to sync (e.g. your _LO1 loadout file)',
     properties: ['openFile', 'multiSelections']
+  });
+  if (!res.canceled && res.filePaths.length) {
+    settings.syncFiles = [...new Set([...(settings.syncFiles || []), ...res.filePaths])];
+    saveSettings(settings);
+    watchGameFiles();
+    return { files: settings.syncFiles, ...syncGameFiles() };
+  }
+  return { files: settings.syncFiles || [] };
+});
+
+ipcMain.handle('add-sync-folder', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Choose a folder to sync (e.g. your custom UI skin in uifiles\\<skinname>)',
+    properties: ['openDirectory']
   });
   if (!res.canceled && res.filePaths.length) {
     settings.syncFiles = [...new Set([...(settings.syncFiles || []), ...res.filePaths])];
@@ -427,6 +476,82 @@ function scrapeRenderedText(url) {
     } catch { done(''); }
   });
 }
+
+// Re-scrape the live BiS gear table from eqlegendstools.com (one hidden
+// window, selecting each class in turn). Result is stored in gameDB.bisData
+// and overrides the static seed in bis.js. Credit: eqlegendstools.com.
+const BIS_CLASSES = ['Bard', 'Beastlord', 'Berserker', 'Cleric', 'Druid', 'Enchanter',
+  'Magician', 'Monk', 'Necromancer', 'Paladin', 'Ranger', 'Rogue', 'Shadow Knight',
+  'Shaman', 'Warrior', 'Wizard'];
+
+function scrapeBisData() {
+  return new Promise((resolve) => {
+    let w = null, settled = false;
+    const done = (v) => {
+      if (settled) return;
+      settled = true;
+      try { if (w && !w.isDestroyed()) w.destroy(); } catch { /* ok */ }
+      resolve(v);
+    };
+    try {
+      w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, images: false } });
+      w.webContents.once('did-finish-load', async () => {
+        try {
+          await new Promise(r => setTimeout(r, 3000));
+          const script = `(async () => {
+            const s1 = document.getElementById('gearClassSelect1');
+            const s2 = document.getElementById('gearClassSelect2');
+            const s3 = document.getElementById('gearClassSelect3');
+            if (!s1) return null;
+            const fire = (el) => el.dispatchEvent(new Event('change', { bubbles: true }));
+            s2.value = ''; fire(s2); s3.value = ''; fire(s3);
+            const allSlots = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'All Slots');
+            if (allSlots) allSlots.click();
+            const num = (v) => { const n = parseInt(v, 10); return isNaN(n) ? 0 : n; };
+            const out = {};
+            for (const cls of ${JSON.stringify(BIS_CLASSES)}) {
+              s1.value = cls; fire(s1);
+              await new Promise(r => setTimeout(r, 700));
+              const bySlot = {};
+              for (const tr of document.querySelectorAll('table tbody tr')) {
+                const c = [...tr.cells].map(td => td.textContent.trim());
+                const slot = c[2];
+                if (!c[1] || !slot) continue;
+                (bySlot[slot] = bySlot[slot] || []).push({ n: c[1], ac: num(c[3]), hp: num(c[4]), mana: num(c[5]), sp: c[19] || undefined, src: c[20] || '' });
+              }
+              // keep top entries per slot: 6 by AC + 4 by HP + 4 by mana
+              const trimmed = {};
+              for (const [slot, rs] of Object.entries(bySlot)) {
+                const pick = new Set();
+                for (const r of [...rs].sort((a, b) => b.ac - a.ac).slice(0, 6)) pick.add(r);
+                for (const r of [...rs].sort((a, b) => b.hp - a.hp).slice(0, 4)) pick.add(r);
+                for (const r of [...rs].sort((a, b) => b.mana - a.mana).slice(0, 4)) pick.add(r);
+                trimmed[slot] = [...pick];
+              }
+              out[cls] = trimmed;
+            }
+            return out;
+          })()`;
+          const data = await w.webContents.executeJavaScript(script, true);
+          done(data && Object.keys(data).length === BIS_CLASSES.length ? data : null);
+        } catch { done(null); }
+      });
+      w.webContents.once('did-fail-load', () => done(null));
+      w.loadURL('https://eqlegendstools.com/bis-gear/').catch(() => done(null));
+      setTimeout(() => done(null), 60000);
+    } catch { done(null); }
+  });
+}
+
+ipcMain.handle('update-bis', async () => {
+  const data = await scrapeBisData();
+  if (!data) return { error: 'Could not read the live BiS table — try again later (the built-in list still works).' };
+  gameDB.bisData = { data, updated: Date.now() };
+  saveGameDBSoon();
+  return { classes: Object.keys(data).length, updated: gameDB.bisData.updated };
+});
+
+ipcMain.handle('get-bisdata', () => gameDB.bisData || null);
 
 async function refreshToolsPages() {
   const pages = { _updated: Date.now() };
@@ -548,128 +673,6 @@ ipcMain.handle('search-local', (_e, query) => {
     if (seen.has(k)) return false;
     seen.add(k); return true;
   }).slice(0, 40);
-});
-
-// ---------------------------------------------------------------------------
-// Zone maps (Brewall / nParse format .txt vector files)
-//   L x1, y1, z1, x2, y2, z2, r, g, b     line segment
-//   P x, y, z, r, g, b, size, Label       labeled point
-// ---------------------------------------------------------------------------
-const mapCache = new Map();
-
-function parseMapFile(text) {
-  const lines = [], points = [];
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  const grow = (x, y) => {
-    if (x < minX) minX = x; if (x > maxX) maxX = x;
-    if (y < minY) minY = y; if (y > maxY) maxY = y;
-  };
-  for (const raw of text.split(/\r?\n/)) {
-    const t = raw.trim();
-    if (t.startsWith('L')) {
-      const p = t.slice(1).split(',').map(s => s.trim());
-      if (p.length >= 9) {
-        const [x1, y1, , x2, y2, , r, g, b] = p.map(Number);
-        lines.push([x1, y1, x2, y2, (isNaN(r) ? 0 : r), (isNaN(g) ? 0 : g), (isNaN(b) ? 0 : b)]);
-        grow(x1, y1); grow(x2, y2);
-      }
-    } else if (t.startsWith('P')) {
-      const p = t.slice(1).split(',').map(s => s.trim());
-      if (p.length >= 8) {
-        const x = +p[0], y = +p[1];
-        points.push([x, y, p.slice(7).join(',').replace(/_/g, ' ')]);
-        grow(x, y);
-      }
-    }
-  }
-  if (!lines.length && !points.length) return null;
-  return { lines, points, bounds: { minX, minY, maxX, maxY } };
-}
-
-function mapsDir() {
-  return settings.mapsDir || path.join(app.getPath('userData'), 'maps');
-}
-
-// maps dir + immediate subdirectories (in case the user picked the parent
-// folder of an unzipped map pack)
-function mapSearchDirs() {
-  const dirs = [mapsDir()];
-  try {
-    for (const e of fs.readdirSync(mapsDir(), { withFileTypes: true })) {
-      if (e.isDirectory()) dirs.push(path.join(mapsDir(), e.name));
-    }
-  } catch { /* no maps folder yet */ }
-  return dirs;
-}
-
-ipcMain.handle('get-map', (_e, shortName) => {
-  if (!shortName) return null;
-  if (mapCache.has(shortName)) return mapCache.get(shortName);
-  let result = null;
-  try {
-    let combined = '';
-    for (const dir of mapSearchDirs()) {
-      let files = [];
-      try {
-        files = fs.readdirSync(dir).filter(f =>
-          f.toLowerCase() === shortName + '.txt' ||
-          new RegExp('^' + shortName + '_[0-9]+\\.txt$', 'i').test(f));
-      } catch { continue; }
-      for (const f of files) combined += fs.readFileSync(path.join(dir, f), 'latin1') + '\n';
-    }
-    if (combined) result = parseMapFile(combined);
-  } catch { /* ignore */ }
-  mapCache.set(shortName, result);
-  return result;
-});
-
-ipcMain.handle('choose-maps-folder', async () => {
-  const res = await dialog.showOpenDialog(win, {
-    title: 'Select your zone maps folder (Brewall / nParse .txt maps)',
-    properties: ['openDirectory']
-  });
-  if (res.canceled || !res.filePaths.length) return mapsStatus();
-  settings.mapsDir = res.filePaths[0];
-  saveSettings(settings);
-  mapCache.clear();
-  return mapsStatus();
-});
-
-function mapsStatus() {
-  let n = 0;
-  for (const dir of mapSearchDirs()) {
-    try { n += fs.readdirSync(dir).filter(f => /\.txt$/i.test(f)).length; } catch { /* skip */ }
-  }
-  return { dir: mapsDir(), count: n };
-}
-ipcMain.handle('maps-status', () => mapsStatus());
-
-// distinct map short-names available on disk (befallen_1.txt -> befallen)
-ipcMain.handle('list-maps', () => {
-  const names = new Set();
-  for (const dir of mapSearchDirs()) {
-    try {
-      for (const f of fs.readdirSync(dir)) {
-        const m = /^([a-z0-9]+?)(?:_\d+)?\.txt$/i.exec(f);
-        if (m) names.add(m[1].toLowerCase());
-      }
-    } catch { /* skip */ }
-  }
-  return [...names].sort();
-});
-
-ipcMain.handle('download-legends-maps', async () => {
-  try {
-    const dir = mapsDir();
-    fs.mkdirSync(dir, { recursive: true });
-    const res = await updater.downloadMaps(dir, fs, path, (done, total) => {
-      if (win) win.webContents.send('maps-progress', { done, total });
-    });
-    mapCache.clear();
-    return { ...res, ...mapsStatus() };
-  } catch (err) {
-    return { error: err.message };
-  }
 });
 
 // learned long->short zone names from /who lines and manual picks.
@@ -1089,6 +1092,152 @@ function sendLogStatus() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Zero-click game data sync: EQ's /outputfile writes land in the game root
+// (one level above Logs\). We derive the character's file names from the log
+// path, parse them, and watch the folder so a fresh /outputfile inventory /
+// achievements / faction refreshes SEQO within a second — no clicks.
+// ---------------------------------------------------------------------------
+let gameData = { inventory: null, factions: null, achievements: null };
+let outputWatcher = null;
+let outputDebounce = null;
+
+function charServerFromLog(logPath) {
+  const m = /^eqlog_(.+?)_(.+?)\.txt$/i.exec(path.basename(logPath || ''));
+  return m ? { name: m[1], server: m[2] } : null;
+}
+
+function gameRootFromLog(logPath) {
+  // <game>\Logs\eqlog_Name_server.txt -> <game>
+  const dir = path.dirname(logPath);
+  return /logs$/i.test(path.basename(dir)) ? path.dirname(dir) : dir;
+}
+
+function discoverOutputFiles() {
+  const logPath = settings.logPath;
+  const cs = charServerFromLog(logPath);
+  if (!logPath || !cs) return null;
+  const root = gameRootFromLog(logPath);
+  const prefix = (cs.name + '_' + cs.server).toLowerCase();
+  const found = { root, prefix, inventory: null, achievements: null, factions: null };
+  let entries = [];
+  try { entries = fs.readdirSync(root); } catch { return found; }
+  for (const f of entries) {
+    const lf = f.toLowerCase();
+    if (!lf.startsWith(prefix) || !lf.endsWith('.txt')) continue;
+    if (lf.includes('inventory')) found.inventory = pickNewer(found.inventory, path.join(root, f));
+    else if (lf.includes('achievements')) found.achievements = pickNewer(found.achievements, path.join(root, f));
+    else if (lf.includes('factions')) found.factions = pickNewer(found.factions, path.join(root, f));
+  }
+  return found;
+}
+
+function pickNewer(a, b) {
+  if (!a) return b;
+  try { return fs.statSync(b).mtimeMs > fs.statSync(a).mtimeMs ? b : a; } catch { return a; }
+}
+
+// Inventory: TSV  Location \t Name \t ID \t Count \t Slots
+// plus a KeyRing section (KeyRing \t Name \t ID) with Equipment/Augmentation/
+// Activated rows. Bank/SharedBank slots ARE included by the game.
+function parseInventoryFile(text) {
+  const items = {};   // lower name -> { name, count, locs: [] }
+  const keyring = []; // key ring entries (Equipment = obtained PoS rewards)
+  let inKeyRing = false;
+  for (const raw of text.split(/\r?\n/)) {
+    const cols = raw.replace(/\r$/, '').split('\t');
+    if (!cols.length || !cols[0]) continue;
+    if (cols[0] === 'Location' || cols[0] === 'KeyRing') { inKeyRing = cols[0] === 'KeyRing'; continue; }
+    const name = (cols[1] || '').trim();
+    if (!name || name === 'Empty') continue;
+    if (inKeyRing) { keyring.push(name); continue; }
+    const loc = cols[0];
+    const count = parseInt(cols[3], 10) || 1;
+    const k = name.toLowerCase();
+    if (!items[k]) items[k] = { name, count: 0, locs: [] };
+    items[k].count += count;
+    if (items[k].locs.length < 6) items[k].locs.push(loc);
+  }
+  return { items, keyring };
+}
+
+// Factions: TSV  ID \t Name \t StandingValue \t PointsToMax   (max = 2000)
+function parseFactionsFile(text) {
+  const factions = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const cols = raw.replace(/\r$/, '').split('\t');
+    if (cols.length < 4 || cols[0] === 'ID') continue;
+    const value = parseInt(cols[2], 10), toMax = parseInt(cols[3], 10);
+    if (isNaN(value)) continue;
+    factions[cols[1].trim()] = { value, toMax: isNaN(toMax) ? null : toMax };
+  }
+  return { factions };
+}
+
+// Achievements: section headers have no prefix; achievements are
+// "[IC]\t<name>"; objectives are "[IC]\t\t<text>".  C = complete.
+function parseAchievementsFile(text) {
+  const sections = [];
+  let sec = null, ach = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\r$/, '');
+    if (!line.trim()) continue;
+    const m = /^([IC])\t(\t?)(.*)$/.exec(line);
+    if (!m) {                       // section header
+      sec = { name: line.trim(), achievements: [] };
+      sections.push(sec);
+      ach = null;
+    } else if (!m[2]) {             // achievement line
+      ach = { name: m[3].trim(), done: m[1] === 'C', objectives: [] };
+      if (sec) sec.achievements.push(ach);
+    } else if (ach) {               // objective line
+      ach.objectives.push({ text: m[3].trim(), done: m[1] === 'C' });
+    }
+  }
+  return { sections };
+}
+
+function refreshGameData(notify) {
+  const found = discoverOutputFiles();
+  if (!found) return;
+  const readOne = (p, parse) => {
+    if (!p) return null;
+    try {
+      const st = fs.statSync(p);
+      const parsed = parse(fs.readFileSync(p, 'latin1'));
+      return { ...parsed, path: p, mtime: st.mtimeMs };
+    } catch { return null; }
+  };
+  gameData.inventory = readOne(found.inventory, parseInventoryFile);
+  gameData.achievements = readOne(found.achievements, parseAchievementsFile);
+  gameData.factions = readOne(found.factions, parseFactionsFile);
+  if (notify && win) {
+    win.webContents.send('gamedata-updated', {
+      inventory: !!gameData.inventory, achievements: !!gameData.achievements,
+      factions: !!gameData.factions
+    });
+  }
+}
+
+function watchOutputFiles() {
+  if (outputWatcher) { try { outputWatcher.close(); } catch { /* ok */ } outputWatcher = null; }
+  const found = discoverOutputFiles();
+  if (!found) return;
+  refreshGameData(true);
+  try {
+    outputWatcher = fs.watch(found.root, (_ev, fname) => {
+      if (!fname) return;
+      const lf = fname.toLowerCase();
+      if (!lf.startsWith(found.prefix)) return;
+      if (!/inventory|achievements|factions/.test(lf)) return;
+      clearTimeout(outputDebounce);
+      outputDebounce = setTimeout(() => refreshGameData(true), 700);
+    });
+  } catch (e) { console.error('outputfile watch failed:', e.message); }
+}
+
+ipcMain.handle('get-gamedata', () => gameData);
+
 function startTail(logPath) {
   stopTail();
   let size = 0;
@@ -1100,6 +1249,7 @@ function startTail(logPath) {
     return;
   }
   tail = { path: logPath, offset: size, remainder: '' };
+  watchOutputFiles(); // game data files live next to this character's game root
 
   fs.watchFile(logPath, { interval: 250 }, (curr) => {
     if (!tail || tail.path !== logPath) return;

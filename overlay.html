@@ -134,6 +134,9 @@
   }
   #c-rows::-webkit-scrollbar, #b-rows::-webkit-scrollbar { width: 6px; }
   #c-rows::-webkit-scrollbar-thumb, #b-rows::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 3px; }
+  #q-list::-webkit-scrollbar { width: 8px; }
+  #q-list::-webkit-scrollbar-thumb { background: rgba(255,215,102,.35); border-radius: 4px; }
+  #q-list::-webkit-scrollbar-track { background: rgba(255,255,255,.05); }
   .mrow { position: relative; height: 19px; border-radius: 4px; background: rgba(255,255,255,.06); overflow: hidden; flex: none; }
   .mrow .bar {
     position: absolute; inset: 0 auto 0 0;
@@ -438,10 +441,12 @@
           <div class="view" id="view-loot">
             <div id="l-head">
               <span class="sect">Loot</span>
+              <button class="kbtn" id="l-run" title="Track loot &amp; coin for one run (e.g. a personal instance) — click again to end it">&#9654; Start run</button>
               <span id="l-coin"></span>
               <button class="kbtn gold" id="l-export" title="Generate wikitext of your observed drop rates">Wiki export &#10697;</button>
             </div>
             <div id="l-scroll" data-interactive>
+              <div id="l-run-box"></div>
               <div id="l-recent-box"></div>
               <div id="l-sell-box"></div>
               <div class="l-divider">Drop rates (all time)</div>
@@ -519,19 +524,24 @@
             <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
               <span style="color:#ffd766;font-weight:600;font-size:12px">Quests</span>
               <select id="q-zone" title="Which zone's quests to show. Auto follows you as you zone." style="flex:1;min-width:0;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px">
-                <option value="">Current zone (auto)</option>
+                <option value="__unlocks">&#128275; Unlocks</option>
+                <option value="__epics">&#9876; Epics (prep)</option>
+                <option value="__bis">&#127942; BiS gear</option>
+                <option value="" selected>Current zone (auto)</option>
               </select>
               <span id="q-progress" style="color:#888;font-size:10px"></span>
               <button class="kbtn gold" id="q-import" title="Check off quest items you already own from an inventory dump">Import inventory</button>
             </div>
             <div id="q-help" style="color:#888;font-size:10px;line-height:1.45;margin-bottom:4px">
-              Import: in game type <b style="color:#bbb">/outputfile inventory</b> (or <b style="color:#bbb">/outputfile inventory myname.txt</b> per character),
-              then click Import and pick the file from your EverQuest Legends folder — items you already own get checked off.
-              <span style="color:#7da7d9">💠 Wind Runes convert to currency and won't appear in the file unless they're physically in your bags</span> —
+              Zero-click sync: in game type <b style="color:#bbb">/outputfile inventory</b> and <b style="color:#bbb">/outputfile achievements</b> —
+              SEQO finds the files next to your log, checks off items you own and marks turned-in quests automatically.
+              <span style="color:#7da7d9">💠 Wind Runes convert to currency and won't appear in the inventory file unless they're physically in your bags</span> —
               runes check off automatically as you loot them, or click them by hand.
             </div>
+            <div id="q-sync" style="color:#777;font-size:9.5px;margin-bottom:3px"></div>
             <div id="q-classes" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px"></div>
-            <div style="display:flex;gap:6px;align-items:center;margin-bottom:5px">
+            <div id="q-summary" style="display:none;gap:10px;margin-bottom:4px;font-size:10.5px"></div>
+            <div id="q-posrow" style="display:flex;gap:6px;align-items:center;margin-bottom:5px">
               <select id="q-isle" style="background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px">
                 <option value="">All isles</option>
               </select>
@@ -545,19 +555,17 @@
             <div class="emptymsg" id="q-empty" style="display:none"></div>
           </div>
 
-          <!-- MAP -->
+          <!-- MAP (world travel map) -->
           <div class="view" id="view-map">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px" data-interactive>
-              <span id="m-zone" style="color:#ffd766;font-weight:600;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Map</span>
-              <span id="m-age" style="color:#888;font-size:10px"></span>
-              <select id="m-file" title="Force a specific map file (auto-learns for this zone)"
-                      style="background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10px;max-width:90px"></select>
-              <button class="kbtn" id="m-world" title="World travel map — click a zone for a route">&#127758; World</button>
-              <button class="kbtn" id="m-follow" title="Keep the view centered on you">Follow: on</button>
-              <button class="kbtn" id="m-fit" title="Fit whole zone">Fit</button>
+              <span id="m-zone" style="color:#ffd766;font-weight:600;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">&#127758; World map</span>
+              <select id="m-goto" title="Pick a destination to plot the route" style="background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px;max-width:150px">
+                <option value="">Travel to&hellip;</option>
+              </select>
+              <button class="kbtn" id="m-fit" title="Fit the whole world">Fit</button>
             </div>
             <canvas id="m-canvas" data-interactive style="flex:1;min-height:0;border-radius:6px;background:rgba(0,0,0,.35);cursor:grab"></canvas>
-            <div id="m-hint" style="color:#888;font-size:10px;margin-top:3px">Make a hotbutton with /loc and press it while moving — the dot follows. Scroll to zoom, drag to pan.</div>
+            <div id="m-hint" style="color:#888;font-size:10px;margin-top:3px">Your zone glows green — click a destination for a route. Scroll to zoom, drag to pan.</div>
           </div>
 
           <div id="text" spellcheck="false"></div>
@@ -580,6 +588,7 @@
               <button class="kbtn gold" id="export-submit">Submit to wiki &#8679;</button>
               <button class="kbtn" id="export-close">Close</button>
               <span id="export-status" style="color:#7dffa0;font-size:10.5px;flex-basis:100%"></span>
+              <span style="color:#d8b46a;font-size:9.5px;flex-basis:100%">Please contribute the way the wiki developers prefer: check in on their Discord first, and submit to your sandbox page (default) rather than live pages.</span>
             </div>
           </div>
         </div>
@@ -604,6 +613,9 @@
         </div>
         <div class="row"><input type="checkbox" id="autoclear"><span>Auto-clear log when overlay closes</span></div>
         <div class="row"><input type="checkbox" id="archiveclear"><span>Archive a copy before clearing</span></div>
+        <label>Marked pets</label>
+        <div id="petchips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"></div>
+        <div class="hint" style="margin-top:2px">Names SEQO counts as your pets on the meter. Clicked someone by accident? Remove them here with &#10005;.</div>
       </details>
 
       <details>
@@ -670,37 +682,53 @@
           <span id="upd-status" style="flex:1;color:#bbb;font-size:11px">manual updates only</span>
           <button id="btn-checkupd">Check for updates&hellip;</button>
         </div>
-        <label>eqlwiki account (for submitting drop data)</label>
-        <input type="text" id="wiki-user" placeholder="YourName@botname" spellcheck="false" style="margin-bottom:4px">
-        <input type="password" id="wiki-pass" placeholder="bot password">
-        <div class="hint" style="margin-top:4px">Create a <b>bot password</b> at eqlwiki.com/Special:BotPasswords. Never your real password. Stored locally only.</div>
         <label>Shared data folder</label>
         <div class="row" style="margin-top:2px">
           <span id="data-status" style="flex:1;color:#bbb;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">local only</span>
           <button id="btn-datadir">Choose&hellip;</button>
         </div>
         <div class="hint" style="margin-top:4px">Point at a Dropbox / Google Drive / OneDrive folder to sync databases between computers. SEQO restarts after changing. One computer at a time.</div>
-        <label>Synced game files</label>
+        <label>Synced game files &amp; folders</label>
         <div id="syncfiles" style="font-size:11px;color:#bbb"></div>
         <div class="row" style="margin-top:4px">
           <button id="btn-addsync">Add file&hellip;</button>
+          <button id="btn-addsyncdir" title="Mirror a whole folder (e.g. a custom UI skin) — new files inside it are picked up automatically">Add folder&hellip;</button>
           <button id="btn-syncnow">Sync now</button>
           <span id="sync-status" style="flex:1;color:#7dffa0;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         </div>
         <div class="hint" style="margin-top:4px">Mirror loadout/UI files through the shared folder — newest wins, .seqo.bak backup kept. Camp before switching computers.</div>
+        <details style="margin-top:4px">
+          <summary style="color:#9ab;font-size:11px;cursor:pointer">Which file do I sync for each game option?</summary>
+          <div class="hint" style="margin-top:3px;line-height:1.5">
+            All of these live in your EverQuest Legends folder (next to eqgame.exe):<br>
+            &bull; <b>Spell loadouts</b> &mdash; <span style="color:#cfe3cf">Maeel_neriak_LO1.ini</span> (LO2, LO3&hellip; per loadout)<br>
+            &bull; <b>Character options, blocked spells, hotbuttons</b> &mdash; <span style="color:#cfe3cf">Maeel_neriak.ini</span><br>
+            &bull; <b>Advanced loot / autosell</b> &mdash; most likely also <span style="color:#cfe3cf">Maeel_neriak.ini</span> (unconfirmed).
+              To find it for sure: change one autosell setting in game, camp, then sort the game folder by <b>date modified</b> &mdash; the file that just changed is the one to sync.<br>
+            &bull; <b>UI window layout</b> &mdash; <span style="color:#cfe3cf">UI_Maeel_neriak.ini</span><br>
+            &bull; <b>Custom UI skin</b> &mdash; use <b>Add folder&hellip;</b> on <span style="color:#cfe3cf">uifiles\&lt;skinname&gt;</span> to mirror the whole skin<br>
+            &bull; <b>eqclient.ini</b> &mdash; ⚠ avoid syncing between different computers: it holds per-machine video/hardware settings.
+          </div>
+        </details>
       </details>
 
       <details>
-        <summary>🗺 Maps</summary>
-        <label>Zone maps folder</label>
-        <div class="row" style="margin-top:2px">
-          <span id="maps-status" style="flex:1;color:#bbb;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">checking&hellip;</span>
-          <button id="btn-maps">Choose&hellip;</button>
+        <summary>🌐 Wiki Contribution (advanced)</summary>
+        <div class="hint" style="margin-top:4px;line-height:1.5;color:#d8b46a">
+          SEQO can submit your observed drop data to eqlwiki.com, and it works &mdash; but please use it
+          the way the wiki's developers prefer: <b>talk to them on their Discord first</b>, submit to your
+          <b>sandbox page</b> (the default) rather than live pages, and keep volumes reasonable.
+          Reading the wiki needs none of this &mdash; it's only for submitting.
         </div>
-        <div class="row" style="margin-top:4px">
-          <button id="btn-dlmaps" style="flex:1">Download all maps &#8635;</button>
-        </div>
-        <div class="hint" style="margin-top:4px">Full classic map pack (200+ zones) plus Legends fixes in one click — or point the folder at your own Brewall pack.</div>
+        <label>eqlwiki account (for submitting drop data)</label>
+        <input type="text" id="wiki-user" placeholder="YourName@botname" spellcheck="false" style="margin-bottom:4px">
+        <input type="password" id="wiki-pass" placeholder="bot password">
+        <div class="hint" style="margin-top:4px">Create a <b>bot password</b> at eqlwiki.com/Special:BotPasswords. Never your real password. Stored locally only.</div>
+      </details>
+
+      <details>
+        <summary>💛 Data credits</summary>
+        <div id="credits-list" class="hint" style="margin-top:4px;line-height:1.6"></div>
       </details>
 
       <div class="hint" style="margin-top:8px">
@@ -713,6 +741,9 @@
 
 <script src="parser.js"></script>
 <script src="posquests.js"></script>
+<script src="unlocks.js"></script>
+<script src="epics.js"></script>
+<script src="bis.js"></script>
 <script src="zones.js"></script>
 <script src="worldmap.js"></script>
 <script src="buffs.js"></script>
@@ -769,6 +800,7 @@
       petNames.delete(name);
       if (activeCharm === name) activeCharm = null;
       window.overlay.unlearnPet(name);
+      session.pets.delete(name);   // drop its row from the session breakdown too
       toast('Unmarked as pet: ' + name);
     } else if (/^(a|an|the) /.test(name)) {
       setActiveCharm(name);
@@ -858,6 +890,10 @@
         if (!ev.soldFor && (verdict.kind === 'junk' || verdict.kind === 'sell' || verdict.kind === 'spare'))
           addToSellList(ev.item, verdict.kind === 'junk' ? 'on your junk list' : verdict.reason);
         posQuestLoot(ev.item);
+        if (lootRun) { // run tracker: count every looted item (and instant-sells as coin)
+          lootRun.items.set(ev.item, (lootRun.items.get(ev.item) || 0) + (ev.count || 1));
+          if (ev.soldFor) lootRun.coin += ev.soldFor;
+        }
         if (ev.mob) lastCorpse = { mob: ev.mob, when: ev.when };
         recentDrops.unshift({ item: ev.item, mob: mob || '(unknown)', verdict });
         recentDrops = recentDrops.slice(0, 8);
@@ -866,6 +902,8 @@
         // toast via the quest tracker; everything else stays quiet
         if (verdict.kind === 'wish')
           alertFX('🌟 WISH LIST DROP: ' + ev.item + '!', 'rare');
+        else if (verdict.toast)   // epic-prep / BiS drops you still need
+          alertFX(verdict.toast, 'rare');
         else if (itemVerdicts[verdictKey(ev.item)])
           toast((verdict.kind === 'junk' ? '🗑 ' : '⭐ ') + ev.item + ' — ' + verdict.label + ' (' + verdict.reason + ')');
         else
@@ -888,14 +926,13 @@
         alertFX('🎒 Inventory FULL — item left on the corpse!', 'repop');
       } else if (ev.type === 'coin') {
         sessionCoin += ev.copper;
+        if (lootRun) lootRun.coin += ev.copper;
         lootDirty = true;
       } else if (ev.type === 'zone') {
         currentZoneVariant = ev.variant || '';
         setZone(ev.zone, { autoFetch: true });
         save({ lastZone: cleanZoneName(ev.zone) });
         if (currentZoneVariant) toast('Zone tier: ' + currentZoneVariant + ' — data recorded separately');
-      } else if (ev.type === 'loc') {
-        onLoc(ev);
       } else if (ev.type === 'petsay') {
         const pname = mobKey(ev.name);
         if (/^(a|an|the) /.test(pname)) {
@@ -959,10 +996,8 @@
           learnedZoneMap[ev.longName] = ev.shortName;
           window.overlay.learnZoneMap(ev.longName, ev.shortName);
         }
-        // if this tells us about the zone we're standing in, (re)load its map
-        if (!mapState.data && currentZone && normZone(ev.longName) === normZone(currentZone)) {
-          loadMapForZone(currentZone);
-        }
+        // fresh zone knowledge may change where "you are here" glows
+        if (activeTab === 'map') drawMap();
       }
     }
     meterDirty = true;
@@ -1608,6 +1643,7 @@
       }
     }
     if (activeTab === 'timers') renderTimers();
+    if (activeTab === 'loot' && lootRun) renderRunBox(); // live run clock
     renderCampBar();
   }, 1000);
 
@@ -1637,16 +1673,26 @@
       chip.addEventListener('click', () => {
         let next = qSelClasses().slice();
         if (next.includes(c)) next = next.filter(x => x !== c);
-        else {
-          next.push(c);
-          if (next.length > 3) { const dropped = next.shift(); toast('Up to 3 classes (your multiclass) — dropped ' + dropped); }
-        }
+        else next.push(c);   // any number — game data syncs statically now
         save({ posClasses: next });
         settings.posClasses = next;   // reflect immediately
         renderQuestClasses(); renderQuests();
       });
       box.appendChild(chip);
     }
+    // All / None toggle at the end of the chip row
+    const allChip = document.createElement('span');
+    const allOn = sel.length === POS.classes.length;
+    allChip.className = 'q-cls' + (allOn ? ' on' : '');
+    allChip.textContent = allOn ? 'None' : 'All';
+    allChip.title = allOn ? 'Clear class selection' : 'Select all 16 classes';
+    allChip.addEventListener('click', () => {
+      const next = allOn ? [] : POS.classes.slice();
+      save({ posClasses: next });
+      settings.posClasses = next;
+      renderQuestClasses(); renderQuests();
+    });
+    box.appendChild(allChip);
   }
 
   // lifetime looted counts per quest item (from the shared loot DB)
@@ -1674,13 +1720,26 @@
 
   function renderQuests() {
     const zone = questZone();
-    const pos = isPosZone(zone);
-    // PoS-only controls hide for wiki-listed zones
-    $('q-import').style.display = pos ? '' : 'none';
-    $('q-help').style.display = pos ? '' : 'none';
-    $('q-classes').style.display = 'flex';   // classes matter in every mode
+    renderSyncLine();
+    const special = zone === '__unlocks' || zone === '__epics' || zone === '__bis';
+    const pos = !special && isPosZone(zone);
+    // PoS-only controls hide for wiki-listed zones and the special views
+    $('q-import').style.display = 'none'; // superseded by zero-click sync
+    // the how-to only matters until game data is flowing — then free the space
+    const synced = gameFiles && (gameFiles.inventory || gameFiles.achievements);
+    $('q-help').style.display = pos && !synced ? '' : 'none';
+    $('q-classes').style.display = (special && zone === '__bis') ? 'none' : 'flex';
+    $('q-posrow').style.display = special ? 'none' : 'flex';
     $('q-isle').style.display = pos ? '' : 'none';
     $('q-runehint').style.display = pos ? '' : 'none';
+    $('q-summary').style.display = pos ? 'flex' : 'none';
+    if (special) {
+      $('q-progress').textContent = '';
+      setQuestEmpty('');
+      if (zone === '__unlocks') return renderUnlocks();
+      if (zone === '__epics') return renderEpics();
+      return renderBis();
+    }
     if (!pos) { renderWikiQuests(zone); return; }
 
     const list = $('q-list');
@@ -1689,15 +1748,40 @@
     setQuestEmpty(sel.length ? '' :
       'Pick your class(es) above to see their\nPlane of Sky turn-in quests.\nItems check off automatically as you loot them;\nclick a quest\'s ✓ when you turn it in.');
     $('q-runehint').textContent = 'Wind Runes: trash mobs';
-    if (!sel.length) { $('q-progress').textContent = ''; return; }
+    if (!sel.length) { $('q-progress').textContent = ''; $('q-summary').style.display = 'none'; return; }
 
     const isle = $('q-isle').value;
     const hideDone = $('q-hidedone').checked;
     const counts = questLootCounts();
     let total = 0, done = 0;
 
+    // summary strip: Turned in · Ready · Missing one — across selected classes
+    let sumReady = 0, sumDone = 0, sumMiss1 = 0, sumAll = 0;
+    for (const q of POS.quests.filter(q => sel.includes(q.cls))) {
+      const st = qState(q.reward);
+      sumAll++;
+      const got = q.items.filter(it => st.items[it.name]).length;
+      if (st.done) sumDone++;
+      else if (got === q.items.length) sumReady++;
+      else if (got === q.items.length - 1) sumMiss1++;
+    }
+    $('q-summary').innerHTML =
+      '<span style="color:#7dffa0">✓ Turned in: <b>' + sumDone + '/' + sumAll + '</b></span>' +
+      '<span style="color:#ffd766">● Ready: <b>' + sumReady + '</b></span>' +
+      '<span style="color:#ff9d5c">◐ Missing one: <b>' + sumMiss1 + '</b></span>';
+
     for (const cls of sel) {
       const qs = POS.quests.filter(q => q.cls === cls);
+      // ready first, then closest-to-done, turned-in last
+      qs.sort((a, b) => {
+        const rank = (q) => {
+          const st = qState(q.reward);
+          if (st.done) return 1000;
+          const missing = q.items.filter(it => !st.items[it.name]).length;
+          return missing === 0 ? -1 : missing;
+        };
+        return rank(a) - rank(b);
+      });
       const div = document.createElement('div');
       div.className = 'l-divider';
       div.textContent = cls + ' — ' + qs[0].npc;
@@ -1802,6 +1886,9 @@
         if (!st.done) dup = q.reward; else doneQ = q.reward;
       } else others.add(q.cls);
     }
+    // epic prep / race-grind / BiS needs outrank spare & sellable
+    const extra = neededExtraVerdict(key);
+    if (extra) return extra;
     if (dup) return { kind: 'spare', label: 'SPARE', reason: 'already collected for ' + dup };
     if (doneQ) return { kind: 'sell', label: 'SELLABLE', reason: doneQ + ' already turned in' };
     if (others.size) return { kind: 'other', label: 'OTHER CLASS', reason: 'PoS quest for ' + [...others].join(', ') };
@@ -2195,6 +2282,424 @@
     renderQuestClasses();
   })();
 
+  // ================= game outputfile data (zero-click sync) =================
+  const UNL = window.EQLUnlocks, EPICDB = window.EQLEpics, BISDB = window.EQLBis;
+  let gameFiles = null;          // { inventory, achievements, factions } from main
+  let bisOverride = null;        // live-scraped BiS data (gameDB.bisData)
+  window.overlay.getGameData().then((d) => {
+    gameFiles = d;
+    syncFromAchievements(true);
+    syncFromInventory(true);
+    if (activeTab === 'quests') renderQuests();
+  });
+  window.overlay.getBisData().then((d) => { bisOverride = d; });
+  window.overlay.onGamedataUpdated(async () => {
+    gameFiles = await window.overlay.getGameData();
+    syncFromAchievements(false);
+    syncFromInventory(false);
+    toast('🔄 Game data refreshed from your /outputfile files');
+    if (activeTab === 'quests') renderQuests();
+  });
+
+  const normClass = (s) => (s || '').toLowerCase().replace(/[^a-z]/g, '');
+
+  // "Umbral Platemail Helm +5" in the inventory file must match the base
+  // item name — strip upgrade suffixes and normalize apostrophes
+  const normItemName = (s) => (s || '').toLowerCase().replace(/\s*\+\d+$/, '').replace(/`/g, "'").trim();
+
+  function invHas(name) {
+    const inv = gameFiles && gameFiles.inventory;
+    if (!inv) return false;
+    if (!inv.__idx) {
+      const idx = new Set();
+      for (const k of Object.keys(inv.items || {})) idx.add(normItemName(k));
+      for (const n of inv.keyring || []) idx.add(normItemName(n));
+      inv.__idx = idx;
+    }
+    return inv.__idx.has(normItemName(name));
+  }
+  const factionInfo = (name) =>
+    (gameFiles && gameFiles.factions && gameFiles.factions.factions
+      && gameFiles.factions.factions[name]) || null;
+  const achSections = () =>
+    (gameFiles && gameFiles.achievements && gameFiles.achievements.sections) || [];
+  const achSection = (re) => achSections().find(s => re.test(s.name));
+
+  function classAchievement(cls) {
+    const sec = achSection(/Untapped Potential: Class/i);
+    if (!sec) return null;
+    return sec.achievements.find(a =>
+      normClass(a.name.replace(/^Primary Class Unlock - /i, '')) === normClass(cls)) || null;
+  }
+
+  // achievements file is ground truth: an "Obtain <reward>" objective marked C
+  // means that PoS quest reward is in hand → mark the quest turned in.
+  function syncFromAchievements(quiet) {
+    const sec = achSection(/Untapped Potential: Class/i);
+    if (!sec) return;
+    let marked = 0;
+    for (const ach of sec.achievements) {
+      for (const obj of ach.objectives) {
+        const m = /^Obtain (.+?)\.?$/.exec(obj.text);
+        if (!m || !obj.done) continue;
+        const q = POS.quests.find(x => x.reward.toLowerCase() === m[1].trim().toLowerCase());
+        if (q && !qState(q.reward).done) {
+          qSave(q.reward, { ...qState(q.reward), done: true });
+          marked++;
+        }
+      }
+    }
+    if (marked && !quiet) toast('☑ ' + marked + ' PoS quest' + (marked > 1 ? 's' : '') + ' auto-marked done from your achievements file');
+  }
+
+  // inventory file (bags + bank + key ring) checks off collected quest items,
+  // and a reward already on your key ring marks that quest done outright
+  function syncFromInventory(quiet) {
+    const inv = gameFiles && gameFiles.inventory;
+    if (!inv) return;
+    let checked = 0;
+    for (const q of POS.quests) {
+      const st = qState(q.reward);
+      if (!st.done && (inv.keyring || []).some(n => n.toLowerCase() === q.reward.toLowerCase())) {
+        qSave(q.reward, { ...st, done: true });
+        continue;
+      }
+      if (st.done) continue;
+      let changed = false;
+      const items = { ...st.items };
+      for (const it of q.items) {
+        if (!items[it.name] && invHas(it.name)) { items[it.name] = true; changed = true; checked++; }
+      }
+      if (changed) qSave(q.reward, { ...st, items });
+    }
+    if (checked && !quiet) toast('☑ ' + checked + ' quest item' + (checked > 1 ? 's' : '') + ' checked off from your inventory file');
+  }
+
+  const fmtAge = (ms) => {
+    const s = Math.max(0, (Date.now() - ms) / 1000);
+    return s < 90 ? 'now' : s < 5400 ? Math.round(s / 60) + 'm ago'
+      : s < 129600 ? Math.round(s / 3600) + 'h ago' : Math.round(s / 86400) + 'd ago';
+  };
+
+  function renderSyncLine() {
+    const el = $('q-sync');
+    if (!gameFiles || (!gameFiles.inventory && !gameFiles.achievements && !gameFiles.factions)) {
+      el.innerHTML = 'Game data: none yet — in game type <b style="color:#bbb">/outputfile inventory</b>, ' +
+        '<b style="color:#bbb">/outputfile achievements</b> and <b style="color:#bbb">/outputfile faction</b>. ' +
+        'SEQO finds the files next to your log and refreshes automatically.';
+      return;
+    }
+    const part = (label, d) => d
+      ? '<span style="color:#7dffa0">' + label + ' ✓ ' + fmtAge(d.mtime) + '</span>'
+      : '<span style="color:#c96">' + label + ' ✗ (run /outputfile ' + label + ')</span>';
+    el.innerHTML = 'Game data: ' + part('inventory', gameFiles.inventory) + ' · ' +
+      part('achievements', gameFiles.achievements) + ' · ' + part('faction', gameFiles.factions);
+  }
+
+  const creditLine = (c) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'color:#8a7a55;font-size:9.5px;margin-top:6px';
+    d.innerHTML = '💛 ';
+    const a = document.createElement('span');
+    a.textContent = c.note || (c.by + ' — please support them');
+    a.style.cssText = 'cursor:pointer;text-decoration:underline dotted';
+    a.title = c.url;
+    a.addEventListener('click', () => window.overlay.openExternal(c.url));
+    d.appendChild(a);
+    return d;
+  };
+
+  // ---------- 🔓 Unlocks view ----------
+  const unlExpanded = new Set();
+  const unlGroupOpen = { races: true, classes: true, deity: true };
+
+  function unlBar(pctRaw) {
+    const pct = Math.max(0, Math.min(100, Math.round(pctRaw * 100)));
+    return '<span style="display:inline-block;width:90px;height:7px;background:rgba(255,255,255,.1);border-radius:4px;vertical-align:middle;overflow:hidden">' +
+      '<span style="display:block;width:' + pct + '%;height:100%;background:' + (pct >= 100 ? '#7dffa0' : '#ffd766') + '"></span></span>';
+  }
+
+  function renderUnlocks() {
+    const list = $('q-list');
+    list.innerHTML = '';
+    $('q-progress').textContent = '';
+    if (!achSections().length) {
+      setQuestEmpty('No achievements data yet.\n\nIn game, type  /outputfile achievements\n(and /outputfile faction for progress bars).\nSEQO reads the files automatically — no clicks needed.');
+      list.appendChild(creditLine(UNL.CREDITS[0]));
+      return;
+    }
+    setQuestEmpty('');
+
+    const groups = [
+      { key: 'races', title: '🧬 Races', re: /Untapped Potential: Race/i, strip: /^Race Unlock - /i },
+      { key: 'classes', title: '⚔ Classes', re: /Untapped Potential: Class/i, strip: /^Primary Class Unlock - /i },
+      { key: 'deity', title: '🕯 Deities', re: /Untapped Potential: Deity/i, strip: /^Deity Unlock - /i }
+    ];
+
+    for (const g of groups) {
+      const sec = achSection(g.re);
+      if (!sec) continue;
+      const realObjs = (a) => a.objectives.filter(o => !/^This achievement/i.test(o.text));
+      const doneCount = sec.achievements.filter(a => a.done).length;
+
+      const hdr = document.createElement('div');
+      hdr.className = 'l-divider';
+      hdr.style.cursor = 'pointer';
+      hdr.textContent = (unlGroupOpen[g.key] ? '▾ ' : '▸ ') + g.title + ' — ' + doneCount + '/' + sec.achievements.length + ' unlocked';
+      hdr.addEventListener('click', () => { unlGroupOpen[g.key] = !unlGroupOpen[g.key]; renderQuests(); });
+      list.appendChild(hdr);
+      if (!unlGroupOpen[g.key]) continue;
+
+      for (const ach of sec.achievements) {
+        const label = ach.name.replace(g.strip, '');
+        const objs = realObjs(ach);
+        const got = objs.filter(o => o.done).length;
+        const key = g.key + '|' + ach.name;
+
+        const card = document.createElement('div');
+        card.className = 'q-quest' + (ach.done ? ' done' : '');
+        const head = document.createElement('div');
+        head.className = 'q-head';
+        head.innerHTML = '<span>' + (unlExpanded.has(key) ? '▾' : '▸') + '</span><span class="rw"></span><span class="st"></span>';
+        head.querySelector('.rw').textContent = label;
+        head.querySelector('.st').textContent = ach.done ? 'UNLOCKED' : (objs.length ? got + '/' + objs.length : '');
+        head.addEventListener('click', () => {
+          unlExpanded.has(key) ? unlExpanded.delete(key) : unlExpanded.add(key);
+          renderQuests();
+        });
+        card.appendChild(head);
+
+        if (unlExpanded.has(key)) {
+          const box = document.createElement('div');
+          box.className = 'q-items';
+          for (const o of objs) {
+            const row = document.createElement('div');
+            row.className = 'q-it' + (o.done ? ' have' : '');
+            const fm = /^Get maximum faction with (.+?)\.?$/.exec(o.text);
+            const om = /^Obtain (.+?)\.?$/.exec(o.text);
+            if (fm) {
+              const fname = fm[1];
+              const fi = factionInfo(fname);
+              const pct = o.done ? 1 : fi ? (fi.toMax != null ? (2000 - fi.toMax) / 2000 : (fi.value + 2000) / 4000) : 0;
+              row.innerHTML = '<span class="box">' + (o.done ? '☑' : '☐') + '</span><span class="nm"></span>' +
+                unlBar(pct) + '<span class="loc"></span>';
+              row.querySelector('.nm').textContent = fname;
+              row.querySelector('.loc').textContent = o.done ? 'MAX' : fi ? (fi.value + ' / 2000') : 'no faction data';
+              const grind = UNL.FACTION_GRINDS[fname];
+              if (grind) row.title = grind.hint + '  (route courtesy of Alanna — eqlwiki.com)';
+            } else if (om && g.key === 'classes') {
+              row.innerHTML = '<span class="box">' + (o.done ? '☑' : '☐') + '</span><span class="nm itemlink"></span><span class="loc">→ PoS quest</span>';
+              row.querySelector('.nm').textContent = om[1];
+              row.title = 'Click to open this reward\'s Plane of Sky quest';
+              row.addEventListener('click', () => selectPosQuest(om[1]));
+            } else {
+              row.innerHTML = '<span class="box">' + (o.done ? '☑' : '☐') + '</span><span class="nm"></span>';
+              row.querySelector('.nm').textContent = o.text;
+            }
+            box.appendChild(row);
+          }
+          const noteTxt = g.key === 'races' ? UNL.RACE_NOTES[label]
+            : g.key === 'deity' ? (UNL.DEITY_NOTES[label] || UNL.DEITY_NOTES['*']) : null;
+          if (noteTxt) {
+            const note = document.createElement('div');
+            note.className = 'q-npc';
+            note.textContent = noteTxt;
+            box.appendChild(note);
+          }
+          if (g.key === 'races') {
+            const grindItems = new Set();
+            for (const o of objs) {
+              const fm = /^Get maximum faction with (.+?)\.?$/.exec(o.text);
+              const gr = fm && UNL.FACTION_GRINDS[fm[1]];
+              if (gr && gr.hint && !o.done) {
+                const hint = document.createElement('div');
+                hint.className = 'q-npc';
+                hint.textContent = '🧭 ' + fm[1] + ': ' + gr.hint;
+                box.appendChild(hint);
+                for (const it of gr.items) grindItems.add(it);
+                break; // grinds overlap within a city — one hint per race is enough
+              }
+            }
+            if (grindItems.size) {
+              const keep = document.createElement('div');
+              keep.className = 'q-npc';
+              keep.textContent = '⭐ Keep when looted: ' + [...grindItems].join(', ');
+              box.appendChild(keep);
+            }
+          }
+          card.appendChild(box);
+        }
+        list.appendChild(card);
+      }
+    }
+    const bypass = document.createElement('div');
+    bypass.style.cssText = 'color:#777;font-size:9.5px;margin-top:6px';
+    bypass.textContent = 'Every unlock can also be bypassed with the matching Unlock Token from the store.';
+    list.appendChild(bypass);
+    list.appendChild(creditLine(UNL.CREDITS[0]));
+  }
+
+  function selectPosQuest(reward) {
+    const q = POS.quests.find(x => x.reward.toLowerCase() === reward.toLowerCase());
+    $('q-zone').value = 'Plane of Sky';
+    if (q) {
+      qExpanded.add(q.reward);
+      // make sure the quest's class chip is on so the card is visible
+      const sel = qSelClasses();
+      if (!sel.includes(q.cls)) {
+        settings.posClasses = [...sel, q.cls];
+        save({ posClasses: settings.posClasses });
+        renderQuestClasses();
+      }
+    }
+    renderQuests();
+  }
+
+  // ---------- ⚔ Epics (prep) view ----------
+  function renderEpics() {
+    const list = $('q-list');
+    list.innerHTML = '';
+    const sel = qSelClasses();
+    setQuestEmpty(sel.length ? '' : 'Pick your class(es) above to see what epic 1.0\npieces you can pre-farm in the old world.');
+    if (!sel.length) return;
+
+    const banner = document.createElement('div');
+    banner.style.cssText = 'color:#d8b46a;font-size:10px;line-height:1.4;margin-bottom:5px';
+    banner.textContent = 'Prep list from the community "Epic Items To Keep" checklist (Manlaan, eqlwiki.com) — ⚠ = unverified on the wiki. Checkmarks come from your inventory file (bags + bank + key ring). Full walkthroughs: each class\'s Epic Quest page on the wiki.';
+    list.appendChild(banner);
+
+    for (const cls of sel) {
+      const e = EPICDB.EPICS[cls];
+      if (!e) continue;
+      const div = document.createElement('div');
+      div.className = 'l-divider';
+      div.textContent = '⚔ ' + cls + ' — ' + e.epic;
+      list.appendChild(div);
+      if (!e.items.length) {
+        const none = document.createElement('div');
+        none.className = 'q-npc';
+        none.textContent = e.notes;
+        list.appendChild(none);
+        continue;
+      }
+      const card = document.createElement('div');
+      card.className = 'q-quest';
+      const box = document.createElement('div');
+      box.className = 'q-items';
+      for (const it of e.items) {
+        const have = invHas(it.n);
+        const row = document.createElement('div');
+        row.className = 'q-it' + (have ? ' have' : '');
+        row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') + '</span><span class="nm itemlink"></span><span class="loc"></span>';
+        row.querySelector('.nm').textContent = it.n + (it.q > 1 ? ' ×' + it.q : '');
+        row.querySelector('.loc').textContent = (it.u ? '⚠ ' : '') + it.src;
+        row.title = it.src + (it.u ? ' — the wiki marks this entry unverified' : '') + ' — click the name for item details';
+        row.querySelector('.nm').addEventListener('click', (ev) => { ev.stopPropagation(); openItemLink(it.n); });
+        box.appendChild(row);
+      }
+      const note = document.createElement('div');
+      note.className = 'q-npc';
+      note.textContent = e.notes;
+      box.appendChild(note);
+      card.appendChild(box);
+      list.appendChild(card);
+    }
+    list.appendChild(creditLine(EPICDB.CREDIT));
+  }
+
+  // ---------- 🏆 BiS gear view ----------
+  const bisData = () => (bisOverride && bisOverride.data) || BISDB.DATA;
+
+  function renderBis() {
+    const list = $('q-list');
+    list.innerHTML = '';
+    setQuestEmpty('');
+
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:5px';
+    const sel = document.createElement('select');
+    sel.style.cssText = 'background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px';
+    for (const c of BISDB.CLASSES) {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    }
+    sel.value = settings.bisClass || qSelClasses()[0] || 'Shadow Knight';
+    if (!BISDB.CLASSES.includes(sel.value)) sel.value = 'Shadow Knight';
+    sel.addEventListener('change', () => { save({ bisClass: sel.value }); renderQuests(); });
+    const upd = document.createElement('button');
+    upd.className = 'kbtn';
+    upd.textContent = 'Update list ⟳';
+    upd.title = 'Re-read the live list from eqlegendstools.com';
+    upd.addEventListener('click', async () => {
+      upd.disabled = true; upd.textContent = 'Updating…';
+      const res = await window.overlay.updateBis();
+      upd.disabled = false; upd.textContent = 'Update list ⟳';
+      if (res.error) { toast('⚠ ' + res.error); return; }
+      bisOverride = await window.overlay.getBisData();
+      toast('🏆 BiS list refreshed from eqlegendstools.com (' + res.classes + ' classes)');
+      renderQuests();
+    });
+    const when = document.createElement('span');
+    when.style.cssText = 'color:#777;font-size:9.5px;flex:1';
+    when.textContent = bisOverride ? 'list updated ' + fmtAge(bisOverride.updated) : 'built-in list (' + BISDB.CAPTURED + ')';
+    bar.append(sel, upd, when);
+    list.appendChild(bar);
+
+    const cls = sel.value;
+    const data = bisData()[cls] || {};
+    const slots = Object.keys(data).sort((a, b) => a.localeCompare(b));
+    let ownedCount = 0, totalCount = 0;
+    for (const slot of slots) {
+      const div = document.createElement('div');
+      div.className = 'l-divider';
+      div.textContent = slot;
+      list.appendChild(div);
+      for (const it of data[slot]) {
+        totalCount++;
+        const have = invHas(it.n);
+        if (have) ownedCount++;
+        const row = document.createElement('div');
+        row.className = 'q-it' + (have ? ' have' : '');
+        const stats = [it.ac ? 'AC' + it.ac : '', it.hp ? it.hp + 'hp' : '', it.mana ? it.mana + 'mana' : '']
+          .filter(Boolean).join(' ');
+        row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') + '</span><span class="nm itemlink"></span>' +
+          '<span style="color:#9ab;font-size:9.5px;white-space:nowrap">' + stats + '</span><span class="loc"></span>';
+        row.querySelector('.nm').textContent = it.n;
+        row.querySelector('.loc').textContent = it.src;
+        row.title = (it.sp ? it.sp + ' — ' : '') + it.src;
+        row.querySelector('.nm').addEventListener('click', (ev) => { ev.stopPropagation(); openItemLink(it.n); });
+        list.appendChild(row);
+      }
+    }
+    $('q-progress').textContent = ownedCount + '/' + totalCount + ' owned';
+    list.appendChild(creditLine(BISDB.CREDIT));
+  }
+
+  // ---------- needed-item engine: epic/BiS/grind drops get toasts + KEEP ----------
+  function neededExtraVerdict(key) {
+    for (const cls of qSelClasses()) {
+      const e = EPICDB.EPICS[cls];
+      const hit = e && e.items.find(it => it.n.toLowerCase() === key);
+      if (hit && !invHas(hit.n)) {
+        return { kind: 'keep', label: 'KEEP', reason: 'epic prep: ' + e.epic + ' (' + cls + ')', toast: '⚔ Epic prep: ' + hit.n + ' — needed for ' + e.epic + ' (' + cls + ')' };
+      }
+    }
+    if (UNL.GRIND_ITEMS.some(n => n.toLowerCase() === key)) {
+      return { kind: 'keep', label: 'KEEP', reason: 'race-unlock faction turn-in', toast: null };
+    }
+    const cls = settings && settings.bisClass;
+    if (cls && bisData()[cls]) {
+      for (const [slot, items] of Object.entries(bisData()[cls])) {
+        const hit = items.find(it => it.n.toLowerCase() === key);
+        if (hit && !invHas(hit.n)) {
+          return { kind: 'keep', label: 'BiS', reason: 'best-in-slot ' + slot.toLowerCase() + ' (' + cls + ')', toast: '🏆 BiS drop: ' + hit.n + ' — ' + slot.toLowerCase() + ' for ' + cls };
+        }
+      }
+    }
+    return null;
+  }
+
   // ================= tabs =================
   let activeTab = 'meter';
   function setTab(name) {
@@ -2278,9 +2783,26 @@
       startManualTimer(l, parseDuration(d || '60'));
       return;
     }
+    if (tab === 'runloot') { // dev-only: toggle the loot run tracker
+      $('l-run').click();
+      setTab('loot');
+      return;
+    }
+    if (tab.startsWith('unlockx:')) { // dev-only: expand one race unlock row
+      unlExpanded.add('races|Race Unlock - ' + tab.slice(8));
+      setTab('quests');
+      $('q-zone').value = '__unlocks';
+      renderQuests();
+      return;
+    }
+    if (tab.startsWith('qview:')) { // dev-only: 'qview:__unlocks' / '__epics' / '__bis' / zone name
+      setTab('quests');
+      $('q-zone').value = tab.slice(6);
+      renderQuests();
+      return;
+    }
     if (tab.startsWith('world')) { // dev-only: 'world' or 'world:targetshort'
       setTab('map');
-      if (!worldState.on) $('m-world').click();
       const target = tab.split(':')[1];
       if (target) { worldState.routeTarget = target; drawMap(); }
       return;
@@ -2413,7 +2935,7 @@
       // pets appear as their own rows in the session list
       for (const [pname, ptotal] of session.pets) {
         rows.push({ source: '🐾 ' + pname + ' (pet)', total: ptotal, count: 0, crits: 0,
-                    max: 0, avg: 0, pct: 0, nocast: false, isPet: true });
+                    max: 0, avg: 0, pct: 0, nocast: false, isPet: true, petName: pname });
       }
       const grandAll = session.total + petTotal || 1;
       rows.forEach(r => r.pct = r.total / grandAll);
@@ -2432,7 +2954,7 @@
       for (const p of s.petRows || []) {
         rows.push({ source: '🐾 ' + p.name + (p.name === activeCharm ? ' (charm)' : ' (pet)'),
           total: p.total, count: p.hits, crits: p.crits, max: p.maxHit,
-          avg: p.total / (p.hits || 1), pct: 0, nocast: false, isPet: true });
+          avg: p.total / (p.hits || 1), pct: 0, nocast: false, isPet: true, petName: p.name });
       }
       const grand = rows.reduce((a, r) => a + r.total, 0) || 1;
       rows.forEach(r => r.pct = r.total / grand);
@@ -2466,6 +2988,12 @@
         ? fmt(r.total)
         : fmt(r.total) + ' · ' + r.count + 'x · avg ' + fmt(r.avg) +
           (r.crits ? ' · ' + r.crits + ' crit' : '');
+      if (r.isPet && r.petName) {
+        // accidental marks (e.g. a player) are un-done right here
+        div.style.cursor = 'pointer';
+        div.title = 'Click to UNMARK ' + r.petName + ' as your pet';
+        div.addEventListener('click', () => { togglePetRow(r.petName); renderBreakdown(); });
+      }
       rowsEl.appendChild(div);
     }
   }
@@ -2477,9 +3005,80 @@
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  // ---- run tracker: loot & coin between Start/End (instance clears, camps) ----
+  let lootRun = null;          // active run: { startedAt, coin, items: Map(name -> count) }
+  let lootRunHistory = [];     // ended runs this app session, newest first
+
+  const fmtRunDur = (ms) => {
+    const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
+    return (h ? h + 'h ' : '') + (m % 60) + 'm ' + (s % 60) + 's';
+  };
+
+  $('l-run').addEventListener('click', () => {
+    if (!lootRun) {
+      lootRun = { startedAt: Date.now(), coin: 0, items: new Map() };
+      $('l-run').innerHTML = '⏹ End run';
+      $('l-run').classList.add('gold');
+      toast('▶ Run started — tracking loot & coin until you end it');
+    } else {
+      lootRun.endedAt = Date.now();
+      lootRunHistory.unshift(lootRun);
+      lootRunHistory = lootRunHistory.slice(0, 8);
+      const r = lootRun;
+      lootRun = null;
+      $('l-run').innerHTML = '▶ Start run';
+      $('l-run').classList.remove('gold');
+      const items = [...r.items.values()].reduce((a, b) => a + b, 0);
+      toast('⏹ Run ended — ' + (fmtCoin(r.coin) || 'no coin') + ' · ' + items + ' items · ' + fmtRunDur(r.endedAt - r.startedAt));
+    }
+    renderLoot();
+  });
+
+  function renderRunBox() {
+    const box = $('l-run-box');
+    box.innerHTML = '';
+    const mk = (r, live, label) => {
+      const dur = (live ? Date.now() : r.endedAt) - r.startedAt;
+      const items = [...r.items.values()].reduce((a, b) => a + b, 0);
+      const perHr = dur > 30000 && r.coin ? Math.round(r.coin * 3600000 / dur) : 0;
+      const d = document.createElement('div');
+      d.style.cssText = 'background:rgba(255,215,102,' + (live ? '.10' : '.05') + ');border:1px solid rgba(255,215,102,.3);border-radius:6px;padding:4px 8px;margin-bottom:4px';
+      const h = document.createElement('div');
+      h.style.cssText = 'display:flex;gap:10px;font-size:11px;color:' + (live ? '#ffd766' : '#cfc9a8');
+      h.innerHTML = '<b></b><span></span><span></span>' + (perHr ? '<span style="margin-left:auto">' + fmtCoin(perHr) + ' /hr</span>' : '');
+      const sp = h.querySelectorAll('b,span');
+      sp[0].textContent = (live ? '⏺ RUN — ' : label + ' — ') + fmtRunDur(dur);
+      sp[1].textContent = fmtCoin(r.coin) || 'no coin';
+      sp[2].textContent = items + ' item' + (items === 1 ? '' : 's');
+      d.appendChild(h);
+      const top = [...r.items.entries()].sort((a, b) => b[1] - a[1]);
+      if (top.length) {
+        const list = document.createElement('div');
+        list.style.cssText = 'color:#aab;font-size:10px;line-height:1.45;white-space:normal';
+        list.textContent = top.slice(0, 14).map(([n, c]) => n + (c > 1 ? ' ×' + c : '')).join(' · ') +
+          (top.length > 14 ? ' · +' + (top.length - 14) + ' more' : '');
+        d.appendChild(list);
+      }
+      return d;
+    };
+    if (lootRun) box.appendChild(mk(lootRun, true));
+    else if (lootRunHistory.length) {
+      box.appendChild(mk(lootRunHistory[0], false, 'Last run'));
+      for (const [i, r] of lootRunHistory.slice(1, 4).entries()) {
+        const line = document.createElement('div');
+        line.style.cssText = 'color:#777;font-size:9.5px;padding:0 2px';
+        const items = [...r.items.values()].reduce((a, b) => a + b, 0);
+        line.textContent = 'Run -' + (i + 2) + ': ' + fmtRunDur(r.endedAt - r.startedAt) + ' · ' +
+          (fmtCoin(r.coin) || 'no coin') + ' · ' + items + ' items';
+        box.appendChild(line);
+      }
+    }
+  }
+
   // ================= render: loot =================
   function renderLoot() {
     $('l-coin').textContent = sessionCoin ? 'Session coin: ' + fmtCoin(sessionCoin) : '';
+    renderRunBox();
     renderSellList();
 
     const rec = $('l-recent-box');
@@ -2596,7 +3195,7 @@
     zone = cleanZoneName(zone);
     currentZone = zone;
     $('k-zonename').textContent = 'Zone: ' + (zone || 'unknown');
-    loadMapForZone(zone);
+    if (activeTab === 'map') drawMap();
     // Quests tab in auto mode follows you as you zone
     if (activeTab === 'quests' && !$('q-zone').value) renderQuests();
     wishZoneCheck(zone);
@@ -3132,21 +3731,12 @@
         ((res.results || []).some(r => r.includes('⚠')) ? ' — some failed: ' + res.results.filter(r => r.includes('⚠')).join(', ') : '');
   });
 
-  // ================= map =================
-  // World coords from /loc are (NS, EW). Map files store x = -EW, y = -NS.
-  const W2M = (ns, ew) => ({ x: -ew, y: -ns });
+  // ================= map (world travel map) =================
+  // Zone detection ("You have entered…" + /who) stays: quests, loot and
+  // timers all key off currentZone, and the world map glows your zone.
 
   let learnedZoneMap = {};
   window.overlay.getZoneMap().then(zm => { learnedZoneMap = zm || {}; });
-
-  const mapState = {
-    short: '', data: null, // parsed map
-    player: null,          // {x, y, when} in map coords
-    trail: [],             // recent positions
-    scale: 1, cx: 0, cy: 0, // view center in map coords
-    follow: true,
-    dragging: null
-  };
 
   // "Neriak - Commons" / "Neriak Commons" / "The Temple of Cazic-Thule 4 (Refined)"
   // must all match their base zone: drop parentheticals, digits, punctuation,
@@ -3169,73 +3759,7 @@
     return null;
   }
 
-  // Fallback: scan the map files we actually have for a short name contained
-  // in the zone's long name ("templeofcazicthule" contains "cazicthule").
-  // Longest match wins; 5+ chars only, to avoid tiny-name false positives.
-  async function zoneShortNameFuzzy(longName) {
-    const want = normZone(longName);
-    if (!want) return null;
-    const files = await window.overlay.listMaps();
-    let best = null;
-    for (const f of files) {
-      if (f.length >= 5 && want.includes(f) && (!best || f.length > best.length)) best = f;
-    }
-    return best;
-  }
-
-  async function loadShort(short, { learn } = {}) {
-    mapState.short = short || '';
-    mapState.data = short ? await window.overlay.getMap(short) : null;
-    mapState.trail = [];
-    $('m-zone').textContent = (currentZone || 'Map') + (short ? '  (' + short + ')' : '');
-    if (learn && short && currentZone) {
-      learnedZoneMap[currentZone] = short;
-      window.overlay.learnZoneMap(currentZone, short);
-    }
-    if (mapState.data) fitMap();
-    drawMap();
-  }
-
-  async function loadMapForZone(longName) {
-    let short = zoneShortName(longName);
-    if (short) await loadShort(short);
-
-    // Self-heal: if the table gave nothing, or gave a name whose map file
-    // doesn't actually load, fall back to contains-matching against the
-    // map files on disk — and overwrite the bad learned entry if it wins.
-    if ((!short || !mapState.data) && longName) {
-      const fz = await zoneShortNameFuzzy(longName);
-      if (fz && fz !== short) {
-        learnedZoneMap[longName] = fz;
-        window.overlay.learnZoneMap(longName, fz);
-        short = fz;
-        await loadShort(fz);
-      } else if (!short) {
-        await loadShort(null);
-      }
-    }
-    refreshMapPicker();
-  }
-
-  async function refreshMapPicker() {
-    const sel = $('m-file');
-    const names = await window.overlay.listMaps();
-    sel.innerHTML = '<option value="">map: auto</option>' +
-      names.map(n => '<option value="' + n + '"' + (n === mapState.short ? ' selected' : '') + '>' + n + '</option>').join('');
-  }
-
-  function fitMap() {
-    const c = $('m-canvas'), d = mapState.data;
-    if (!d) return;
-    const b = d.bounds;
-    const w = Math.max(1, b.maxX - b.minX), h = Math.max(1, b.maxY - b.minY);
-    mapState.scale = Math.min(c.width / w, c.height / h) * 0.92;
-    mapState.cx = (b.minX + b.maxX) / 2;
-    mapState.cy = (b.minY + b.maxY) / 2;
-  }
-
-  // ---------- world travel map ----------
-  const worldState = { on: false, scale: 0, cx: 0, cy: 0, routeTarget: null, startOverride: null };
+  const worldState = { scale: 0, cx: 0, cy: 0, routeTarget: null, startOverride: null, dragging: null };
 
   function fitWorld(c) {
     const xs = Object.values(EQLWorld.nodes);
@@ -3287,6 +3811,18 @@
       const [x, y] = toScreen(n.x, n.y);
       const isHere = short === here;
       const isTarget = short === worldState.routeTarget;
+      if (EQLWorld.PORTS[short]) { // teleport destination: gold ring marker
+        ctx.strokeStyle = 'rgba(255,215,102,.55)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(x, y, 5.5, 0, Math.PI * 2); ctx.stroke();
+      }
+      if (isHere) { // current-zone glow
+        const g = ctx.createRadialGradient(x, y, 2, x, y, 15);
+        g.addColorStop(0, 'rgba(125,255,160,.5)');
+        g.addColorStop(1, 'rgba(125,255,160,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.fillStyle = isHere ? '#7dffa0' : isTarget ? '#ff9d5c' : onPath.has(short) ? '#ffd766' : 'rgba(220,220,235,.75)';
       ctx.beginPath();
       ctx.arc(x, y, isHere || isTarget ? 4.5 : onPath.has(short) ? 3.5 : 2.5, 0, Math.PI * 2);
@@ -3304,14 +3840,22 @@
         const via = i && p.via === 1 ? '⛵ ' : i && p.via === 2 ? '✦ ' : '';
         return via + EQLWorld.nodes[p.short].name;
       });
-      hint.textContent = 'Route (' + (path.length - 1) + ' crossings): ' + names.join(' → ');
+      let txt = 'Route (' + (path.length - 1) + ' crossings): ' + names.join(' → ');
+      const port = EQLWorld.nearestPort(worldState.routeTarget);
+      if (port) {
+        txt += port.dist === 0
+          ? '  ·  ◎ this IS a port zone (' + port.kind + ')'
+          : '  ·  ◎ nearest port: ' + EQLWorld.nodes[port.short].name + ' (' + port.kind +
+            ', ' + port.dist + ' zone' + (port.dist > 1 ? 's' : '') + ' away)';
+      }
+      hint.textContent = txt;
       hint.style.color = '#ffd766';
     } else if (!here) {
-      hint.textContent = 'Click your current zone first (green), then your destination.';
+      hint.textContent = 'Click your current zone first (green), then your destination. ◎ gold rings = druid/wizard ports';
       hint.style.color = '#888';
     } else {
       hint.textContent = 'You are in ' + (EQLWorld.nodes[here] ? EQLWorld.nodes[here].name : '?') +
-        ' — click a destination zone for a route. ⛵ boat · ✦ portal';
+        ' — click a destination or use Travel to… ⛵ boat · ✦ portal · ◎ druid/wizard port';
       hint.style.color = '#888';
     }
   }
@@ -3320,69 +3864,10 @@
     const c = $('m-canvas');
     const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, c.width, c.height);
-
-    if (worldState.on) { drawWorld(c, ctx); return; }
-    $('m-hint').textContent = 'Make a hotbutton with /loc and press it while moving — the dot follows. Scroll to zoom, drag to pan.';
-    $('m-hint').style.color = '#888';
-
-    const s = mapState.scale;
-    const toScreen = (x, y) => [(x - mapState.cx) * s + c.width / 2, (y - mapState.cy) * s + c.height / 2];
-
-    if (!mapState.data) {
-      ctx.fillStyle = '#888';
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'center';
-      const msg = mapState.short
-        ? 'No map file for "' + mapState.short + '" — set your maps folder in ⚙ Settings.'
-        : 'Zone not recognized — pick its map from the dropdown above';
-      ctx.fillText(msg, c.width / 2, c.height / 2 - 8);
-      if (!mapState.short) {
-        ctx.fillText('(SEQO remembers your pick), or type  /who all <your name>', c.width / 2, c.height / 2 + 8);
-      }
-      return;
-    }
-
-    // geometry
-    ctx.lineWidth = 1;
-    for (const [x1, y1, x2, y2, r, g, b] of mapState.data.lines) {
-      const bright = (r + g + b) < 90 ? 'rgba(190,190,200,.75)' : 'rgba(' + r + ',' + g + ',' + b + ',.9)';
-      ctx.strokeStyle = bright;
-      ctx.beginPath();
-      ctx.moveTo(...toScreen(x1, y1));
-      ctx.lineTo(...toScreen(x2, y2));
-      ctx.stroke();
-    }
-    // labels (only when zoomed in enough to be readable)
-    if (s > 0.18) {
-      ctx.fillStyle = 'rgba(255,215,102,.85)';
-      ctx.font = '9px sans-serif';
-      ctx.textAlign = 'left';
-      for (const [x, y, label] of mapState.data.points) {
-        const [sx, sy] = toScreen(x, y);
-        if (sx < -20 || sy < -10 || sx > c.width + 20 || sy > c.height + 10) continue;
-        ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
-        ctx.fillText(label, sx + 4, sy + 3);
-      }
-    }
-    // trail
-    ctx.strokeStyle = 'rgba(125,255,160,.5)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    mapState.trail.forEach((p, i) => {
-      const [sx, sy] = toScreen(p.x, p.y);
-      i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
-    });
-    ctx.stroke();
-    // player dot
-    if (mapState.player) {
-      const [sx, sy] = toScreen(mapState.player.x, mapState.player.y);
-      ctx.fillStyle = '#7dffa0';
-      ctx.strokeStyle = 'rgba(0,0,0,.8)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
-    }
+    const here = currentWorldStart();
+    $('m-zone').textContent = '🌐 ' + (here && EQLWorld.nodes[here]
+      ? 'World map — ' + EQLWorld.nodes[here].name : 'World map');
+    drawWorld(c, ctx);
   }
 
   function sizeCanvas() {
@@ -3392,56 +3877,36 @@
     drawMap();
   }
 
-  function onLoc(ev) {
-    const p = W2M(ev.ns, ev.ew);
-    mapState.player = { ...p, when: Date.now() };
-    mapState.trail.push(p);
-    if (mapState.trail.length > 60) mapState.trail.shift();
-    if (mapState.follow) { mapState.cx = p.x; mapState.cy = p.y; }
-    if (activeTab === 'map') drawMap();
-  }
-
-  // loc age indicator
-  setInterval(() => {
-    if (activeTab !== 'map') return;
-    const el = $('m-age');
-    if (!mapState.player) { el.textContent = 'no /loc yet'; return; }
-    const age = Math.round((Date.now() - mapState.player.when) / 1000);
-    el.textContent = age < 3 ? 'loc: now' : 'loc: ' + age + 's ago';
-  }, 1000);
-
-  // pan / zoom (shared between zone map and world map) + world node clicks
-  const activeView = () => worldState.on ? worldState : mapState;
+  // pan / zoom + world node clicks
   (() => {
     const c = $('m-canvas');
     c.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const v = activeView();
+      const v = worldState;
       const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
       v.scale = Math.min(20, Math.max(0.01, v.scale * f));
       drawMap();
     }, { passive: false });
     c.addEventListener('mousedown', (e) => {
-      const v = activeView();
-      mapState.dragging = { x: e.clientX, y: e.clientY, cx: v.cx, cy: v.cy, moved: false };
+      const v = worldState;
+      worldState.dragging = { x: e.clientX, y: e.clientY, cx: v.cx, cy: v.cy, moved: false };
       c.style.cursor = 'grabbing';
     });
     window.addEventListener('mousemove', (e) => {
-      if (!mapState.dragging) return;
-      const v = activeView();
-      const dx = e.clientX - mapState.dragging.x, dy = e.clientY - mapState.dragging.y;
-      if (Math.abs(dx) + Math.abs(dy) > 4) mapState.dragging.moved = true;
+      if (!worldState.dragging) return;
+      const v = worldState;
+      const dx = e.clientX - worldState.dragging.x, dy = e.clientY - worldState.dragging.y;
+      if (Math.abs(dx) + Math.abs(dy) > 4) worldState.dragging.moved = true;
       const zoom = contentScale() * v.scale;
-      v.cx = mapState.dragging.cx - dx / zoom;
-      v.cy = mapState.dragging.cy - dy / zoom;
-      if (!worldState.on) { mapState.follow = false; $('m-follow').textContent = 'Follow: off'; }
+      v.cx = worldState.dragging.cx - dx / zoom;
+      v.cy = worldState.dragging.cy - dy / zoom;
       drawMap();
     });
     window.addEventListener('mouseup', (e) => {
-      const wasDrag = mapState.dragging && mapState.dragging.moved;
-      mapState.dragging = null;
+      const wasDrag = worldState.dragging && worldState.dragging.moved;
+      worldState.dragging = null;
       c.style.cursor = 'grab';
-      if (worldState.on && !wasDrag && e.target === c) worldClick(e);
+      if (!wasDrag && e.target === c) worldClick(e);
     });
   })();
 
@@ -3458,19 +3923,31 @@
       const d = Math.hypot(px - x, py - y);
       if (d < bestD) { bestD = d; best = short; }
     }
-    if (!best) { worldState.routeTarget = null; drawMap(); return; }
+    if (!best) { worldState.routeTarget = null; $('m-goto').value = ''; drawMap(); return; }
     if (!currentWorldStart()) worldState.startOverride = best;      // no known location: first click = you are here
     else if (best === currentWorldStart()) worldState.routeTarget = null;
     else worldState.routeTarget = best;
+    $('m-goto').value = worldState.routeTarget || '';
     drawMap();
   }
 
-  $('m-world').addEventListener('click', () => {
-    worldState.on = !worldState.on;
-    $('m-world').classList.toggle('gold', worldState.on);
-    if (worldState.on) { worldState.scale = 0; worldState.routeTarget = null; worldState.startOverride = null; }
-    drawMap();
-  });
+  // destination picker: same as clicking the zone, but searchable
+  (() => {
+    const sel = $('m-goto');
+    const opts = Object.entries(EQLWorld.nodes)
+      .map(([short, n]) => ({ short, name: n.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const o of opts) {
+      const el = document.createElement('option');
+      el.value = o.short;
+      el.textContent = (EQLWorld.PORTS[o.short] ? '◎ ' : '') + o.name;
+      sel.appendChild(el);
+    }
+    sel.addEventListener('change', () => {
+      worldState.routeTarget = sel.value || null;
+      drawMap();
+    });
+  })();
 
   function contentScale() {
     const t = $('content').style.transform;
@@ -3478,51 +3955,13 @@
     return m ? +m[1] : 1;
   }
 
-  $('m-follow').addEventListener('click', () => {
-    mapState.follow = !mapState.follow;
-    $('m-follow').textContent = 'Follow: ' + (mapState.follow ? 'on' : 'off');
-    if (mapState.follow && mapState.player) {
-      mapState.cx = mapState.player.x; mapState.cy = mapState.player.y;
-      drawMap();
-    }
-  });
-  $('m-fit').addEventListener('click', () => {
-    if (worldState.on) { fitWorld($('m-canvas')); drawMap(); return; }
-    mapState.follow = false; $('m-follow').textContent = 'Follow: off'; fitMap(); drawMap();
-  });
-  // short map name -> canonical long zone name (for syncing the Lookup tab)
-  function longNameForShort(short) {
-    for (const [k, v] of Object.entries(EQLZones.zones)) if (v === short) return k;
-    for (const [k, v] of Object.entries(learnedZoneMap)) if (v === short) return k;
-    return null;
-  }
-
-  $('m-file').addEventListener('change', async (e) => {
-    const short = e.target.value;
-    if (!short) {
-      // "map: auto" = forget any manual/learned pairing for this zone and re-detect
-      if (currentZone) {
-        delete learnedZoneMap[currentZone];
-        window.overlay.learnZoneMap(currentZone, null);
-      }
-      loadMapForZone(currentZone);
-      return;
-    }
-    const long = longNameForShort(short);
-    if (long && normZone(long) !== normZone(currentZone)) {
-      // the picked map implies a different zone: adopt it everywhere
-      // (Lookup tab, timers header, rare detection) before learning the pairing
-      await setZone(long, { autoFetch: true });
-      save({ lastZone: long });
-    }
-    loadShort(short, { learn: true }); // manual pick teaches SEQO this zone's map
-  });
+  $('m-fit').addEventListener('click', () => { fitWorld($('m-canvas')); drawMap(); });
 
   function renderAll() {
     if (activeTab === 'meter') renderMeter();
     else if (activeTab === 'breakdown') renderBreakdown();
     else if (activeTab === 'loot') renderLoot();
-    else if (activeTab === 'map') { sizeCanvas(); refreshMapPicker(); }
+    else if (activeTab === 'map') sizeCanvas();
     else if (activeTab === 'timers') renderTimers();
     else if (activeTab === 'quests') renderQuests();
     else renderZone();
@@ -3661,8 +4100,41 @@
   $('btn-settings').addEventListener('click', async () => {
     const opening = !document.body.classList.contains('settings-open');
     document.body.classList.toggle('settings-open');
-    if (opening) { refreshCharList(); refreshLogSize(); renderMuteList(); }
+    if (opening) { refreshCharList(); refreshLogSize(); renderMuteList(); refreshPetChips(); }
   });
+
+  // marked-pets chips: fix accidental pet marks (e.g. clicking a player on the meter)
+  async function refreshPetChips() {
+    const el = $('petchips');
+    const saved = await window.overlay.getPets() || [];
+    const names = new Set(saved);
+    if (activeCharm) names.add(activeCharm);
+    el.innerHTML = '';
+    if (!names.size) { el.innerHTML = '<span style="color:#777;font-size:10.5px">none marked</span>'; return; }
+    for (const n of [...names].sort()) {
+      const chip = document.createElement('span');
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(125,255,160,.12);border:1px solid rgba(125,255,160,.35);border-radius:10px;padding:1px 7px;font-size:10.5px;color:#cfe3cf';
+      const label = document.createElement('span');
+      label.textContent = '🐾 ' + n + (n === activeCharm ? ' (charm)' : '');
+      const x = document.createElement('span');
+      x.textContent = '✕';
+      x.style.cssText = 'cursor:pointer;color:#e88';
+      x.title = 'Stop treating ' + n + ' as your pet';
+      x.addEventListener('click', () => {
+        petNames.delete(n);
+        if (activeCharm === n) setActiveCharm(null);
+        window.overlay.unlearnPet(n);
+        if (tracker.current) {
+          for (const e of tracker.current.events) if (e.attacker === n) e.pet = false;
+        }
+        meterDirty = true;
+        toast('Unmarked as pet: ' + n);
+        refreshPetChips();
+      });
+      chip.append(label, x);
+      el.appendChild(chip);
+    }
+  }
   $('btn-lock').addEventListener('click', () => window.overlay.toggleLock());
   $('btn-min').addEventListener('click', () => window.overlay.minimizeOverlay());
   $('unlock-btn').addEventListener('click', () => window.overlay.toggleLock());
@@ -3777,19 +4249,6 @@
   setInterval(() => {
     if (document.body.classList.contains('settings-open')) refreshLogSize();
   }, 3000);
-  async function refreshMapsStatus() {
-    const st = await window.overlay.mapsStatus();
-    $('maps-status').textContent = st.count
-      ? st.count + ' map files — ' + st.dir.split(/[\\/]/).pop()
-      : 'no maps yet — click Download all maps below';
-  }
-  $('btn-maps').addEventListener('click', async () => {
-    await window.overlay.chooseMapsFolder();
-    refreshMapsStatus();
-    if (currentZone) loadMapForZone(currentZone);
-  });
-  refreshMapsStatus();
-
   // ---- synced game files ----
   async function refreshSyncFiles() {
     const files = await window.overlay.getSyncFiles();
@@ -3818,6 +4277,27 @@
     if (res.error) $('sync-status').textContent = '⚠ ' + res.error;
     else if (res.results) $('sync-status').textContent = res.results.join(' · ');
   });
+  $('btn-addsyncdir').addEventListener('click', async () => {
+    const res = await window.overlay.addSyncFolder();
+    refreshSyncFiles();
+    if (res.error) $('sync-status').textContent = '⚠ ' + res.error;
+    else if (res.results) $('sync-status').textContent = res.results.join(' · ');
+  });
+
+  // 💛 Data credits — every source that powers SEQO's data views
+  (() => {
+    const box = $('credits-list');
+    const all = [...window.EQLUnlocks.CREDITS, window.EQLEpics.CREDIT];
+    for (const c of all) {
+      const row = document.createElement('div');
+      row.innerHTML = '<b style="color:#cfc9a8"></b> — <span class="lnk" style="color:#7da7d9;cursor:pointer;text-decoration:underline dotted"></span><br><span style="color:#8a7a55"></span>';
+      row.querySelector('b').textContent = c.what || c.by;
+      row.querySelector('.lnk').textContent = c.url.replace(/^https?:\/\//, '');
+      row.querySelector('.lnk').addEventListener('click', () => window.overlay.openExternal(c.url));
+      row.querySelectorAll('span')[1].textContent = c.note;
+      box.appendChild(row);
+    }
+  })();
   $('btn-syncnow').addEventListener('click', async () => {
     const res = await window.overlay.syncGameFiles();
     $('sync-status').textContent = res.error ? '⚠ ' + res.error : (res.results || []).join(' · ');
@@ -3860,20 +4340,6 @@
     lootDirty = true; meterDirty = true;
     renderAll();
     toast('🔄 Shared data updated from your other computer');
-  });
-
-  window.overlay.onMapsProgress((p) => {
-    $('btn-dlmaps').textContent = 'Downloading… ' + p.done + '/' + p.total;
-  });
-  $('btn-dlmaps').addEventListener('click', async () => {
-    const b = $('btn-dlmaps');
-    b.disabled = true; b.textContent = 'Downloading…';
-    const res = await window.overlay.downloadLegendsMaps();
-    b.disabled = false; b.textContent = 'Download all maps ⟳';
-    $('maps-status').textContent = res.error
-      ? '⚠ ' + res.error
-      : res.downloaded + '/' + res.total + ' maps downloaded';
-    if (!res.error) { refreshMapsStatus(); refreshMapPicker(); if (currentZone) loadMapForZone(currentZone); }
   });
 
   $('btn-checkupd').addEventListener('click', async () => {
