@@ -399,6 +399,7 @@
             <div class="tab" data-tab="timers">&#9202; Timers</div>
             <div class="tab" data-tab="quests">&#128220; Quests</div>
             <div style="flex:1"></div>
+            <div class="tab" id="upd-btn" style="display:none;color:#7dffa0" title="A new SEQO release is available — click to open the download page">&#11014; Update</div>
             <div class="tab" id="afk-btn" title="AFK watch: loud alert if you're attacked. Click again when you're back.">&#128564; AFK</div>
             <div class="tab" id="unlock-btn" title="Unlock the overlay (back to edit mode)">&#128275;</div>
           </div>
@@ -700,8 +701,8 @@
         <details style="margin-top:4px">
           <summary style="color:#9ab;font-size:11px;cursor:pointer">Which file do I sync for each game option?</summary>
           <div class="hint" style="margin-top:3px;line-height:1.5">
-            All of these live in your EverQuest Legends folder (next to eqgame.exe):<br>
-            &bull; <b>Spell loadouts</b> &mdash; <span style="color:#cfe3cf">Maeel_neriak_LO1.ini</span> (LO2, LO3&hellip; per loadout)<br>
+            Most of these live in your EverQuest Legends folder (next to eqgame.exe); loadouts are in its <b>userdata</b> subfolder:<br>
+            &bull; <b>Spell loadouts</b> &mdash; <span style="color:#cfe3cf">userdata\LF_Maeel_neriak.ini</span><br>
             &bull; <b>Character options, blocked spells, hotbuttons</b> &mdash; <span style="color:#cfe3cf">Maeel_neriak.ini</span><br>
             &bull; <b>Advanced loot / autosell</b> &mdash; most likely also <span style="color:#cfe3cf">Maeel_neriak.ini</span> (unconfirmed).
               To find it for sure: change one autosell setting in game, camp, then sort the game folder by <b>date modified</b> &mdash; the file that just changed is the one to sync.<br>
@@ -893,6 +894,10 @@
         if (lootRun) { // run tracker: count every looted item (and instant-sells as coin)
           lootRun.items.set(ev.item, (lootRun.items.get(ev.item) || 0) + (ev.count || 1));
           if (ev.soldFor) lootRun.coin += ev.soldFor;
+        }
+        if (!ev.soldFor) { // live check-off: Epics/BiS/Unlocks see this drop immediately
+          lootedLive.add(normItemName(ev.item));
+          if (activeTab === 'quests' && /^__/.test($('q-zone').value)) renderQuests();
         }
         if (ev.mob) lastCorpse = { mob: ev.mob, when: ev.when };
         recentDrops.unshift({ item: ev.item, mob: mob || '(unknown)', verdict });
@@ -2307,7 +2312,13 @@
   // item name — strip upgrade suffixes and normalize apostrophes
   const normItemName = (s) => (s || '').toLowerCase().replace(/\s*\+\d+$/, '').replace(/`/g, "'").trim();
 
+  // items looted while SEQO is running: checkmarks update on the fly,
+  // without waiting for the next /outputfile inventory
+  const lootedLive = new Set();
+
   function invHas(name) {
+    const key = normItemName(name);
+    if (lootedLive.has(key)) return true;
     const inv = gameFiles && gameFiles.inventory;
     if (!inv) return false;
     if (!inv.__idx) {
@@ -2316,7 +2327,7 @@
       for (const n of inv.keyring || []) idx.add(normItemName(n));
       inv.__idx = idx;
     }
-    return inv.__idx.has(normItemName(name));
+    return inv.__idx.has(key);
   }
   const factionInfo = (name) =>
     (gameFiles && gameFiles.factions && gameFiles.factions.factions
@@ -3034,29 +3045,57 @@
     renderLoot();
   });
 
+  let runListOpen = false;   // full item list expanded?
+
   function renderRunBox() {
     const box = $('l-run-box');
     box.innerHTML = '';
     const mk = (r, live, label) => {
       const dur = (live ? Date.now() : r.endedAt) - r.startedAt;
       const items = [...r.items.values()].reduce((a, b) => a + b, 0);
+      const moteRows = [...r.items.entries()].filter(([n]) => /mote/i.test(n))
+        .sort((a, b) => b[1] - a[1]);
+      const motes = moteRows.reduce((a, [, c]) => a + c, 0);
       const perHr = dur > 30000 && r.coin ? Math.round(r.coin * 3600000 / dur) : 0;
       const d = document.createElement('div');
       d.style.cssText = 'background:rgba(255,215,102,' + (live ? '.10' : '.05') + ');border:1px solid rgba(255,215,102,.3);border-radius:6px;padding:4px 8px;margin-bottom:4px';
       const h = document.createElement('div');
-      h.style.cssText = 'display:flex;gap:10px;font-size:11px;color:' + (live ? '#ffd766' : '#cfc9a8');
-      h.innerHTML = '<b></b><span></span><span></span>' + (perHr ? '<span style="margin-left:auto">' + fmtCoin(perHr) + ' /hr</span>' : '');
-      const sp = h.querySelectorAll('b,span');
+      h.style.cssText = 'display:flex;gap:10px;font-size:11px;flex-wrap:wrap;color:' + (live ? '#ffd766' : '#cfc9a8');
+      h.innerHTML = '<b></b><span style="color:#7dffa0"></span>' +
+        (motes ? '<span class="rmotes" style="color:#7da7d9;cursor:help">✨ ' + motes + ' mote' + (motes === 1 ? '' : 's') + '</span>' : '') +
+        '<span></span>' + (perHr ? '<span>' + fmtCoin(perHr) + ' /hr</span>' : '') +
+        '<span class="rtoggle" style="margin-left:auto;cursor:pointer;color:#9ab"></span>';
+      const sp = h.querySelectorAll('b,span:not(.rtoggle)');
       sp[0].textContent = (live ? '⏺ RUN — ' : label + ' — ') + fmtRunDur(dur);
       sp[1].textContent = fmtCoin(r.coin) || 'no coin';
-      sp[2].textContent = items + ' item' + (items === 1 ? '' : 's');
+      sp[motes ? 3 : 2].textContent = items + ' item' + (items === 1 ? '' : 's');
+      const mo = h.querySelector('.rmotes');
+      if (mo) mo.title = moteRows.map(([n, c]) => n + ' ×' + c).join('\n');
+      const tog = h.querySelector('.rtoggle');
+      tog.textContent = runListOpen ? 'hide list ▴' : 'full list ▾';
+      tog.addEventListener('click', () => { runListOpen = !runListOpen; renderRunBox(); });
       d.appendChild(h);
-      const top = [...r.items.entries()].sort((a, b) => b[1] - a[1]);
-      if (top.length) {
+
+      const top = [...r.items.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      if (top.length && !runListOpen) {
+        // collapsed: one compact line, motes first so they're always visible
+        const first = [...top.filter(([n]) => /mote/i.test(n)), ...top.filter(([n]) => !/mote/i.test(n))];
         const list = document.createElement('div');
         list.style.cssText = 'color:#aab;font-size:10px;line-height:1.45;white-space:normal';
-        list.textContent = top.slice(0, 14).map(([n, c]) => n + (c > 1 ? ' ×' + c : '')).join(' · ') +
-          (top.length > 14 ? ' · +' + (top.length - 14) + ' more' : '');
+        list.textContent = first.slice(0, 10).map(([n, c]) => n + (c > 1 ? ' ×' + c : '')).join(' · ') +
+          (first.length > 10 ? ' · +' + (first.length - 10) + ' more (full list ▾)' : '');
+        d.appendChild(list);
+      } else if (top.length && runListOpen) {
+        // expanded: every item on its own row, motes highlighted
+        const list = document.createElement('div');
+        list.style.cssText = 'font-size:10px;line-height:1.5;margin-top:2px;column-width:170px;column-gap:14px';
+        for (const [n, c] of top) {
+          const row = document.createElement('div');
+          const isMote = /mote/i.test(n);
+          row.style.cssText = 'color:' + (isMote ? '#7da7d9' : '#aab') + ';break-inside:avoid';
+          row.textContent = (isMote ? '✨ ' : '') + n + (c > 1 ? '  ×' + c : '');
+          list.appendChild(row);
+        }
         d.appendChild(list);
       }
       return d;
@@ -4232,7 +4271,12 @@
   });
   window.overlay.onAppUpdate((r) => {
     showUpdateResult(r);
-    alertFX('⬆ SEQO v' + r.latest + ' is available — Settings → Wiki & Data → Get update', 'repop');
+    alertFX('⬆ SEQO v' + r.latest + ' is available — click ⬆ Update in the tab strip', 'repop');
+    // persistent, clickable — a toast is easy to miss
+    const b = $('upd-btn');
+    b.style.display = '';
+    b.textContent = '⬆ v' + r.latest;
+    b.onclick = () => window.overlay.openExternal(r.url || 'https://github.com/' + (settings.updateRepo || 'RealMaeel/seqo') + '/releases/latest');
   });
 
   const fmtBytes = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB'

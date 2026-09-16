@@ -1,7 +1,12 @@
 # SEQO — Simple EQ Overlay
 
 **A log-powered companion overlay for EverQuest Legends on Windows 11.**
-Live DPS meter · spell & proc analytics · loot tracking with real drop rates · item/zone/quest lookup · maps with live positioning · world travel routing · camp timers with placeholder support · rare-spawn, charm-break, buff-fade & AFK alerts · cross-computer sync.
+Live DPS meter · spell & proc analytics · loot tracking with real drop rates · race/class/deity unlock tracking · epic & best-in-slot checklists · item/zone/quest lookup · world travel routing · camp timers with placeholder support · rare-spawn, charm-break, buff-fade & AFK alerts · cross-computer sync.
+
+> ### New in v2.1 — [release notes](https://github.com/RealMaeel/seqo/releases/latest)
+> SEQO now reads the files the game writes. Type `/outputfile inventory`, `achievements` and `faction` in game and everything stays current on its own, no import buttons.
+> Three new trackers in the Quests dropdown: **🔓 Unlocks** for race/class/deity progress with faction bars and grind routes, **⚔ Epics** with every class's components checked off from your bags, bank and key ring, and **🏆 BiS gear** for all 16 classes with a ✓ on what you already own.
+> Plus a loot run tracker with coin and motes per run, and a reworked world map with route planning and port markers.
 
 SEQO never touches the game. It reads the log file EverQuest Legends already writes to disk — the same technique GamParse and nParse used safely for two decades of classic EQ. **No injection, no memory reading, no automation. Nothing for anti-cheat to object to.**
 
@@ -80,7 +85,7 @@ Your damage by source — melee, each spell, each proc, damage shield — with t
 
 ## 💰 Loot
 
-**▶ Run tracker** (new in 2.1.0): click **Start run** before a personal instance (or any farming session) and SEQO counts every item and every coin split from that moment — a live strip shows duration, coin, item count and coin/hour, updating each second. **End run** freezes the summary (with the item tally) and keeps your recent runs listed below it for comparing clears.
+**▶ Run tracker** (new in 2.1): click **Start run** before a personal instance (or any farming session) and SEQO counts every item and every coin split from that moment — a live strip shows duration, coin, **motes**, item count and coin/hour, updating each second. **full list ▾** expands every drop of the run (motes highlighted ✨); **End run** freezes the summary and keeps your recent runs listed for comparing clears.
 
 Every kill and every looted item is recorded automatically to a permanent database.
 
@@ -213,7 +218,7 @@ Every alert type has its own sound, so you know what happened without looking:
 - **Shared data folder:** point it at a folder inside Dropbox / Google Drive / OneDrive. Your loot database and game database (drop rates, learned respawns, zone mappings, pet names, PH links, corrections, cached wiki pages) live there and sync via your cloud client. Changes from the other computer reload live with a toast. Play on one computer at a time; window layout and log paths stay per-machine on purpose.
 - **Synced game files:** add your character's loadout/UI files (like `Maeel_neriak_LO1.ini`) and they mirror through the shared folder — newest copy wins, with a `.seqo.bak` backup before every overwrite. Camp your character before switching PCs so the game writes its files first.
 - **Synced folders** (new in 2.1.0): **Add folder…** mirrors a whole directory the same way — point it at your custom UI skin (`uifiles\<skinname>`) and every file in it syncs, including files added later.
-- **Which file holds which option?** Settings has a built-in cheat-sheet: spell loadouts = `<Name>_<server>_LO1.ini`; character options / blocked spells / hotbuttons = `<Name>_<server>.ini`; autosell = most likely the same character ini (unconfirmed — change one setting, camp, and sort the game folder by date modified to see which file just changed); UI layout = `UI_<Name>_<server>.ini`; and **avoid syncing `eqclient.ini`** between different machines (per-machine video settings).
+- **Which file holds which option?** Settings has a built-in cheat-sheet: spell loadouts = `userdata\LF_<Name>_<server>.ini` (the userdata subfolder of your game directory); character options / blocked spells / hotbuttons = `<Name>_<server>.ini`; autosell = most likely the same character ini (unconfirmed — change one setting, camp, and sort the game folder by date modified to see which file just changed); UI layout = `UI_<Name>_<server>.ini`; and **avoid syncing `eqclient.ini`** between different machines (per-machine video settings).
 
 ---
 
