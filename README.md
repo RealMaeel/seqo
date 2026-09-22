@@ -3,10 +3,11 @@
 **A log-powered companion overlay for EverQuest Legends on Windows 11.**
 Live DPS meter · spell & proc analytics · loot tracking with real drop rates · race/class/deity unlock tracking · epic & best-in-slot checklists · item/zone/quest lookup · world travel routing · camp timers with placeholder support · rare-spawn, charm-break, buff-fade & AFK alerts · cross-computer sync.
 
-> ### New in v2.1 — [release notes](https://github.com/RealMaeel/seqo/releases/latest)
-> SEQO now reads the files the game writes. Type `/outputfile inventory`, `achievements` and `faction` in game and everything stays current on its own, no import buttons.
-> Three new trackers in the Quests dropdown: **🔓 Unlocks** for race/class/deity progress with faction bars and grind routes, **⚔ Epics** with every class's components checked off from your bags, bank and key ring, and **🏆 BiS gear** for all 16 classes with a ✓ on what you already own.
-> Plus a loot run tracker with coin and motes per run, and a reworked world map with route planning and port markers.
+> ### New in v2.2 — [release notes](https://github.com/RealMaeel/seqo/releases/latest)
+> Every button now works while the overlay is locked — hover over a control and it's clickable, everywhere else your clicks still pass through to the game.
+> Click anyone's bar on the meter to see their damage by spell, and mark pets with the new 🐾 button on each bar instead of clicking the whole row.
+> The run tracker now keeps a **rare checklist** per dungeon crawl: named mobs you've killed get a ✓, the ones still up stay on the list.
+> Quest data now **updates itself from the sources**: the epic checklists and unlock grind routes re-read straight from eqlwiki.com, the Plane of Sky quest list from eqlegendstools.com — once a week on its own, or on demand with one button. No new SEQO release needed when the community updates a page. The new Accuracy stat is picked up in item views and BiS lists as sources publish it.
 
 SEQO never touches the game. It reads the log file EverQuest Legends already writes to disk — the same technique GamParse and nParse used safely for two decades of classic EQ. **No injection, no memory reading, no automation. Nothing for anti-cheat to object to.**
 
@@ -42,7 +43,7 @@ On Windows, `npm run dist` produces both `SEQO-Setup-x.y.z.exe` (installer) and 
 
 1. In game, make sure logging is on (`/log`). Your log lives in the game's `Logs` folder as `eqlog_<Name>_<server>.txt`.
 2. In SEQO: ⚙ **Settings → Character & Log → Choose…** and pick that file.
-3. ⚙ **Settings → Maps → Download all maps ⟳** (one click; ~200 classic zone maps plus EQ Legends fixes).
+3. In game, type `/outputfile inventory`, `/outputfile achievements` and `/outputfile faction` once — SEQO finds the files next to your log and keeps everything synced from then on.
 4. Position the overlay, then press **Ctrl+Alt+O** to lock it and play.
 
 > **Fullscreen note:** overlays can't draw over true exclusive fullscreen. Windows 11's default "fullscreen optimizations" usually makes it work anyway — if SEQO doesn't appear over the game, switch EQ Legends to **borderless/windowed fullscreen** (looks identical).
@@ -55,7 +56,7 @@ On Windows, `npm run dist` produces both `SEQO-Setup-x.y.z.exe` (installer) and 
 |---|---|
 | Move | drag the title bar (edit mode) |
 | Resize | drag the gold corner grip — everything inside scales, keeping its ratio |
-| Lock (click-through) | **Ctrl+Alt+O**, or the 🔒 button. While locked, clicks pass through to the game |
+| Lock (click-through) | **Ctrl+Alt+O**, or the 🔒 button. While locked, clicks pass through to the game — but every button and control still works when your mouse is over it (start a run, expand a bar, change tabs) |
 | Unlock | **Ctrl+Alt+O**, the on-screen **🔓** in the tab strip, or the tray menu |
 | Show / hide | **Ctrl+Alt+H**, or single-click the tray icon |
 | Minimize | the **—** button; SEQO appears in the taskbar while minimized, and leaves it again on restore |
@@ -71,8 +72,9 @@ If a hotkey is stolen by another app (Discord and GeForce overlays are the usual
 
 Live per-fight combat stats: your DPS, total damage, max hit, crits, damage taken, and self-healing, plus a damage bar for every combatant — you, your pets, groupmates. Fights are detected automatically; eight quiet seconds ends one, and the meter shows your last fight while idle.
 
+- **Click any bar for damage by spell** (new in 2.2) — yours or anyone else's: melee, each spell, each proc, with totals, share and hit counts. Click again to collapse. Your own expanded row includes your pets' sources when they're folded in.
 - **Pets count.** Summoned pets are detected from their speech; charmed mobs are recognized instantly from the "has been charmed" landing line (and when they address you as Master). **Pet damage folds into your row** ("Maeel +🐾") and into your stat tiles — that's your real output. Toggle in Settings → Appearance.
-- **Silent pet?** Some pets never speak. **Click its row on the meter** to mark it as yours (click again to unmark). Named pets are remembered forever; article-named mobs are treated as your active charm.
+- **Silent pet?** Some pets never speak. Every other player's bar has a **🐾 button on its right edge** — click it to mark that combatant as your pet (click again to unmark). Named pets are remembered forever; article-named mobs are treated as your active charm.
 - **Damage shields count** ("burned by YOUR flames") and attribute correctly to you, groupmates, or enemies.
 
 ## 📊 Spells
@@ -85,7 +87,9 @@ Your damage by source — melee, each spell, each proc, damage shield — with t
 
 ## 💰 Loot
 
-**▶ Run tracker** (new in 2.1): click **Start run** before a personal instance (or any farming session) and SEQO counts every item and every coin split from that moment — a live strip shows duration, coin, **motes**, item count and coin/hour, updating each second. **full list ▾** expands every drop of the run (motes highlighted ✨); **End run** freezes the summary and keeps your recent runs listed for comparing clears.
+**▶ Run tracker**: click **Start run** before a personal instance (or any farming session) and SEQO counts every item and every coin split from that moment. If you zone into an instanced copy of a zone without a run going, a toast reminds you to start one — a live strip shows duration, coin, **motes**, item count and coin/hour, updating each second. **full list ▾** expands every drop of the run (motes highlighted ✨); **End run** freezes the summary and keeps your recent runs listed for comparing clears.
+
+**⭐ Rare checklist** (new in 2.2): during a run, the strip also tracks the zone's **named mobs** — every rare you kill gets a green ✓ (with a toast), and the ones still up stay listed with ○ so you know what's left in the crawl. The known-rares list is built from [EQLForge](https://eqlforge.com/)'s per-zone Notable NPCs (the community's dungeon-crawl rare lists — support them) plus the wiki zone page's Boss/Named entries and drop tables, and it refreshes automatically the first time you start a run in a zone with old or missing data. Generic mobs and loot objects (a haunted chest, an ashenbone drake) are filtered out — only proper names count, unless a source explicitly calls the mob a boss — and if something slips through, click it in the list to remove it from that zone's rares for good ("restore" on the Rares line brings them back). The same filter applies to the ⭐ RARE UP alerts. This pairs with the game's own [Dungeon Crawl](https://eqlwiki.com/Dungeon_Crawl) instances, where clearing every rare is the objective.
 
 Every kill and every looted item is recorded automatically to a permanent database.
 
@@ -168,7 +172,7 @@ The zone selector defaults to wherever you are (it follows you as you zone) and 
 
 Click any item name in a quest to open its stats (with the upgrade slider) on the Data tab; the ☐ box is the check-off.
 
-PoS quest data compiled from the excellent [eqlegendstools.com](https://eqlegendstools.com/plane-of-sky-quests/).
+PoS quest data comes from the excellent [eqlegendstools.com](https://eqlegendstools.com/plane-of-sky-quests/) — and since 2.2 it re-reads their live list on every quest-data update, so changes on their site reach your tracker without a new SEQO build.
 
 ![Plane of Sky quest tracker](docs/images/seqo-quests.png)
 
@@ -176,7 +180,7 @@ PoS quest data compiled from the excellent [eqlegendstools.com](https://eqlegend
 
 The first entry in the Quests dropdown shows every **race, class and deity unlock** with live progress from your game files:
 
-- **Races** — each race's required factions as progress bars (from `/outputfile faction`), with the fastest known grind route and which drop items to hoard for turn-ins. Routes courtesy of **Alanna's Race Unlock Guide** on eqlwiki.com — please support her work.
+- **Races** — each race's required factions as progress bars (from `/outputfile faction`), with the fastest known grind route and which drop items to hoard for turn-ins. Routes courtesy of **Alanna's Race Unlock Guide** on eqlwiki.com — please support her work. Since 2.2 the recommended routes re-read from her live guide on every quest-data update.
 - **Classes** — each class's Primary Class Unlock as a reward checklist straight from your achievements file; click any reward to jump to its Plane of Sky quest.
 - **Deities** — current status per deity (all "future placeholder" in game today except Agnostic's task).
 - Everything is bypassable with store Unlock Tokens; the view just tracks the earned path.
@@ -185,9 +189,11 @@ The first entry in the Quests dropdown shows every **race, class and deity unloc
 
 Every class's epic quest components with **the exact EQ Legends item names**, following the community ["Epic Items To Keep" checklist by Manlaan](https://eqlwiki.com/User:Manlaan/Epic_Items_To_Keep) on eqlwiki.com — please support the wiki. Auto-checked against your inventory file **including your bank and key ring**, quantities shown (Gnoll Pup Scalp ×4), ⚠ marking entries the wiki hasn't verified, and a toast + automatic KEEP verdict when a piece you still need drops. Full walkthroughs live on each class's Epic Quest wiki page.
 
+**Staying current** (new in 2.2): the quest data keeps itself up to date. Once a week (or whenever you press **⟳ Update quest data** under Settings → 💛 Data credits) SEQO re-reads the epic checklists and unlock grind routes straight from eqlwiki.com and the Plane of Sky quest list from eqlegendstools.com, and swaps the fresh data in on the spot — a toast tells you when something actually changed. The lists that ship with the app are only the fallback for when the sources can't be reached or a page's layout changes so much it can't be parsed; if that happens you get a banner on the affected view with a one-click retry.
+
 ### 🏆 BiS gear (new in 2.1.0)
 
-Per-class best-in-slot lists for all 16 classes — **courtesy of [eqlegendstools.com](https://eqlegendstools.com/bis-gear/), please support them**. Pick a class, see the top items per slot with AC/HP/mana and source, with ✓ on everything you already own (worn, bags, or bank). Ships with a built-in snapshot; **Update list ⟳** re-reads the live site any time. BiS drops you're missing get a toast and an automatic KEEP verdict.
+Per-class best-in-slot lists for all 16 classes — **courtesy of [eqlegendstools.com](https://eqlegendstools.com/bis-gear/), please support them**. Pick a class, see the top items per slot with AC/HP/mana (and the new **Accuracy** stat, once the site lists it) and source, with ✓ on everything you already own (worn, bags, or bank). Ships with a built-in snapshot; **Update list ⟳** re-reads the live site any time and adapts to new site columns automatically. BiS drops you're missing get a toast and an automatic KEEP verdict.
 
 ## 🔔 Alerts
 
@@ -240,6 +246,7 @@ All of SEQO's data views stand on community work — please support these people
 
 - **Plane of Sky quest data & BiS gear lists:** [eqlegendstools.com](https://eqlegendstools.com/) by FlammHammer (Urgar of Halas) — the BiS list ships courtesy of their gear database.
 - **Race unlock grind routes:** [Alanna's Race Unlock Guide](https://eqlwiki.com/Alanna's_Race_Unlock_Guide) on eqlwiki.com.
+- **Dungeon-crawl rare lists:** [EQLForge](https://eqlforge.com/) — each zone's Notable NPCs feed the rare checklist.
 - **Epic 1.0 pre-loot knowledge:** the classic-EQ community — Project 1999 forums/wiki, EQProgression, Zliz's Compendium.
 - **Game data:** [eqlwiki.com](https://eqlwiki.com) via its MediaWiki API — support the wiki.
 - **Item lookups** link out to the community databases, with thanks: [eqlwiki](https://eqlwiki.com/), [EQLBase](https://eqlbase.com/), [EQ Legends Tools](https://eqlegendstools.com/), [Loadout Legends](https://www.loadoutlegends.com/), [Gnoll Guard](https://www.gnollguard.com/).

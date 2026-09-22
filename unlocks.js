@@ -33,6 +33,12 @@
       by: 'eqlegendstools.com',
       url: 'https://eqlegendstools.com',
       note: 'courtesy of eqlegendstools.com — please support them'
+    },
+    {
+      what: 'Dungeon-crawl rare lists (zone Notable NPCs)',
+      by: 'EQLForge',
+      url: 'https://eqlforge.com',
+      note: 'courtesy of eqlforge.com — please support them'
     }
   ];
 
@@ -165,5 +171,8 @@
     return [...s];
   })();
 
-  return { CREDITS, FACTION_GRINDS, RACE_NOTES, DEITY_NOTES, GRIND_ITEMS };
+  // for the data-freshness check
+  const META = { captured: '2026-09-22', sources: ["Alanna's Race Unlock Guide"] };
+
+  return { CREDITS, FACTION_GRINDS, RACE_NOTES, DEITY_NOTES, GRIND_ITEMS, META };
 });

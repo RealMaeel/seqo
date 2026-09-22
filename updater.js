@@ -267,13 +267,14 @@ function extractLinks(text) {
 
 function parseZoneDrops(wikitext) {
   const mobs = new Map();
-  const add = (mobName, drops) => {
-    if (!drops.length) return;
+  const add = (mobName, drops, boss) => {
+    if (!drops.length && !boss) return;
     const key = mobName.trim();
     const cur = mobs.get(key) || { mob: key, drops: [] };
     for (const d of drops) {
       if (!cur.drops.some(x => x.item === d.item)) cur.drops.push(d);
     }
+    if (boss) cur.boss = true;
     mobs.set(key, cur);
   };
 
@@ -285,6 +286,17 @@ function parseZoneDrops(wikitext) {
     const dropText = m[3];
     const items = extractLinks(dropText).map(l => ({ item: l.label, page: l.page, rarity: l.note }));
     add(mobName, items);
+  }
+
+  // Pattern 3: explicit named/boss bullets anywhere on the page — the format
+  // zone walkthroughs use per camp/island, e.g. Plane of Sky:
+  //   "* Boss: [[Thunder Spirit Princess]]"
+  //   "* Named: [[Kobold champion]], [[Kobold noble]]"
+  // These count as named even when the line lists no drops.
+  for (const line of wikitext.split('\n')) {
+    const bm = /^[*:#]+\s*(?:'{2,})?(?:Boss(?:es)?|Named|Rares?)(?:'{2,})?\s*:\s*(.+)/i.exec(line.trim());
+    if (!bm) continue;
+    for (const l of extractLinks(bm[1])) add(l.label, [], true);
   }
 
   // Pattern 2: bullet lists under headings mentioning drops/loot/named
@@ -328,6 +340,53 @@ function wikitextToText(wt) {
 }
 
 // ---------------------------------------------------------------------------
+// eqlforge.com per-zone "Notable NPCs" — the community's dungeon-crawl rare
+// lists (credit: EQLForge). Static HTML; rares link to /npc/<slug> pages.
+// ---------------------------------------------------------------------------
+function forgeSlugs(zoneName, aliases = []) {
+  const slug = (n) => n.toLowerCase()
+    .replace(/['’.]/g, '').replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const out = new Set();
+  for (const n of [zoneName, ...aliases]) {
+    if (!n) continue;
+    out.add(slug(n));                          // "Nagafen's Lair" -> nagafens-lair
+    out.add(slug(n.replace(/^The /i, '')));    // "The Feerrott"   -> feerrott
+  }
+  return [...out].filter(Boolean).slice(0, 4);
+}
+
+async function fetchForgeRares(zoneName, aliases = []) {
+  for (const slug of forgeSlugs(zoneName, aliases)) {
+    try {
+      const res = await fetch('https://eqlforge.com/zone/' + slug,
+                              { headers: { 'User-Agent': 'SEQO/2.2 (personal overlay tool)' } });
+      if (!res.ok) continue;
+      let html = await res.text();
+      // scope to the notable-NPC region when the heading is findable;
+      // otherwise scan the whole page (over-inclusion beats missing rares)
+      const start = html.search(/Notable NPCs|Named (?:mobs|NPCs)|Rare (?:mobs|creatures)/i);
+      if (start > 0) {
+        const rest = html.slice(start);
+        const end = rest.slice(20).search(/<h2\b/i);
+        html = end > 0 ? rest.slice(0, end + 20) : rest;
+      }
+      const names = new Set();
+      const re = /<a[^>]+href="\/npc\/[^"]+"[^>]*>([\s\S]{1,120}?)<\/a>/gi;
+      let m;
+      while ((m = re.exec(html))) {
+        const name = m[1].replace(/<[^>]+>/g, '')
+          .replace(/&amp;/g, '&').replace(/&#0?39;|&rsquo;|&#8217;/g, "'")
+          .replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim();
+        if (name && name.length < 60) names.add(name);
+      }
+      if (names.size >= 3) return { names: [...names], slug };
+    } catch { /* offline or slug miss - try the next candidate */ }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Public: update operations (each returns data to cache)
 // ---------------------------------------------------------------------------
 async function fetchZoneData(zoneName, aliases = []) {
@@ -341,6 +400,18 @@ async function fetchZoneData(zoneName, aliases = []) {
   if (!page) page = await resolvePage(zoneName);
   if (!page) throw new Error('No wiki page found for "' + zoneName + '"');
   const named = parseZoneDrops(page.wikitext);
+
+  // merge eqlforge.com's dungeon-crawl rare list for the zone (best rare
+  // source there is; the wiki page's Boss:/drops lines fill the gaps)
+  let forge = null;
+  try { forge = await fetchForgeRares(zoneName, [page.title, ...aliases]); } catch { /* optional */ }
+  if (forge) {
+    for (const name of forge.names) {
+      const cur = named.find(n => n.mob.toLowerCase() === name.toLowerCase());
+      if (cur) cur.boss = true;
+      else named.push({ mob: name, drops: [], boss: true });
+    }
+  }
 
   // "'''[[Zone Spawn Timer]]: ''' | 4:30"  -> seconds
   let respawnSeconds = null;
@@ -364,6 +435,8 @@ async function fetchZoneData(zoneName, aliases = []) {
     named,
     quests,
     respawnSeconds,
+    forge: forge ? { slug: forge.slug, count: forge.names.length } : null,
+    parserV: 2, // bumped when the named/boss extraction improves, so old caches re-fetch
     updated: Date.now()
   };
 }

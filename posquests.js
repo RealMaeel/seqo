@@ -126,15 +126,13 @@
     ['Wizard', 'Wizard Schrock', 'Solidate Mithril Ring', [['Box of Winds', 'Isle six - Bazzt Zzzt'], ['Efreeti Statuette', EFREETI]], 'Izah'],
   ];
 
-  const quests = Q.map(([cls, npc, reward, items, rune]) => ({
+  // raw rows -> quest objects (also used for live rows fetched from the site)
+  const build = (rows) => rows.map(([cls, npc, reward, items, rune]) => ({
     cls, npc, reward,
-    items: items.concat([['Wind Rune ' + rune, RUNE_LOC]])
+    items: items.concat(rune ? [['Wind Rune ' + rune, RUNE_LOC]] : [])
       .map(([name, loc]) => ({ name, loc })),
     rune
   }));
-
-  const classes = [...new Set(quests.map(q => q.cls))].sort();
-  const runes = [...new Set(quests.map(q => q.rune))].sort();
 
   // isle tag for filtering: "Isle six - Bazzt Zzzt" -> "six"
   const isleOf = (loc) => {
@@ -142,5 +140,14 @@
     return m ? m[1].toLowerCase() : null;
   };
 
-  return { quests, classes, runes, isleOf };
+  const api = { isleOf, build, BUILTIN_ROWS: Q };
+  // swap the whole dataset (built-in at load; live rows after an update)
+  api.swap = (rows) => {
+    api.quests = build(rows);
+    api.classes = [...new Set(api.quests.map(q => q.cls))].sort();
+    api.runes = [...new Set(api.quests.map(q => q.rune))].filter(Boolean).sort();
+  };
+  api.swap(Q);
+
+  return api;
 });

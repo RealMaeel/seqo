@@ -9,6 +9,8 @@
 //
 // items[]: n = exact in-game item name · q = quantity (default 1)
 //          src = where it comes from · u = unverified on the wiki
+//
+// Last checked against the wiki page: 2026-09-22 (page revision of 20 Sep 2026).
 
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -24,7 +26,7 @@
         { n: 'Red Dragon Scales', src: "Lord Nagafen (raid), Nagafen's Lair" },
         { n: 'Kedge Backbone', src: 'Phinigel Autropos (raid), Kedge Keep', u: true },
         { n: 'Onyx Drake Gut', src: 'Blackwing, Rathe Mountains', u: true },
-        { n: 'Alluring Horn', src: 'Quag Maelstrom, Ocean of Tears', u: true }
+        { n: 'Alluring Horn', src: 'Quag Maelstrom, Ocean of Tears' }
       ],
       notes: ''
     },
@@ -53,15 +55,15 @@
       epic: "Nature Walker's Scimitar",
       items: [
         { n: 'Clean Lakewater', src: 'Tainted Aquagoblin / Corrupted Shaman, Lake Rathetear' },
-        { n: 'Chunk of Tundra', src: 'tainted/corrupted wooly mammoth, Everfrost', u: true },
+        { n: 'Chunk of Tundra', src: 'tainted/corrupted wooly mammoth, Everfrost' },
         { n: 'Ancient Rock', src: 'tainted/corrupted hill giant, Rathe Mountains' },
         { n: 'Kedge Cave Crystals', src: 'tainted/Corrupted Seahorse, Kedge Keep' },
-        { n: 'Ocean of Tears Seavines', src: 'Tainted/Corrupted seafury cyclops, Ocean of Tears', u: true },
-        { n: 'Green Heartwood Branch', src: 'Brownie Scouts / Corrupted brownie, Lesser Faydark', u: true },
-        { n: 'Chilled Tundra Root', src: 'foraged in Everfrost', u: true },
+        { n: 'Ocean of Tears Seavines', src: 'Tainted/Corrupted seafury cyclops, Ocean of Tears' },
+        { n: 'Green Heartwood Branch', src: 'Brownie Scouts / Corrupted brownie, Lesser Faydark' },
+        { n: 'Chilled Tundra Root', src: 'foraged in Everfrost' },
         { n: 'Ripened Heartfruit', src: 'foraged in Greater Faydark' },
         { n: 'Speckled Molded Mushroom', src: 'foraged in Innothule Swamp' },
-        { n: 'Sweetened Mudroot', src: 'foraged in Misty Thicket', u: true }
+        { n: 'Sweetened Mudroot', src: 'foraged in Misty Thicket' }
       ],
       notes: 'Cleansed Spirit of Antonica / of Faydwer chains.'
     },
@@ -80,27 +82,31 @@
       epic: 'Orb of Mastery',
       items: [
         { n: 'Torn Page of Magi`kot pg. 1', src: 'enraged dread wolf, Kithicor Forest' },
-        { n: 'Torn Page of Magi`kot pg. 2', src: 'tentacle terror, Estate of Unrest', u: true },
+        { n: 'Torn Page of Magi`kot pg. 2', src: 'tentacle terror, Estate of Unrest' },
         { n: 'Torn Page of Magi`kot pg. 3', src: 'bloodthirsty ghoul, Lower Guk' },
-        { n: 'Torn Page of Mastery Earth', src: 'Najena / Temple of Cazic-Thule', u: true },
-        { n: 'Torn Page of Mastery Fire', src: 'Najena / Temple of Cazic-Thule', u: true },
-        { n: 'Torn Page of Mastery Water', src: 'Najena / Temple of Cazic-Thule', u: true },
-        { n: 'Torn Page of Mastery Wind', src: 'Najena / Temple of Cazic-Thule', u: true },
+        { n: 'Torn Page of Mastery Earth', src: 'Najena / Temple of Cazic-Thule' },
+        { n: 'Torn Page of Mastery Fire', src: 'Najena / Temple of Cazic-Thule' },
+        { n: 'Torn Page of Mastery Water', src: 'Najena / Temple of Cazic-Thule' },
+        { n: 'Torn Page of Mastery Wind', src: 'Najena / Temple of Cazic-Thule' },
         { n: 'Power of Wind', src: 'gypsy dancer, Mistmoore' },
         { n: 'Power of Earth', src: 'Fairy Guard, Lesser Faydark' },
         { n: 'Power of Fire', src: "Lava/Blazing elemental, Solusek's Eye", u: true },
-        { n: 'Blazing Wand', src: 'Undertow, Kedge Keep', u: true },
+        { n: 'Blazing Wand', src: 'Undertow, Kedge Keep' },
         { n: 'Staff of Elemental Mastery: Earth', src: 'Magi P`Tasa (raid), Plane of Hate' },
         { n: 'Staff of Elemental Mastery: Water', src: 'Phinigel Autropos (raid), Kedge Keep' },
         { n: 'Crown of Elemental Mastery', src: 'Plane of Sky, Island 7' },
         { n: 'Elemental Binder', src: 'elementals, The Hole' },
-        { n: 'Pegasus Feather Cloak', src: 'Quillmane, South Karana', u: true }
+        { n: 'Pegasus Feather Cloak', src: 'Quillmane, South Karana' }
       ],
       notes: 'Words of Magi`kot / Words of Mastery chains.'
     },
     'Monk': {
       epic: 'Celestial Fists',
       items: [
+        { n: 'Needle of the Void', src: 'Monks of the Whistling Fist quest reward' },
+        { n: 'Purple Headband', src: 'Monk Headband quest chain reward' },
+        { n: 'Red Sash of Order', src: 'Monk Sash quest chain, West Freeport' },
+        { n: 'Rare Robe Pattern', src: 'Monks of the Whistling Fist quest' },
         { n: 'Gnoll Pup Scalp', q: 4, src: 'gnoll pups (various zones)' },
         { n: 'Putrid Rib Bone', q: 3, src: 'putrid skeleton, Qeynos Hills' },
         { n: 'Blackburrow Gnoll Pelt', q: 2, src: 'gnolls, Blackburrow' },
@@ -125,7 +131,11 @@
         { n: 'Blackened Sapphire', src: 'Ekeros, Najena' },
         { n: 'Blackened Wand', src: 'Priest Amiaz, Befallen' },
         { n: 'Shadow Silk', src: 'crafted (Tailoring 36)' },
-        { n: 'Robe of the Lost Circle', src: 'crafted (no-fail) / Whistling Fists chain' }
+        { n: 'Shadow Wolf Pelt', src: 'Shadow Silk component' },
+        { n: 'Silk Swatch', src: 'Shadow Silk component' },
+        { n: 'Gather Shadows', src: 'Shadow Silk component (enchanter spell scroll)' },
+        { n: 'Robe of the Lost Circle', src: 'crafted (no-fail) / Whistling Fists chain' },
+        { n: "Jonthan's Whistling Warsong", src: 'Robe of the Lost Circle component (bard song scroll)' }
       ],
       notes: 'Monks of the Whistling Fist + headband + sash chains — the longest prep list.'
     },
@@ -145,6 +155,8 @@
     'Paladin': {
       epic: 'Fiery Defender',
       items: [
+        { n: 'Fiery Avenger', src: 'The Fiery Avenger quest reward' },
+        { n: 'SoulFire', src: "Zimel's Blades (SoulFire) quest reward" },
         { n: 'Ghoulbane', src: 'The froglok shin lord, Upper Guk' },
         { n: 'A Spider Venom Sac', src: 'spiders (various zones)' },
         { n: 'Glowing Sword Hilt', src: 'Xicotl, Mistmoore' },
@@ -152,8 +164,12 @@
         { n: 'Torn, burnt book', src: "Lord Nagafen (raid), Nagafen's Lair" },
         { n: 'Torn, Frost covered book', src: 'Lady Vox (raid), Permafrost' },
         { n: "Drom's Champagne", q: 4, src: 'purchased' },
-        { n: 'Bog Juice', src: 'crafted (Brewing 21)' },
-        { n: 'Edible Goo', src: 'crafted (Baking 21)' }
+        { n: 'Cloth Shirt', src: 'purchased' },
+        { n: 'Bog Juice', src: 'crafted (Brewing 21): Bottle + Snake Scales + Water Flask' },
+        { n: 'Snake Scales', src: 'Bog Juice component, snakes (various)' },
+        { n: 'Edible Goo', src: 'crafted (Baking 21): Fire Beetle Eye + Rat Ears' },
+        { n: 'Fire Beetle Eye', src: 'Edible Goo component, fire beetles' },
+        { n: 'Rat Ears', src: 'Edible Goo component, rats' }
       ],
       notes: 'SoulFire (Zimel’s Blades) → Fiery Avenger → Fiery Defender chain.'
     },
@@ -162,9 +178,10 @@
       items: [
         { n: 'Swirling Sphere of Color', src: 'An Essence Tamer, Plane of Sky' },
         { n: 'Shattered Emerald of Corruption', src: 'mini bosses, Plane of Hate' },
-        { n: 'Ripened Heartfruit', src: 'foraged in Greater Faydark', u: true },
+        { n: 'Ripened Heartfruit', src: 'foraged in Greater Faydark' },
         { n: 'Speckled Molded Mushroom', src: 'foraged in Innothule Swamp' },
-        { n: 'Sweetened Mudroot', src: 'foraged in Misty Thicket', u: true }
+        { n: 'Sweetened Mudroot', src: 'foraged in Misty Thicket' },
+        { n: 'Chilled Tundra Root', src: 'foraged in Everfrost' }
       ],
       notes: ''
     },
@@ -188,6 +205,9 @@
     'Shadow Knight': {
       epic: "Innoruuk's Curse",
       items: [
+        { n: 'Darkforge Breastplate', src: 'Darkforge Armor quest reward' },
+        { n: 'Darkforge Greaves', src: 'Darkforge Armor quest reward' },
+        { n: 'Darkforge Helm', src: 'Darkforge Armor quest reward' },
         { n: 'Decayed Chainmail', src: 'A Lizard Crusader / ritualist, Temple of Cazic-Thule' },
         { n: 'Decayed Breastplate', src: 'A Lizard Crusader / ritualist, Temple of Cazic-Thule' },
         { n: 'Decayed Left Legplate', src: 'A Lizard Crusader / ritualist, Temple of Cazic-Thule' },
@@ -202,7 +222,7 @@
         { n: 'Blade of Abrogation', src: 'Plane of Sky' },
         { n: 'Drake Spine', src: 'Rharzar, Rathe Mountains', u: true },
         { n: 'Decrepit Hide', src: 'an ashenbone drake, Plane of Hate' },
-        { n: 'Cell Key', src: 'A mimic, The Hole', u: true }
+        { n: 'Cell Key', src: 'A mimic, The Hole' }
       ],
       notes: 'Decayed pieces feed the Darkforge Armor Quests (Breastplate/Greaves/Helm rewards).'
     },
@@ -244,5 +264,9 @@
     note: "epic prep checklist courtesy of Manlaan on eqlwiki.com — please support the wiki's editors"
   };
 
-  return { EPICS, CREDIT };
+  // for the data-freshness check: when this file was last verified, and the
+  // wiki pages it came from (MediaWiki titles for the revisions API)
+  const META = { captured: '2026-09-22', sources: ['User:Manlaan/Epic_Items_To_Keep'] };
+
+  return { EPICS, CREDIT, META };
 });

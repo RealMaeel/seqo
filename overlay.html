@@ -151,6 +151,17 @@
   }
   .mrow .lbl .nm { overflow: hidden; text-overflow: ellipsis; }
   .mrow .lbl .nums { color: #eee; flex: none; }
+  .mrow .petbtn {
+    flex: none; margin-left: 4px; padding: 0 4px; border-radius: 3px; cursor: pointer;
+    font-size: 11px; line-height: 15px; opacity: .45; background: rgba(255,255,255,.08);
+  }
+  .mrow .petbtn:hover { opacity: 1; background: rgba(255,215,102,.25); }
+  .mrow .petbtn.ispet { opacity: .95; background: rgba(125,255,160,.2); }
+  .msub { padding: 1px 8px 3px 14px; font-size: 10px; line-height: 1.5; color: #b9c2d0;
+          background: rgba(255,255,255,.03); border-radius: 0 0 4px 4px; flex: none; }
+  .msub .srow { display: flex; gap: 8px; }
+  .msub .srow .sn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msub .srow .sv { margin-left: auto; flex: none; color: #dde; }
   .badge {
     font-size: 9px; padding: 0 5px; border-radius: 8px; margin-left: 4px;
     background: rgba(125,255,160,.15); color: #7dffa0; vertical-align: 1px;
@@ -442,7 +453,7 @@
           <div class="view" id="view-loot">
             <div id="l-head">
               <span class="sect">Loot</span>
-              <button class="kbtn" id="l-run" title="Track loot &amp; coin for one run (e.g. a personal instance) — click again to end it">&#9654; Start run</button>
+              <button class="kbtn" id="l-run" title="Track loot, coin &amp; rare kills for one run (e.g. a personal instance or dungeon crawl) — click again to end it">&#9654; Start run</button>
               <span id="l-coin"></span>
               <button class="kbtn gold" id="l-export" title="Generate wikitext of your observed drop rates">Wiki export &#10697;</button>
             </div>
@@ -730,6 +741,13 @@
       <details>
         <summary>💛 Data credits</summary>
         <div id="credits-list" class="hint" style="margin-top:4px;line-height:1.6"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <button class="kbtn" id="btn-datacheck" title="Re-read the epic checklists and unlock routes from eqlwiki.com and the Plane of Sky quest data from eqlegendstools.com, right now. BiS gear has its own Update button on its view.">⟳ Update quest data</button>
+          <label class="hint" style="display:flex;gap:4px;align-items:center;margin:0">
+            <input type="checkbox" id="autodatacheck"> weekly auto-update
+          </label>
+        </div>
+        <div class="hint" id="datacheck-status" style="margin-top:4px;white-space:pre-line"></div>
       </details>
 
       <div class="hint" style="margin-top:8px">
@@ -873,6 +891,14 @@
       if (ev.type === 'death' && ev.target !== 'You') {
         window.overlay.recordKill(ev.target, currentZone);
         lastCorpse = { mob: ev.target, when: ev.when };
+        if (lootRun) { // run tracker: named/rare kills checklist
+          const rk = mobKey(ev.target);
+          if (isRareMob(rk)) {
+            lootRun.rares.set(rk, (lootRun.rares.get(rk) || 0) + 1);
+            toast('⭐ Rare down: ' + rk);
+            if (activeTab === 'loot') renderRunBox();
+          }
+        }
         // your charm pet died (killed by someone else - killing it yourself
         // means it was an ordinary enemy with the same name)
         if (activeCharm && mobKey(ev.target) === activeCharm && ev.killer !== 'You') {
@@ -938,6 +964,11 @@
         setZone(ev.zone, { autoFetch: true });
         save({ lastZone: cleanZoneName(ev.zone) });
         if (currentZoneVariant) toast('Zone tier: ' + currentZoneVariant + ' — data recorded separately');
+        // entering an instanced copy without a run going: nudge once
+        if (ev.inst && !lootRun && Date.now() - lastRunNudge > 180000 && Date.now() - ev.when < 120000) {
+          lastRunNudge = Date.now();
+          toast('▶ Instance entered — Start run on the Loot tab to track loot, coin & rare kills');
+        }
       } else if (ev.type === 'petsay') {
         const pname = mobKey(ev.name);
         if (/^(a|an|the) /.test(pname)) {
@@ -1057,6 +1088,35 @@
   window.overlay.getRespawns().then(r => { respawnDB = r || {}; });
   let namedSet = new Set();        // lowercased named-mob names for current zone
   const rareSeen = new Map();      // mob -> last toast time
+
+  // What counts as a RARE. The zone's "named" list is really "mobs the wiki
+  // knows drops for", which includes generic mobs and even loot objects
+  // ("a haunted chest" in Hate). A rare must: be on the zone list, not be an
+  // object, carry a proper name (not all-lowercase like "a haunted chest" —
+  // "The Ishva Mal" still counts), and not be on your not-a-rare list.
+  const OBJECT_RE = /\b(chest|coffer|cache|crate|barrel|box|urn|vase|sack|corpse)s?\b/i;
+  let bossSet = new Set();         // wiki-confirmed bosses/named for current zone
+  let notRares = {};               // gameDB.notRares: { zone: [mob, ...] } — synced
+  window.overlay.getNotRares().then((n) => { notRares = n || {}; });
+  const isNotRare = (key) =>
+    ((notRares[currentZone || ''] || []).some(n => n.toLowerCase() === key.toLowerCase()));
+  function isRareMob(name) {
+    const key = mobKey(name);
+    if (isNotRare(key)) return false;
+    if (bossSet.has(key.toLowerCase())) return true; // page says Boss/Named — trust it
+    if (!namedSet.has(key.toLowerCase())) return false;
+    if (OBJECT_RE.test(key)) return false;
+    const bare = key.replace(/^(a|an|the) /i, '');
+    if (!/^[A-Z#]/.test(bare)) return false;   // "a haunted chest" → generic, not a rare
+    return true;
+  }
+  function setNotRare(name, ignored) {
+    const z = currentZone || '';
+    const arr = new Set(notRares[z] || []);
+    if (ignored) arr.add(mobKey(name)); else arr.delete(mobKey(name));
+    notRares[z] = [...arr];
+    window.overlay.setNotRare(z, mobKey(name), ignored);
+  }
 
   function resolveRespawn(mob) {
     const learned = respawnDB[lootZone() + '|' + mob];
@@ -1507,7 +1567,7 @@
     if (!name || name === 'You') return;
     const key = mobKey(name);
     const camped = timers.get(key);
-    if (!namedSet.has(key.toLowerCase()) && !(camped && camped.pinned)) return;
+    if (!isRareMob(key) && !(camped && camped.pinned)) return;
     const last = rareSeen.get(key) || 0;
     if (Date.now() - last < 300000) return; // 5 min per-mob cooldown
     rareSeen.set(key, Date.now());
@@ -2289,6 +2349,31 @@
 
   // ================= game outputfile data (zero-click sync) =================
   const UNL = window.EQLUnlocks, EPICDB = window.EQLEpics, BISDB = window.EQLBis;
+
+  // ---- live quest data (fetched from the source sites at runtime) ----
+  // Built-in js files are the fallback; a successful ⟳ Update quest data (or
+  // the weekly auto-refresh) stores fresh data in the game DB and it wins.
+  let epicsLive = null, unlocksLive = null, posLive = null;
+  const epicItemsFor = (cls) => {
+    const live = epicsLive && epicsLive.data && epicsLive.data[cls];
+    return (live && live.length) ? live : ((EPICDB.EPICS[cls] || {}).items || []);
+  };
+  const grindHintFor = (f) =>
+    (unlocksLive && unlocksLive.data && unlocksLive.data[f]) ||
+    (UNL.FACTION_GRINDS[f] && UNL.FACTION_GRINDS[f].hint) || null;
+  function applyQuestData(qd) {
+    if (!qd) return;
+    epicsLive = qd.epicsData || epicsLive;
+    unlocksLive = qd.unlocksData || unlocksLive;
+    if (qd.posData && Array.isArray(qd.posData.data) && qd.posData.data.length) {
+      posLive = qd.posData;
+      POS.swap(qd.posData.data);
+    }
+  }
+  window.overlay.getQuestData().then((qd) => {
+    applyQuestData(qd);
+    if (activeTab === 'quests') renderQuests();
+  });
   let gameFiles = null;          // { inventory, achievements, factions } from main
   let bisOverride = null;        // live-scraped BiS data (gameDB.bisData)
   window.overlay.getGameData().then((d) => {
@@ -2407,6 +2492,24 @@
       part('achievements', gameFiles.achievements) + ' · ' + part('faction', gameFiles.factions);
   }
 
+  // stale-data banner: shown in a data view when the weekly wiki check found
+  // that its source page changed after this build's data was verified
+  let dataStaleLabels = [];
+  const staleBanner = (label) => {
+    if (!dataStaleLabels.includes(label)) return null;
+    const d = document.createElement('div');
+    d.setAttribute('data-interactive', '');
+    d.style.cssText = 'color:#ffb27d;font-size:9.5px;margin:2px 0 4px;padding:3px 6px;background:rgba(255,150,80,.1);border:1px solid rgba(255,150,80,.35);border-radius:5px;cursor:pointer';
+    d.textContent = '⚠ The wiki page behind this data changed, and the last attempt to re-read it failed — some entries may be out of date. Click here to try again (or use ⟳ Update quest data in Settings → Data credits).';
+    d.title = 'Fetch the latest data from the sources now';
+    d.addEventListener('click', async () => {
+      d.textContent = '⟳ updating from the sources…';
+      const r = await window.overlay.updateQuestData();
+      await afterQuestUpdate(r, false);
+    });
+    return d;
+  };
+
   const creditLine = (c) => {
     const d = document.createElement('div');
     d.style.cssText = 'color:#8a7a55;font-size:9.5px;margin-top:6px';
@@ -2434,6 +2537,8 @@
     const list = $('q-list');
     list.innerHTML = '';
     $('q-progress').textContent = '';
+    const sbU = staleBanner('Race unlock guide');
+    if (sbU) list.appendChild(sbU);
     if (!achSections().length) {
       setQuestEmpty('No achievements data yet.\n\nIn game, type  /outputfile achievements\n(and /outputfile faction for progress bars).\nSEQO reads the files automatically — no clicks needed.');
       list.appendChild(creditLine(UNL.CREDITS[0]));
@@ -2496,8 +2601,8 @@
                 unlBar(pct) + '<span class="loc"></span>';
               row.querySelector('.nm').textContent = fname;
               row.querySelector('.loc').textContent = o.done ? 'MAX' : fi ? (fi.value + ' / 2000') : 'no faction data';
-              const grind = UNL.FACTION_GRINDS[fname];
-              if (grind) row.title = grind.hint + '  (route courtesy of Alanna — eqlwiki.com)';
+              const gh = grindHintFor(fname);
+              if (gh) row.title = gh + '  (route courtesy of Alanna — eqlwiki.com)';
             } else if (om && g.key === 'classes') {
               row.innerHTML = '<span class="box">' + (o.done ? '☑' : '☐') + '</span><span class="nm itemlink"></span><span class="loc">→ PoS quest</span>';
               row.querySelector('.nm').textContent = om[1];
@@ -2521,13 +2626,14 @@
             const grindItems = new Set();
             for (const o of objs) {
               const fm = /^Get maximum faction with (.+?)\.?$/.exec(o.text);
-              const gr = fm && UNL.FACTION_GRINDS[fm[1]];
-              if (gr && gr.hint && !o.done) {
+              const gh = fm && grindHintFor(fm[1]);
+              if (gh && !o.done) {
                 const hint = document.createElement('div');
                 hint.className = 'q-npc';
-                hint.textContent = '🧭 ' + fm[1] + ': ' + gr.hint;
+                hint.textContent = '🧭 ' + fm[1] + ': ' + gh;
                 box.appendChild(hint);
-                for (const it of gr.items) grindItems.add(it);
+                const gr = UNL.FACTION_GRINDS[fm[1]];
+                if (gr) for (const it of gr.items) grindItems.add(it);
                 break; // grinds overlap within a city — one hint per race is enough
               }
             }
@@ -2578,10 +2684,26 @@
     banner.style.cssText = 'color:#d8b46a;font-size:10px;line-height:1.4;margin-bottom:5px';
     banner.textContent = 'Prep list from the community "Epic Items To Keep" checklist (Manlaan, eqlwiki.com) — ⚠ = unverified on the wiki. Checkmarks come from your inventory file (bags + bank + key ring). Full walkthroughs: each class\'s Epic Quest page on the wiki.';
     list.appendChild(banner);
+    const sbE = staleBanner('Epic checklists');
+    if (sbE) list.appendChild(sbE);
+
+    if (epicsLive && epicsLive.data) {
+      const fresh = document.createElement('div');
+      fresh.className = 'q-npc';
+      fresh.textContent = '🔄 Live list from the wiki' +
+        (epicsLive.revised ? ' (page of ' + epicsLive.revised + ')' : '') +
+        ', fetched ' + fmtAge(epicsLive.updated) + '.';
+      list.appendChild(fresh);
+    }
 
     for (const cls of sel) {
-      const e = EPICDB.EPICS[cls];
-      if (!e) continue;
+      const builtin = EPICDB.EPICS[cls];
+      const e = {
+        epic: (builtin && builtin.epic) || 'Epic Quest',
+        items: epicItemsFor(cls),
+        notes: (builtin && builtin.notes) ||
+               'The wiki has nothing confirmed to pre-farm for this class yet.'
+      };
       const div = document.createElement('div');
       div.className = 'l-divider';
       div.textContent = '⚔ ' + cls + ' — ' + e.epic;
@@ -2672,7 +2794,7 @@
         if (have) ownedCount++;
         const row = document.createElement('div');
         row.className = 'q-it' + (have ? ' have' : '');
-        const stats = [it.ac ? 'AC' + it.ac : '', it.hp ? it.hp + 'hp' : '', it.mana ? it.mana + 'mana' : '']
+        const stats = [it.ac ? 'AC' + it.ac : '', it.hp ? it.hp + 'hp' : '', it.mana ? it.mana + 'mana' : '', it.acc ? it.acc + 'acc' : '']
           .filter(Boolean).join(' ');
         row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') + '</span><span class="nm itemlink"></span>' +
           '<span style="color:#9ab;font-size:9.5px;white-space:nowrap">' + stats + '</span><span class="loc"></span>';
@@ -2690,10 +2812,10 @@
   // ---------- needed-item engine: epic/BiS/grind drops get toasts + KEEP ----------
   function neededExtraVerdict(key) {
     for (const cls of qSelClasses()) {
-      const e = EPICDB.EPICS[cls];
-      const hit = e && e.items.find(it => it.n.toLowerCase() === key);
+      const epicName = (EPICDB.EPICS[cls] && EPICDB.EPICS[cls].epic) || 'their epic';
+      const hit = epicItemsFor(cls).find(it => it.n.toLowerCase() === key);
       if (hit && !invHas(hit.n)) {
-        return { kind: 'keep', label: 'KEEP', reason: 'epic prep: ' + e.epic + ' (' + cls + ')', toast: '⚔ Epic prep: ' + hit.n + ' — needed for ' + e.epic + ' (' + cls + ')' };
+        return { kind: 'keep', label: 'KEEP', reason: 'epic prep: ' + epicName + ' (' + cls + ')', toast: '⚔ Epic prep: ' + hit.n + ' — needed for ' + epicName + ' (' + cls + ')' };
       }
     }
     if (UNL.GRIND_ITEMS.some(n => n.toLowerCase() === key)) {
@@ -2799,6 +2921,55 @@
       setTab('loot');
       return;
     }
+    if (tab === 'raredemo') { // dev-only: rare checklist inside a run
+      zoneData = { parserV: 2,
+                   named: [{ mob: 'Lord Ghiosk' }, { mob: 'Fippy Darkpaw' }, { mob: 'Najena' },
+                           { mob: 'a haunted chest' }, { mob: 'an ashenbone drake' }, { mob: 'The Ishva Mal' },
+                           { mob: 'the ghoul arch magi', boss: true }] };
+      rebuildNamedSet();
+      if (!lootRun) $('l-run').click();
+      handleLogLines(['[Tue Sep 22 21:00:00 2026] Lord Ghiosk has been slain by Maeel!',
+                      '[Tue Sep 22 21:00:30 2026] You have slain a haunted chest!',
+                      '[Tue Sep 22 21:01:00 2026] You have slain Najena!']);
+      setTab('loot');
+      return;
+    }
+    if (tab.startsWith('meterx:')) { // dev-only: expand a meter row's spell list
+      meterExpanded.add(tab.slice(7));
+      setTab('meter');
+      renderMeter();
+      return;
+    }
+    if (tab === 'locktest') { // dev-only: prove controls stay hoverable while locked
+      setLocked(true); setTab('loot');
+      const probe = (id) => {
+        const b = $(id).getBoundingClientRect();
+        window.dispatchEvent(new MouseEvent('mousemove', { clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 }));
+        return id + '=' + interactiveNow;
+      };
+      console.log('LOCKTEST ' + ['l-run', 'l-export', 'afk-btn', 'unlock-btn', 'l-coin'].map(probe).join(' '));
+      return;
+    }
+    if (tab === 'qlive') { // dev-only: epics view with injected live wiki data
+      epicsLive = { revised: '2026-09-20', updated: Date.now(), data: {
+        'Shadow Knight': [
+          { n: 'Darkforge Breastplate', src: 'Complete Darkforge Armor Quests' },
+          { n: 'Decayed Chainmail', src: 'Temple of Cazic-Thule - A Lizard Crusader or A lizard ritualist' },
+          { n: 'Enchanted Platinum Bar', q: 2, src: 'Buy and Enchant' },
+          { n: 'LIVE-DATA-MARKER Sword', src: 'proves the live override renders', u: true }
+        ] } };
+      setTab('quests');
+      $('q-zone').value = '__epics';
+      renderQuests();
+      return;
+    }
+    if (tab === 'datastale') { // dev-only: show the stale-data banner + status line
+      dataStaleLabels = ['Epic checklists', 'Race unlock guide'];
+      setTab('quests');
+      $('q-zone').value = '__epics';
+      renderQuests();
+      return;
+    }
     if (tab.startsWith('unlockx:')) { // dev-only: expand one race unlock row
       unlExpanded.add('races|Race Unlock - ' + tab.slice(8));
       setTab('quests');
@@ -2837,6 +3008,8 @@
   });
 
   // ================= render: meter =================
+  const meterExpanded = new Set(); // names whose damage-by-spell sub-list is open
+
   function renderMeter() {
     const s = tracker.summary();
     const view = $('view-meter');
@@ -2877,21 +3050,61 @@
     for (const r of rows.slice(0, 20)) {
       const div = document.createElement('div');
       div.className = 'mrow' + (r.name === 'You' ? ' you' : '');
+      div.setAttribute('data-interactive', '');
+      div.style.cursor = 'pointer';
+      div.title = 'Click to see ' + (r.name === 'You' ? 'your' : r.name + "'s") + ' damage by spell';
       div.innerHTML = '<div class="bar" style="width:' + Math.max(2, r.pct * 100) + '%"></div>' +
                       '<div class="lbl"><span class="nm"></span><span class="nums"></span></div>';
       div.querySelector('.nm').textContent =
         (r.name === 'You' ? (charName || 'You') + (merged ? ' +🐾' : '') : r.name) +
         (r.name !== 'You' && petNames.has(r.name) ? ' 🐾' : '');
-      if (r.name !== 'You') {
-        div.setAttribute('data-interactive', '');
-        div.style.cursor = 'pointer';
-        div.title = petNames.has(r.name)
-          ? 'Click to unmark as your pet'
-          : 'Click to mark ' + r.name + ' as your pet (for pets that never speak)';
-        div.addEventListener('click', () => togglePetRow(r.name));
-      }
       div.querySelector('.nums').textContent = fmt(r.total) + ' (' + fmt(r.dps) + ')';
+      div.addEventListener('click', () => {
+        if (meterExpanded.has(r.name)) meterExpanded.delete(r.name);
+        else meterExpanded.add(r.name);
+        renderMeter();
+      });
+      if (r.name !== 'You') { // add/remove-pet button, far right of the bar
+        const pb = document.createElement('span');
+        const isPet = petNames.has(r.name);
+        pb.className = 'petbtn' + (isPet ? ' ispet' : '');
+        pb.textContent = '🐾';
+        pb.title = isPet
+          ? 'Unmark ' + r.name + ' as your pet'
+          : 'Mark ' + r.name + ' as your pet (for pets that never speak)';
+        pb.addEventListener('click', (e) => { e.stopPropagation(); togglePetRow(r.name); });
+        div.querySelector('.lbl').appendChild(pb);
+      }
       rowsEl.appendChild(div);
+      if (meterExpanded.has(r.name)) {
+        let srcs = tracker.attackerSources(r.name).map(s => ({ ...s }));
+        if (r.name === 'You' && merged) // pets are folded into your row: show theirs too
+          for (const p of (s.petRows || []))
+            for (const ps of tracker.attackerSources(p.name))
+              srcs.push({ ...ps, source: '🐾 ' + p.name + ': ' + ps.source });
+        const sub = document.createElement('div');
+        sub.className = 'msub';
+        sub.setAttribute('data-interactive', '');
+        if (!srcs.length) sub.textContent = 'no attributed damage yet';
+        const grand = srcs.reduce((a, x) => a + x.total, 0) || 1;
+        for (const sr of srcs.slice(0, 10)) {
+          const row = document.createElement('div');
+          row.className = 'srow';
+          row.innerHTML = '<span class="sn"></span><span class="sv"></span>';
+          row.querySelector('.sn').textContent = sr.source;
+          row.querySelector('.sv').textContent =
+            fmt(sr.total) + ' · ' + Math.round(sr.total / grand * 100) + '% · ×' + sr.count +
+            (sr.crits ? ' · ' + sr.crits + ' crit' : '');
+          sub.appendChild(row);
+        }
+        if (srcs.length > 10) {
+          const more = document.createElement('div');
+          more.style.color = '#778';
+          more.textContent = '+' + (srcs.length - 10) + ' more';
+          sub.appendChild(more);
+        }
+        rowsEl.appendChild(sub);
+      }
     }
   }
 
@@ -3019,6 +3232,7 @@
   // ---- run tracker: loot & coin between Start/End (instance clears, camps) ----
   let lootRun = null;          // active run: { startedAt, coin, items: Map(name -> count) }
   let lootRunHistory = [];     // ended runs this app session, newest first
+  let lastRunNudge = 0;        // throttle for the "start a run?" instance reminder
 
   const fmtRunDur = (ms) => {
     const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
@@ -3027,10 +3241,14 @@
 
   $('l-run').addEventListener('click', () => {
     if (!lootRun) {
-      lootRun = { startedAt: Date.now(), coin: 0, items: new Map() };
+      lootRun = { startedAt: Date.now(), coin: 0, items: new Map(), rares: new Map() };
       $('l-run').innerHTML = '⏹ End run';
       $('l-run').classList.add('gold');
-      toast('▶ Run started — tracking loot & coin until you end it');
+      toast('▶ Run started — tracking loot, coin & rare kills until you end it');
+      // zone data parsed before the boss/named extraction existed (or never
+      // fetched): refresh it once so the rare checklist is complete
+      if (currentZone && (!zoneData || (zoneData.parserV || 0) < 2))
+        updateZoneNow().then(() => { if (lootRun) renderRunBox(); }).catch(() => {});
     } else {
       lootRun.endedAt = Date.now();
       lootRunHistory.unshift(lootRun);
@@ -3040,12 +3258,33 @@
       $('l-run').innerHTML = '▶ Start run';
       $('l-run').classList.remove('gold');
       const items = [...r.items.values()].reduce((a, b) => a + b, 0);
-      toast('⏹ Run ended — ' + (fmtCoin(r.coin) || 'no coin') + ' · ' + items + ' items · ' + fmtRunDur(r.endedAt - r.startedAt));
+      toast('⏹ Run ended — ' + (fmtCoin(r.coin) || 'no coin') + ' · ' + items + ' items' +
+            (r.rares && r.rares.size ? ' · ' + r.rares.size + ' rare' + (r.rares.size === 1 ? '' : 's') : '') +
+            ' · ' + fmtRunDur(r.endedAt - r.startedAt));
     }
     renderLoot();
   });
 
   let runListOpen = false;   // full item list expanded?
+
+  // Known rares for the current zone: the wiki's named-mob list when we have
+  // it, otherwise named mobs you've personally killed here before (lootDB).
+  function knownRares() {
+    const out = new Set();
+    for (const n of (zoneData && zoneData.named) || []) {
+      const k = mobKey(n.mob);
+      if (k && k !== '(zone drops)' && isRareMob(k)) out.add(k);
+    }
+    if (!out.size && lootDB && lootDB.mobs) {
+      for (const m of Object.values(lootDB.mobs)) {
+        if ((m.zone || '') !== (currentZone || '') || !m.kills) continue;
+        if (/^(a|an|the) /i.test(m.name) || !/^[A-Z#]/.test(m.name)) continue;
+        if (OBJECT_RE.test(m.name) || isNotRare(m.name)) continue;
+        out.add(m.name);
+      }
+    }
+    return [...out];
+  }
 
   function renderRunBox() {
     const box = $('l-run-box');
@@ -3097,6 +3336,57 @@
           list.appendChild(row);
         }
         d.appendChild(list);
+      }
+
+      // rare checklist: which named mobs are down, which are still up
+      const killed = r.rares ? new Map(r.rares) : new Map();
+      const known = live ? knownRares() : [];
+      if (killed.size || known.length) {
+        const killedLc = new Map([...killed].map(([n, c]) => [n.toLowerCase(), c]));
+        const rd = document.createElement('div');
+        rd.style.cssText = 'font-size:10px;line-height:1.5;margin-top:3px;border-top:1px dashed rgba(255,215,102,.25);padding-top:2px';
+        const bits = [];
+        for (const n of known)
+          bits.push({ n, c: killedLc.get(n.toLowerCase()) || 0, down: killedLc.has(n.toLowerCase()) });
+        for (const [n, c] of killed) // rares killed in another zone earlier in the run
+          if (!known.some(k => k.toLowerCase() === n.toLowerCase())) bits.push({ n, c, down: true });
+        const downN = bits.filter(b => b.down).length;
+        const hd = document.createElement('div');
+        hd.style.cssText = 'color:#ffd766';
+        hd.textContent = '⭐ Rares — ' + downN + ' of ' + bits.length + ' down' +
+          (live && known.length ? ' (' + currentZone + ')' : '');
+        const hidden = (notRares[currentZone || ''] || []).length;
+        if (live && hidden) {
+          const restore = document.createElement('span');
+          restore.style.cssText = 'margin-left:8px;color:#778;cursor:pointer;font-size:9.5px';
+          restore.textContent = hidden + ' removed — restore';
+          restore.title = 'Bring back the mobs you removed from this zone’s rare list';
+          restore.addEventListener('click', () => {
+            for (const n of (notRares[currentZone || ''] || []).slice()) setNotRare(n, false);
+            renderRunBox();
+          });
+          hd.appendChild(restore);
+        }
+        rd.appendChild(hd);
+        const line = document.createElement('div');
+        line.style.cssText = 'white-space:normal';
+        for (const b of bits.sort((a, x) => (x.down - a.down) || a.n.localeCompare(x.n))) {
+          const sp = document.createElement('span');
+          sp.style.cssText = 'margin-right:9px;color:' + (b.down ? '#7dffa0' : '#99a') + (live ? ';cursor:pointer' : '');
+          sp.textContent = (b.down ? '✓ ' : '○ ') + b.n + (b.c > 1 ? ' ×' + b.c : '');
+          if (live) {
+            sp.title = 'Not actually a rare? Click to remove ' + b.n + ' from this zone’s rare list (undo via "restore" on the Rares line)';
+            sp.addEventListener('click', () => {
+              setNotRare(b.n, true);
+              if (lootRun && lootRun.rares) lootRun.rares.delete(mobKey(b.n));
+              toast('⭐ ' + b.n + ' removed from ' + (currentZone || 'this zone') + '’s rares');
+              renderRunBox();
+            });
+          }
+          line.appendChild(sp);
+        }
+        rd.appendChild(line);
+        d.appendChild(rd);
       }
       return d;
     };
@@ -3251,6 +3541,11 @@
     namedSet = new Set(((zoneData && zoneData.named) || [])
       .map(n => mobKey(n.mob).toLowerCase())
       .filter(n => n !== '(zone drops)'));
+    // mobs the wiki page explicitly calls Boss/Named/Rare — trusted as rares
+    // even when their names look generic
+    bossSet = new Set(((zoneData && zoneData.named) || [])
+      .filter(n => n.boss)
+      .map(n => mobKey(n.mob).toLowerCase()));
   }
 
   // best wiki page titles for a game zone name, most-likely first:
@@ -3388,7 +3683,7 @@
   // ---- upgrade tier math (from the wiki's Item Upgrade System page):
   // stats gain a cumulative 10% per tier (weapon DMG 5%/tier), each tier
   // guarantees at least +1; delay never changes; weight shrinks, floor 0.1.
-  const SCALE_STATS = /\b(AC|HP|MANA|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON))(:\s*\+?)(\d+)/gi;
+  const SCALE_STATS = /\b(AC|HP|MANA|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|ACCURACY|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON))(:\s*\+?)(\d+)/gi;
   function scaledStats(block, T) {
     if (!T) return block;
     let out = block.replace(SCALE_STATS, (all, stat, sep, num) => {
@@ -4047,11 +4342,16 @@
   }, 500);
 
   // ================= locked-mode hover interactivity =================
+  // Anything clickable counts, not only [data-interactive] containers: a
+  // button that lives outside one (like Start run) must still work locked.
+  const INTERACTIVE_SEL =
+    '[data-interactive], button, select, input, textarea, label, a, summary, details, .tab, .kbtn, .chip, .badge';
   let interactiveNow = false;
   window.addEventListener('mousemove', (e) => {
     if (!locked) return;
     const el = document.elementFromPoint(e.clientX, e.clientY);
-    const over = !!(el && el.closest('[data-interactive]'));
+    const over = !!(el && (el.closest(INTERACTIVE_SEL) ||
+                           getComputedStyle(el).cursor === 'pointer'));
     document.body.classList.toggle('hovering', over);
     if (over !== interactiveNow) {
       interactiveNow = over;
@@ -4097,6 +4397,8 @@
     $('wiki-pass').value = settings.wikiPass || '';
     if (document.activeElement !== $('upd-repo')) $('upd-repo').value = settings.updateRepo || '';
     $('autoupdcheck').checked = settings.autoCheckUpdates !== false;
+    $('autodatacheck').checked = settings.autoDataCheck !== false;
+    dataStaleLabels = settings.staleData || [];
     renderQuestClasses();
     if (activeTab === 'quests') renderQuests();
     document.body.classList.toggle('show-notes', !!settings.showNotes);
@@ -4262,6 +4564,7 @@
   }
   $('upd-repo').addEventListener('change', (e) => save({ updateRepo: e.target.value.trim() }));
   $('autoupdcheck').addEventListener('change', (e) => save({ autoCheckUpdates: e.target.checked }));
+  $('autodatacheck').addEventListener('change', (e) => save({ autoDataCheck: e.target.checked }));
   $('btn-appupd').addEventListener('click', async () => {
     $('appupd-status').textContent = 'Checking GitHub…';
     showUpdateResult(await window.overlay.checkAppUpdate());
@@ -4342,6 +4645,40 @@
       box.appendChild(row);
     }
   })();
+
+  // ---- live quest-data refresh (Epics + unlock routes from the wiki, PoS
+  //      quests from eqlegendstools; BiS keeps its own Update button) ----
+  const QD_LABELS = { epics: 'Epics', unlocks: 'Unlock routes', pos: 'PoS quests' };
+  function describeQuestUpdate(r) {
+    const bit = (k) => {
+      const x = r[k];
+      if (!x) return QD_LABELS[k] + ': —';
+      if (x.error) return '⚠ ' + QD_LABELS[k] + ': ' + x.error;
+      return '✓ ' + QD_LABELS[k] + ': ' + (x.changed ? 'updated' : 'already current') +
+             (x.revised ? ' (wiki page of ' + x.revised + ')' : '');
+    };
+    return ['epics', 'unlocks', 'pos'].map(bit).join('\n');
+  }
+  async function afterQuestUpdate(r, quiet) {
+    applyQuestData(await window.overlay.getQuestData());
+    dataStaleLabels = (r.epics && r.epics.error ? ['Epic checklists'] : [])
+      .concat(r.unlocks && r.unlocks.error ? ['Race unlock guide'] : []);
+    const changed = ['epics', 'unlocks', 'pos'].filter(k => r[k] && r[k].changed);
+    if (changed.length)
+      toast('📚 Quest data refreshed: ' + changed.map(k => QD_LABELS[k]).join(', ') + ' updated from the sources');
+    else if (dataStaleLabels.length)
+      toast('⚠ Quest data check: a source page changed but could not be re-read — see Settings → Data credits');
+    else if (!quiet)
+      toast('📚 Quest data checked — everything already current');
+    if (activeTab === 'quests') renderQuests();
+  }
+  $('btn-datacheck').addEventListener('click', async () => {
+    $('datacheck-status').textContent = 'updating from the wiki and eqlegendstools…';
+    const r = await window.overlay.updateQuestData();
+    $('datacheck-status').textContent = describeQuestUpdate(r);
+    await afterQuestUpdate(r, true);
+  });
+  window.overlay.onQuestDataUpdated((r) => afterQuestUpdate(r, true));
   $('btn-syncnow').addEventListener('click', async () => {
     const res = await window.overlay.syncGameFiles();
     $('sync-status').textContent = res.error ? '⚠ ' + res.error : (res.results || []).join(' · ');

@@ -214,7 +214,9 @@
       // (discard), the parenthetical is the DIFFICULTY tier (keep separately)
       const vm = /\(([^)]+)\)\s*$/.exec(m[1]);
       let variant = vm ? vm[1].trim() : '';
-      let zone = m[1].replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+\d+\s*$/, '').trim();
+      const noParen = m[1].replace(/\s*\([^)]*\)\s*$/, '');
+      const hadId = /\s+\d+\s*$/.test(noParen); // "Temple of Cazic-Thule 4" = instance id
+      let zone = noParen.replace(/\s+\d+\s*$/, '').trim();
       // instance-mode suffix: "The Plane of Fear - Solo". Only known mode
       // words strip - real dash names like "Neriak - Commons" stay intact.
       const mm = /\s+-\s+(Solo|Duo|Trio|Group|Raid|Party|Heroic|Event)$/i.exec(zone);
@@ -222,7 +224,8 @@
         variant = variant ? variant + ', ' + mm[1] : mm[1];
         zone = zone.slice(0, mm.index).trim();
       }
-      return { type: 'zone', when, zone, variant };
+      // instance id, difficulty tier or mode suffix = an instanced copy
+      return { type: 'zone', when, zone, variant, inst: !!(hadId || variant) };
     }
 
     // "Your Location is -168.90, -240.49, 3.75"  (north-south, east-west, elevation)
@@ -352,6 +355,27 @@
     // wall-clock check: ends a live fight when the log goes quiet
     tick() {
       if (this.current && this.lastFeedWallclock && Date.now() - this.lastFeedWallclock > FIGHT_GAP_MS) this.end();
+    }
+
+    // Per-source damage for ANY attacker in the current/last fight
+    // (powers the click-to-expand rows on the meter).
+    attackerSources(name) {
+      const f = this.current || this.last;
+      if (!f) return [];
+      const bySource = new Map();
+      for (const e of f.events) {
+        if (e.attacker !== name || e.target === YOU || !f.enemies.has(e.target)) continue;
+        let s = bySource.get(e.source);
+        if (!s) bySource.set(e.source, s = { source: e.source, total: 0, count: 0, crits: 0, max: 0 });
+        s.total += e.amount;
+        s.count += 1;
+        if (e.crit) s.crits += 1;
+        if (e.amount > s.max) s.max = e.amount;
+      }
+      const rows = [...bySource.values()].sort((a, b) => b.total - a.total);
+      const grand = rows.reduce((s, r) => s + r.total, 0) || 1;
+      for (const r of rows) { r.pct = r.total / grand; r.avg = r.total / r.count; }
+      return rows;
     }
 
     summary() {
