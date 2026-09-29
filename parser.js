@@ -48,6 +48,8 @@
   const RE_COIN = /^You receive (.+?) from the corpse\.$/;
   // "You received 3 platinum, 5 gold, 7 silver and 1 copper from that item."  (destroying an item for coin)
   const RE_COIN_ITEM = /^You received (.+?) from that item\.$/;
+  // "You receive 5 gold from Kanio Paerk for the Rusty Long Sword(1)."  (vendor sale)
+  const RE_VENDOR = /^You receive (.+?) from (.+?) for the (.+?)\((\d+)\)\.$/;
   // "You successfully destroyed 1 Pearl Necklace +1."
   const RE_DESTROYED = /^You successfully destroyed (\d+) (.+?)\.$/;
   // "Fright scowls at you, ready to attack -- looks like it would wipe the floor with you! (Lvl: 55)"
@@ -127,6 +129,19 @@
     if ((m = RE_MISS.exec(msg)))
       return { type: 'miss', when, attacker: isYou(m[1]) ? YOU : m[1], target: isYou(m[2]) ? YOU : m[2] };
 
+    // XP: Legends prints the percent of the CURRENT level's bar each kill
+    // gave you — "You gain experience! (3.288%)". At the level cap there is
+    // no bar, so the line prints with no percent. Party = a groupmate's kill.
+    if ((m = /^You gain (party )?experience!*\s*(?:\((\d+(?:\.\d+)?)%\))?$/.exec(msg)))
+      return { type: 'exp', when, party: !!m[1], pct: m[2] !== undefined ? +m[2] : undefined };
+
+    if ((m = /^You have gained a level! Welcome to level (\d+)!$/.exec(msg)))
+      return { type: 'levelup', when, level: +m[1] };
+
+    // "You have gained 2 ability points! You now have 145 ability points."
+    if ((m = /^You have gained (\d+) ability points?! You now have (\d+) ability points?[.!]?$/.exec(msg)))
+      return { type: 'aa', when, gained: +m[1], total: +m[2] };
+
     if ((m = RE_SLAIN_BY_YOU.exec(msg)))
       return { type: 'death', when, target: m[1], killer: YOU };
     if ((m = RE_YOU_SLAIN.exec(msg)))
@@ -181,18 +196,25 @@
       return { type: 'bufffade', when, effect: m[1] };
 
     if ((m = RE_LOOT.exec(msg)))
+      // sold = the loot filter auto-sold it ("and sold it for 3 silver." /
+      // "and sold it for free."): never in your bags, nothing to vendor.
+      // Kept separate from soldFor because "free" is a sale worth 0 coin.
       return { type: 'loot', when, item: normItem(m[2]), rawItem: m[2], mob: m[3],
-               count: m[1] ? +m[1] : 1, soldFor: m[4] ? parseCoins(m[4]) : 0 };
+               count: m[1] ? +m[1] : 1, sold: !!m[4], soldFor: m[4] ? parseCoins(m[4]) : 0 };
 
     if ((m = RE_LOOT_SIMPLE.exec(msg)))
       return { type: 'loot', when, item: normItem(m[2]), rawItem: m[2], mob: null,
-               count: m[1] ? +m[1] : 1, soldFor: 0 };
+               count: m[1] ? +m[1] : 1, sold: false, soldFor: 0 };
 
     if ((m = RE_COIN.exec(msg)))
       return { type: 'coin', when, copper: parseCoins(m[1]) };
 
     if ((m = RE_COIN_ITEM.exec(msg)))
       return { type: 'coin', when, copper: parseCoins(m[1]), fromItem: true };
+
+    if ((m = RE_VENDOR.exec(msg)))
+      return { type: 'vendored', when, copper: parseCoins(m[1]), vendor: m[2],
+               item: normItem(m[3]), count: +m[4] };
 
     if ((m = RE_DESTROYED.exec(msg)))
       return { type: 'destroyed', when, count: +m[1], item: normItem(m[2]) };

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SEQO — Dock</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #16161d; color: #ddd; font-family: 'Segoe UI', sans-serif; font-size: 13px;
+         display: flex; flex-direction: column; height: 100vh; padding: 8px 10px 10px;
+         border: 1px solid rgba(255,215,102,.25); border-top: none; }
+  /* ---- top bar (shared) ---- */
+  #topbar { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex: none;
+            -webkit-app-region: drag; }
+  #topbar > * { -webkit-app-region: no-drag; }
+  #mode-title { color: #ffd766; font-weight: 600; font-size: 14px; -webkit-app-region: drag; }
+  #pin, #close { cursor: pointer; color: #999; font-size: 14px; padding: 0 4px; }
+  #pin:hover, #close:hover { color: #ffd766; }
+  #pin.detached { color: #7dffa0; }
+  button { background: #2a2a35; color: #eee; border: 1px solid #555; border-radius: 5px;
+           padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  button:hover { background: #3a3a48; }
+  button.gold { border-color: #b99a3e; color: #ffd766; }
+  select, input[type=text] { background: #22222b; color: #eee; border: 1px solid #444;
+           border-radius: 5px; padding: 4px 8px; font-size: 12px; }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,215,102,.35); border-radius: 4px; }
+  .scroll { flex: 1; overflow-y: auto; padding-right: 4px; min-height: 0; }
+
+  /* ---- cleanup mode ---- */
+  #cleanup-root { display: none; flex-direction: column; flex: 1; min-height: 0; }
+  #cleanup-root.active { display: flex; }
+  #chead { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex: none; flex-wrap: wrap; }
+  #status { color: #8a8; font-size: 11px; margin-left: auto; }
+  #runcmd { display: flex; gap: 8px; align-items: center; background: rgba(255,215,102,.08);
+            border: 1px solid rgba(255,215,102,.3); border-radius: 6px; padding: 4px 9px;
+            margin-bottom: 6px; font-size: 11.5px; color: #cfc9a8; flex: none; }
+  #runcmd code { background: rgba(0,0,0,.4); padding: 1px 7px; border-radius: 4px;
+                 color: #ffd766; font-family: Consolas, monospace; user-select: all; }
+  .divider { color: #ffd766; font-weight: 600; font-size: 12.5px; margin: 10px 0 4px;
+             border-bottom: 1px solid rgba(255,215,102,.3); padding-bottom: 2px; }
+  .divider small { color: #999; font-weight: 400; }
+  .row { display: flex; gap: 8px; align-items: baseline; padding: 3px 4px; border-radius: 4px; font-size: 12px; }
+  .row:hover { background: rgba(255,255,255,.05); }
+  .row .nm { cursor: pointer; text-decoration: underline dotted rgba(255,255,255,.25); }
+  .row .nm:hover { color: #ffd766; }
+  .row .cnt { color: #888; flex: none; }
+  .row .why { font-size: 11px; margin-left: auto; text-align: right; max-width: 58%; white-space: normal; }
+  .need .why { color: #7dffa0; }
+  .done .why { color: #cfa96a; }
+  .unk .why { color: #999; }
+  .gear .why { color: #9db4e8; }
+  .row .junkbtn { flex: none; cursor: pointer; opacity: .4; font-size: 12px; }
+  .row .junkbtn:hover { opacity: 1; }
+  .qchip { display: inline-block; margin: 0 4px 2px 0; padding: 0 6px; border-radius: 8px;
+           background: rgba(125,167,217,.15); color: #7da7d9; cursor: pointer; font-size: 11px; }
+  .qchip:hover { background: rgba(125,167,217,.35); }
+  #empty { color: #777; text-align: center; margin-top: 40px; line-height: 1.6; }
+  #qdetail { flex: none; display: none; background: rgba(125,167,217,.1);
+             border: 1px solid rgba(125,167,217,.35); border-radius: 6px;
+             padding: 6px 9px; margin-top: 6px; font-size: 12px; line-height: 1.55;
+             max-height: 34%; overflow-y: auto; }
+  #qdetail b { color: #7da7d9; }
+  #qdetail .rw { color: #7dffa0; cursor: pointer; text-decoration: underline dotted; margin-right: 8px; }
+  #qdetail .chain { color: #ffb27d; }
+  #qdetail .close2 { float: right; cursor: pointer; color: #888; }
+  #cfoot { flex: none; color: #776; font-size: 10px; margin-top: 5px; line-height: 1.4; }
+
+  /* ---- item mode ---- */
+  #item-root { display: none; flex-direction: column; flex: 1; min-height: 0; }
+  #item-root.active { display: flex; }
+  #ihead { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; flex: none; flex-wrap: wrap; }
+  #ititle { color: #ffd766; font-weight: 700; font-size: 14px; }
+  #iwish { cursor: pointer; }
+  #itier-row { display: none; gap: 8px; align-items: center; margin-bottom: 5px; flex: none; }
+  #itier-row input { flex: 1; }
+  #itierval { color: #ffd766; font-weight: 700; width: 30px; }
+  #istats { white-space: pre-wrap; font-family: Consolas, monospace; font-size: 12px; color: #cfe3cf;
+            background: rgba(255,255,255,.05); border-radius: 6px; padding: 7px 9px; margin-bottom: 6px; flex: none; }
+  .fx { background: rgba(125,167,217,.1); border: 1px solid rgba(125,167,217,.3); border-radius: 6px;
+        padding: 5px 9px; margin-bottom: 5px; font-size: 12px; line-height: 1.5; flex: none; }
+  .fx b { color: #7da7d9; cursor: pointer; text-decoration: underline dotted; }
+  .fx b:hover { color: #ffd766; }
+  .sect-h { color: #ffd766; font-size: 11.5px; font-weight: 600; margin: 8px 0 3px; }
+  .sect-b { white-space: pre-wrap; font-size: 11.5px; line-height: 1.5; color: #ccc;
+            font-family: Consolas, monospace; }
+  .chiprow { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 5px; }
+  .chip { padding: 0 7px; border-radius: 8px; background: rgba(255,255,255,.08); color: #bcd;
+          cursor: pointer; font-size: 11px; line-height: 18px; }
+  .chip:hover { background: rgba(255,215,102,.2); color: #ffd766; }
+  .cached { color: #666; font-size: 10px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div id="topbar">
+    <span id="back" title="Back" style="display:none;cursor:pointer;color:#7da7d9;font-size:15px;padding:0 4px">←</span>
+    <span id="mode-title">SEQO</span>
+    <span style="flex:1"></span>
+    <span id="pin" title="Detach from the overlay (float free) / re-attach">📌</span>
+    <span id="close" title="Close this panel">✕</span>
+  </div>
+
+  <!-- ================= CLEANUP MODE ================= -->
+  <div id="cleanup-root">
+    <div id="runcmd">
+      Run <code>/outputfile inventory</code> in game first, so the list matches your real bags.
+      <button id="copycmd" title="Copy the command to paste into the game">📋 copy</button>
+      <span id="copied" style="color:#7dffa0;display:none">copied ✓</span>
+    </div>
+    <div id="chead">
+      <input type="text" id="filter" placeholder="filter…" style="width:130px">
+      <select id="sort" title="Sort order inside each pile">
+        <option value="name">sort: name</option>
+        <option value="category">sort: category</option>
+        <option value="count">sort: count</option>
+        <option value="where">sort: location</option>
+      </select>
+      <button id="scan" class="gold" title="Look up every unknown item on the wiki (cached forever once checked)">🔎 Scan unknowns</button>
+      <button id="refresh" title="Rebuild the list from your latest inventory file">⟳</button>
+      <span id="status"></span>
+    </div>
+    <div id="list" class="scroll"><div id="empty">Waiting for the overlay…<br>Make sure you've run /outputfile inventory in game.</div></div>
+    <div id="qdetail"></div>
+    <div id="cfoot">Ground truth is your inventory file. Rows leave the list live as you destroy or vendor items.
+      🗑 flags an item junk forever (it drops into Job done) · click an item name for its full details · click a quest for its rewards and what they lead to.</div>
+  </div>
+
+  <!-- ================= ITEM MODE ================= -->
+  <div id="item-root">
+    <div id="ihead">
+      <span id="ititle">—</span>
+      <span id="iwish" title="Wish list: loud alert whenever this drops">☆</span>
+      <span style="flex:1"></span>
+      <button id="iupdate" title="Re-fetch this item from eqlwiki + eqlegendstools">⟳ Update</button>
+    </div>
+    <div class="scroll" id="ibody">
+      <div id="itier-row">
+        <span style="color:#999;font-size:11px">Upgrade tier</span>
+        <input type="range" id="itier" min="0" max="10" value="0" step="1">
+        <span id="itierval" title="Exact tier values, rounded down like the game. In-game items part-way to the next tier read slightly higher.">+0</span>
+      </div>
+      <div id="istats" style="display:none"></div>
+      <div id="ifx"></div>
+      <div id="idrops" class="chiprow"></div>
+      <div id="isect"></div>
+      <div id="isources" class="chiprow"></div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let mode = null;
+  // back navigation: cleanup → item → item → … and back out again
+  const navStack = [];
+  function pushNav() {
+    if (mode === 'cleanup') navStack.push({ mode: 'cleanup' });
+    else if (mode === 'item' && itemName) navStack.push({ mode: 'item', name: itemName });
+    $('back').style.display = navStack.length ? '' : 'none';
+  }
+
+  // ---------- top bar ----------
+  let detached = false;
+  $('close').addEventListener('click', () => window.overlay.closeDock());
+  $('back').addEventListener('click', goBack);
+  $('pin').addEventListener('click', () => {
+    detached = !detached;
+    $('pin').classList.toggle('detached', detached);
+    $('pin').title = detached ? 'Re-attach to the overlay' : 'Detach from the overlay (float free)';
+    window.overlay.dockDetach(detached);
+  });
+
+  function goBack() {
+    const prev = navStack.pop();
+    $('back').style.display = navStack.length ? '' : 'none';
+    if (!prev) return;
+    if (prev.mode === 'cleanup') { setMode('cleanup'); render(); }
+    else showItem(prev.name, false, true);
+  }
+
+  function setMode(m) {
+    mode = m;
+    $('cleanup-root').classList.toggle('active', m === 'cleanup');
+    $('item-root').classList.toggle('active', m === 'item');
+    $('mode-title').textContent = m === 'cleanup' ? '🧹 Cleanup' : '🔎 Item detail';
+  }
+
+  // =========================================================================
+  // CLEANUP MODE — rows pushed by the overlay; quest detail fetched here
+  // =========================================================================
+  let rows = [];
+  const PILES = [
+    ['need', '✅ Still needed', 'quests, epics, BiS, tradeskills, grinds or your own flags want these'],
+    ['unk',  '❓ Unknown', 'not in any database yet — hit Scan to ask the wiki'],
+    ['gear', '🛡 Gear', 'wearable equipment with no quest use — keep, sell or exalt as you like'],
+    ['done', '🗑 Job done', 'no class needs these anymore — vendor or destroy at will']
+  ];
+  // category rank for the "category" sort: what kind of reason a row has
+  function catOf(r) {
+    const s = (r.reason || '').toLowerCase();
+    if (s.startsWith('pos:')) return '1 PoS quest';
+    if (s.startsWith('epic')) return '2 epic';
+    if (s.startsWith('bis')) return '3 BiS';
+    if (r.quests && r.quests.length) return '4 wiki quest';
+    if (s.includes('tradeskill')) return '5 tradeskill';
+    if (s.includes('faction')) return '6 faction grind';
+    if (s.includes('exaltation')) return '7 exaltation';
+    if (s.includes('wish') || s.includes('keep list')) return '8 your flags';
+    if (s.includes('gear')) return '9 gear';
+    return '99 ' + s.slice(0, 12);
+  }
+  function sortRows(items) {
+    const by = $('sort').value;
+    return items.sort((a, b) =>
+      by === 'count' ? (b.count - a.count) || a.name.localeCompare(b.name)
+      : by === 'where' ? (a.where || '').localeCompare(b.where || '') || a.name.localeCompare(b.name)
+      : by === 'category' ? catOf(a).localeCompare(catOf(b)) || a.name.localeCompare(b.name)
+      : a.name.localeCompare(b.name));
+  }
+
+  function render() {
+    const list = $('list');
+    list.innerHTML = '';
+    const q = $('filter').value.trim().toLowerCase();
+    const shown = q ? rows.filter(r => r.name.toLowerCase().includes(q) || (r.reason || '').toLowerCase().includes(q)) : rows;
+    if (!shown.length) {
+      list.innerHTML = '<div id="empty">' + (rows.length ? 'Nothing matches the filter.' :
+        'Waiting for the overlay…<br>Make sure you\'ve run /outputfile inventory in game.') + '</div>';
+      return;
+    }
+    for (const [pile, label, hint] of PILES) {
+      const items = shown.filter(r => r.pile === pile);
+      if (!items.length) continue;
+      const d = document.createElement('div');
+      d.className = 'divider';
+      d.innerHTML = '<span></span> <small>· ' + items.length + ' — ' + hint + '</small>';
+      d.querySelector('span').textContent = label;
+      list.appendChild(d);
+      let lastCat = null;
+      for (const r of sortRows(items)) {
+        if ($('sort').value === 'category') {
+          const c = catOf(r).replace(/^\d+ /, '');
+          if (c !== lastCat) {
+            lastCat = c;
+            const ch = document.createElement('div');
+            ch.style.cssText = 'color:#8a7a55;font-size:10.5px;margin:4px 0 1px';
+            ch.textContent = '— ' + c + ' —';
+            list.appendChild(ch);
+          }
+        }
+        const row = document.createElement('div');
+        row.className = 'row ' + r.pile;
+        row.innerHTML = '<span class="junkbtn" title="Flag as junk: adds it to the overlay’s sell list and remembers forever">🗑</span>' +
+                        '<span class="nm" title="Open this item’s full details"></span><span class="cnt"></span><span class="why"></span>';
+        row.querySelector('.nm').textContent = r.name;
+        row.querySelector('.cnt').textContent = (r.count > 1 ? '×' + r.count : '') + (r.where ? ' · ' + r.where : '');
+        const why = row.querySelector('.why');
+        if (r.quests && r.quests.length) {
+          why.textContent = 'used in: ';
+          for (const qn of r.quests) {
+            const chip = document.createElement('span');
+            chip.className = 'qchip';
+            chip.textContent = qn;
+            chip.title = 'Click to see what ' + qn + ' rewards, and where those rewards lead';
+            chip.addEventListener('click', () => showQuest(qn));
+            why.appendChild(chip);
+          }
+          const extra = (r.reason || '').split(' · ')[1];
+          if (extra) why.appendChild(document.createTextNode(' · ' + extra));
+        } else {
+          why.textContent = r.reason || '';
+          why.title = r.reason || '';
+        }
+        row.querySelector('.nm').addEventListener('click', () => showItem(r.name));
+        row.querySelector('.junkbtn').addEventListener('click', () => {
+          window.overlay.cleanupCmd({ kind: 'junk', name: r.name });
+          r.pile = 'done'; r.reason = 'on your junk list'; delete r.quests; delete r.chain;
+          render();
+        });
+        list.appendChild(row);
+        if (r.chain && r.chain.length) {
+          // the quest chain, right on the page: reward → what it's needed for
+          for (const ch of r.chain) {
+            const cl = document.createElement('div');
+            cl.style.cssText = 'margin:0 4px 2px 26px;font-size:11px;color:#ffb27d;line-height:1.4';
+            cl.textContent = '↳ ' + ch;
+            list.appendChild(cl);
+          }
+        }
+      }
+    }
+  }
+
+  // quest detail WITH the chain: quest → rewards → what each reward is for
+  async function showQuest(questName) {
+    const qd = $('qdetail');
+    qd.style.display = 'block';
+    qd.innerHTML = '<span class="close2" title="close">✕</span><b></b> — fetching from the wiki…';
+    qd.querySelector('b').textContent = questName;
+    qd.querySelector('.close2').addEventListener('click', () => { qd.style.display = 'none'; });
+    const d = await window.overlay.updateItemData(questName);
+    qd.innerHTML = '<span class="close2" title="close">✕</span><b></b> ';
+    qd.querySelector('b').textContent = questName;
+    qd.querySelector('.close2').addEventListener('click', () => { qd.style.display = 'none'; });
+    if (!d || d.error || !d.pageTitle) {
+      qd.appendChild(document.createTextNode('— ⚠ ' + ((d && d.error) || 'no wiki page found')));
+      return;
+    }
+    const rewards = d.rewards || [];
+    if (!rewards.length) {
+      qd.appendChild(document.createTextNode('— the wiki page lists no reward (click the quest name on the overlay’s Lookup tab for the full text)'));
+      return;
+    }
+    qd.appendChild(document.createTextNode('rewards: '));
+    for (const rw of rewards.slice(0, 4)) {
+      const line = document.createElement('div');
+      const s = document.createElement('span');
+      s.className = 'rw';
+      s.textContent = rw;
+      s.title = 'Open ' + rw + '’s full details';
+      s.addEventListener('click', () => showItem(rw));
+      line.appendChild(s);
+      qd.appendChild(line);
+      // one link deeper: what is THIS reward needed for?
+      (async () => {
+        const rd = await window.overlay.updateItemData(rw);
+        const uses = (rd && !rd.error && rd.questUses || []).filter(u => u.toLowerCase() !== questName.toLowerCase());
+        if (uses.length) {
+          const c = document.createElement('span');
+          c.className = 'chain';
+          c.textContent = '  → needed for: ' + uses.join(', ');
+          line.appendChild(c);
+        }
+      })();
+    }
+  }
+
+  window.overlay.onCleanupData((p) => {
+    if (p.rows) { rows = p.rows; render(); }
+    if (p.status !== undefined) $('status').textContent = p.status;
+    if (p.scanning !== undefined) $('scan').disabled = p.scanning;
+  });
+  $('scan').addEventListener('click', () => window.overlay.cleanupCmd({ kind: 'scan' }));
+  $('refresh').addEventListener('click', () => window.overlay.cleanupCmd({ kind: 'refresh' }));
+  $('filter').addEventListener('input', render);
+  $('sort').addEventListener('change', render);
+  $('copycmd').addEventListener('click', () => {
+    window.overlay.copyText('/outputfile inventory');
+    $('copied').style.display = '';
+    setTimeout(() => { $('copied').style.display = 'none'; }, 2000);
+  });
+
+  // =========================================================================
+  // ITEM MODE — self-driven: fetches from the same caches the overlay uses
+  // =========================================================================
+  let itemName = '', itemStats = '', wished = false, lootDB = null;
+
+  // same math as the overlay (wiki Item Upgrade System page): round DOWN,
+  // stats +10%/tier, DMG +5%, ACCURACY +2.5%, +1 minimum, weight -10% floor .1
+  const SCALE_STATS = /\b(AC|HP|MANA|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON))(:\s*\+?)(\d+)/gi;
+  function scaledStats(block, T) {
+    if (!T) return block;
+    let out = block.replace(SCALE_STATS, (a, st, sep, n) => st + sep + Math.max(Math.floor(+n * (1 + 0.10 * T)), +n + T));
+    out = out.replace(/\b(DMG)(:\s*\+?)(\d+)/gi, (a, st, sep, n) => st + sep + Math.max(Math.floor(+n * (1 + 0.05 * T)), +n + T));
+    out = out.replace(/\b(ACCURACY)(:\s*\+?)(\d+)/gi, (a, st, sep, n) => st + sep + Math.floor(+n * (1 + 0.025 * T)));
+    out = out.replace(/\b(WT)(:\s*)([\d.]+)/gi, (a, st, sep, n) => st + sep + Math.max(0.1, +(+n * (1 - 0.10 * T)).toFixed(1)));
+    return out;
+  }
+  $('itier').addEventListener('input', () => {
+    const T = +$('itier').value;
+    $('itierval').textContent = '+' + T;
+    $('istats').textContent = scaledStats(itemStats, T);
+    $('ititle').textContent = itemName + (T ? ' +' + T : '');
+  });
+
+  const ITEM_SOURCES = [
+    ['eqlwiki', (q) => 'https://eqlwiki.com/index.php?search=' + encodeURIComponent(q)],
+    ['EQLBase', (q) => 'https://eqlbase.com/items/?q=' + encodeURIComponent(q)],
+    ['EQ Legends Tools', (q) => 'https://eqlegendstools.com/?s=' + encodeURIComponent(q)],
+    ['Loadout Legends', (q) => 'https://www.loadoutlegends.com/database?search=' + encodeURIComponent(q)],
+    ['Gnoll Guard', (q) => 'https://www.gnollguard.com/items?search=' + encodeURIComponent(q)]
+  ];
+
+  async function showItem(name, refetch, noPush) {
+    if (!noPush && mode) pushNav();
+    setMode('item');
+    itemName = (name || '').replace(/\s*\+\d+$/, '');
+    $('ititle').textContent = itemName;
+    $('iwish').textContent = '☆';
+    $('istats').style.display = 'none';
+    $('itier-row').style.display = 'none';
+    $('ifx').innerHTML = '';
+    $('idrops').innerHTML = '';
+    $('isect').innerHTML = '<div class="sect-b">loading…</div>';
+    $('isources').innerHTML = '';
+    if (!lootDB) lootDB = await window.overlay.getLootDB().catch(() => null);
+    window.overlay.cleanupCmd({ kind: 'wishstate', name: itemName }); // overlay answers via cleanup-data? simpler: ask directly below
+    let cached = refetch ? null : await window.overlay.getItemData(itemName);
+    if (!cached || cached.error) {
+      $('isect').innerHTML = '<div class="sect-b">Fetching from the sources… (the first ever run also caches eqlegendstools — that one can take ~30s)</div>';
+      cached = await window.overlay.updateItemData(itemName);
+    }
+    if (!cached || cached.error) {
+      $('isect').innerHTML = '';
+      const e = document.createElement('div'); e.className = 'sect-b';
+      e.textContent = '⚠ ' + ((cached && cached.error) || 'nothing found');
+      $('isect').appendChild(e);
+      return;
+    }
+    renderItem(cached);
+  }
+
+  function renderItem(cached) {
+    $('ititle').textContent = cached.pageTitle || itemName;
+    // stats + tier slider
+    if (cached.statsblock) {
+      itemStats = cached.statsblock;
+      $('istats').style.display = 'block';
+      $('itier-row').style.display = 'flex';
+      $('itier').value = 0; $('itierval').textContent = '+0';
+      $('istats').textContent = itemStats;
+    } else if (cached.mobsheet) {
+      $('istats').style.display = 'block';
+      $('istats').textContent = cached.mobsheet;
+    }
+    // effects, each explained: pull the description from its wiki page
+    const fxBox = $('ifx');
+    fxBox.innerHTML = '';
+    const fxNames = [...new Set([...(cached.statsblock || '').matchAll(/Effect:\s*([^\n(]+)/gi)]
+      .map(m => m[1].trim()).filter(Boolean))];
+    for (const fx of fxNames) {
+      const d = document.createElement('div');
+      d.className = 'fx';
+      d.innerHTML = '✨ <b title="See every item that carries this effect (opens the overlay’s Exaltations view)"></b> <span style="color:#9ab">— looking up…</span>';
+      d.querySelector('b').textContent = fx;
+      d.querySelector('b').addEventListener('click', () => window.overlay.cleanupCmd({ kind: 'exaltview', name: fx }));
+      fxBox.appendChild(d);
+      window.overlay.getEffectItems(fx).then((ef) => {
+        const sp = d.querySelector('span');
+        if (ef && !ef.error && ef.desc) sp.textContent = '— ' + ef.desc;
+        else if (ef && !ef.error) sp.textContent = '— (no description on the wiki; click the name to see every item with it)';
+        else sp.textContent = '— could not fetch the effect page';
+      });
+    }
+    // known loot chips (mob pages)
+    const dd = $('idrops');
+    dd.innerHTML = '';
+    for (const it of cached.dropsList || []) {
+      const c = document.createElement('span');
+      c.className = 'chip';
+      c.textContent = it;
+      c.addEventListener('click', () => showItem(it));
+      dd.appendChild(c);
+    }
+    // sections: your kills first, then wiki text, then eqlegendstools rows
+    const sect = $('isect');
+    sect.innerHTML = '';
+    const add = (label, body) => {
+      const h = document.createElement('div'); h.className = 'sect-h'; h.textContent = label;
+      const b = document.createElement('div'); b.className = 'sect-b'; b.textContent = body;
+      sect.appendChild(h); sect.appendChild(b);
+    };
+    const mobLower = (cached.pageTitle || itemName).toLowerCase();
+    const obs = [];
+    for (const m of Object.values((lootDB && lootDB.mobs) || {})) {
+      if ((m.name || '').toLowerCase() !== mobLower || !m.kills) continue;
+      for (const d2 of Object.values(m.drops || {}))
+        obs.push(d2.name + '  ' + d2.count + '/' + m.kills +
+          ' (' + (d2.count / m.kills * 100).toFixed(d2.count / m.kills >= 0.1 ? 0 : 1) + '%)' +
+          (m.zone ? '  — ' + m.zone : ''));
+    }
+    if (obs.length) add('Your own kills', obs.join('\n'));
+    if (cached.text) add('eqlwiki.com', (cached.dropsfrom ? 'Drops from: ' + cached.dropsfrom + '\n\n' : '') + cached.text);
+    for (const t of cached.tools || []) add('eqlegendstools.com · ' + t.source, t.lines.join('\n'));
+    const c2 = document.createElement('div');
+    c2.className = 'cached';
+    c2.textContent = 'cached ' + new Date(cached.updated || Date.now()).toLocaleDateString();
+    sect.appendChild(c2);
+    // deep links
+    const src = $('isources');
+    src.innerHTML = '';
+    for (const [n, fn] of ITEM_SOURCES) {
+      const b = document.createElement('span');
+      b.className = 'chip';
+      b.textContent = n + ' ↗';
+      b.title = 'Search "' + itemName + '" on ' + n + ' (opens your browser) — community database, all credit to its maintainers';
+      b.addEventListener('click', () => window.overlay.openExternal(fn(itemName)));
+      src.appendChild(b);
+    }
+  }
+
+  $('iupdate').addEventListener('click', () => showItem(itemName, true));
+  $('iwish').addEventListener('click', () => {
+    wished = !wished;
+    $('iwish').textContent = wished ? '🌟' : '☆';
+    window.overlay.cleanupCmd({ kind: 'wish', name: itemName, on: wished });
+  });
+
+  // wish-state answers ride the cleanup-data channel
+  window.overlay.onCleanupData((p) => {
+    if (p.wishState && p.wishState.name === itemName) {
+      wished = !!p.wishState.on;
+      $('iwish').textContent = wished ? '🌟' : '☆';
+    }
+  });
+
+  // ---------- mode dispatch ----------
+  window.overlay.onDockMode((m) => {
+    if (!m) return;
+    navStack.length = 0; // fresh entry from the overlay: history restarts
+    $('back').style.display = 'none';
+    if (m.mode === 'item' && m.payload && m.payload.name) showItem(m.payload.name, false, true);
+    else { setMode('cleanup'); render(); }
+  });
+</script>
+</body>
+</html>

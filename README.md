@@ -3,11 +3,11 @@
 **A log-powered companion overlay for EverQuest Legends on Windows 11.**
 Live DPS meter · spell & proc analytics · loot tracking with real drop rates · race/class/deity unlock tracking · epic & best-in-slot checklists · item/zone/quest lookup · world travel routing · camp timers with placeholder support · rare-spawn, charm-break, buff-fade & AFK alerts · cross-computer sync.
 
-> ### New in v2.2 — [release notes](https://github.com/RealMaeel/seqo/releases/latest)
-> Every button now works while the overlay is locked — hover over a control and it's clickable, everywhere else your clicks still pass through to the game.
-> Click anyone's bar on the meter to see their damage by spell, and mark pets with the new 🐾 button on each bar instead of clicking the whole row.
-> The run tracker now keeps a **rare checklist** per dungeon crawl: named mobs you've killed get a ✓, the ones still up stay on the list.
-> Quest data now **updates itself from the sources**: the epic checklists and unlock grind routes re-read straight from eqlwiki.com, the Plane of Sky quest list from eqlegendstools.com — once a week on its own, or on demand with one button. No new SEQO release needed when the community updates a page. The new Accuracy stat is picked up in item views and BiS lists as sources publish it.
+> ### New in v2.3 — [release notes](https://github.com/RealMaeel/seqo/releases/latest)
+> A new **dock panel** — an always-on-top strip that snaps under the overlay and follows it — is now home to anything that needs room: the **🧹 Cleanup** list (sortable, with clickable quest chains) and full **item details** (stats, upgrade slider, and every effect explained in plain words). The overlay itself got leaner: Meter and Spells are one tab with ⚔ Fight / Σ Session buttons, and Data is now **🔎 Lookup**.
+> An **✨ Exaltations browser**: pick any Focus/Worn/Proc/Clicky effect and see every item that carries it, with a ✓ on what you own.
+> And an **XP strip** on the meter: the game logs each kill's share of your level bar, so you get real session gain, %/hr, position in the level and time-to-ding — plus AA counts from the game's own running total.
+> **Copy buttons** for DPS and run summaries (one line for in-game chat, full breakdown for Discord, top 1–10 chooser). **Kill-time heads-up** when a dying mob's drop table holds something you still need. **Rep-item counters** on the unlock grinds (Tumpy Tonic 100 / 800). A **📝 Notes** tab that syncs between computers. And the upgrade-slider math now matches the game's actual rounding.
 
 SEQO never touches the game. It reads the log file EverQuest Legends already writes to disk — the same technique GamParse and nParse used safely for two decades of classic EQ. **No injection, no memory reading, no automation. Nothing for anti-cheat to object to.**
 
@@ -59,6 +59,7 @@ On Windows, `npm run dist` produces both `SEQO-Setup-x.y.z.exe` (installer) and 
 | Lock (click-through) | **Ctrl+Alt+O**, or the 🔒 button. While locked, clicks pass through to the game — but every button and control still works when your mouse is over it (start a run, expand a bar, change tabs) |
 | Unlock | **Ctrl+Alt+O**, the on-screen **🔓** in the tab strip, or the tray menu |
 | Show / hide | **Ctrl+Alt+H**, or single-click the tray icon |
+| 📝 Notes | a plain text scratchpad in the tab bar — saves as you type, syncs between your computers. For the stuff you always forget, like `/tasko` |
 | Minimize | the **—** button; SEQO appears in the taskbar while minimized, and leaves it again on restore |
 | Style | opacity, font, size, accent color — ⚙ Settings → Appearance |
 
@@ -72,22 +73,26 @@ If a hotkey is stolen by another app (Discord and GeForce overlays are the usual
 
 Live per-fight combat stats: your DPS, total damage, max hit, crits, damage taken, and self-healing, plus a damage bar for every combatant — you, your pets, groupmates. Fights are detected automatically; eight quiet seconds ends one, and the meter shows your last fight while idle.
 
+- **XP strip** (new in 2.3): a slim line along the meter's bottom edge, fed by the game's own per-kill experience percentages — "✦ XP +19.1% (8 kills) · 19.1%/hr · 11.5% into L47 · ~4.6h to 48 · AA +2 · 145 total". Position and time-to-level appear once a level-up has been seen (that's when the bar position is known); at the level cap the game prints no percentages, so the strip shows kill pace instead. Hidden until the first XP or AA line of the session. Level-ups get a 🎉 DING alert.
+- **Copy your parse** (new in 2.3): 📋 chat copies a one-line summary that fits in-game chat (`Drelzna (0:45) — Maeel 12.4k @276 | …`), 📋 full copies a multi-line breakdown for Discord. The top-N chooser (1–10) sets how many names go in.
 - **Click any bar for damage by spell** (new in 2.2) — yours or anyone else's: melee, each spell, each proc, with totals, share and hit counts. Click again to collapse. Your own expanded row includes your pets' sources when they're folded in.
 - **Pets count.** Summoned pets are detected from their speech; charmed mobs are recognized instantly from the "has been charmed" landing line (and when they address you as Master). **Pet damage folds into your row** ("Maeel +🐾") and into your stat tiles — that's your real output. Toggle in Settings → Appearance.
 - **Silent pet?** Some pets never speak. Every other player's bar has a **🐾 button on its right edge** — click it to mark that combatant as your pet (click again to unmark). Named pets are remembered forever; article-named mobs are treated as your active charm.
 - **Damage shields count** ("burned by YOUR flames") and attribute correctly to you, groupmates, or enemies.
 
-## 📊 Spells
+## 📊 Σ Session (was the Spells tab)
 
-Your damage by source — melee, each spell, each proc, damage shield — with totals, counts, averages, and crits.
+Lives under the Meter tab now: the **⚔ Fight / Σ Session** buttons switch between the live meter and your whole-session damage by source — melee, each spell, each proc, damage shield — with totals, counts, averages, and crits. (Per-fight sources are on the meter itself: click any bar.)
 
-- **Fight / Session toggle.** Fight shows the current (or last) fight; **Session** aggregates every fight since launch — thousands of swings, which is what makes proc rates statistically real.
+- **Session** aggregates every fight since launch — thousands of swings, which is what makes proc rates statistically real.
 - **Proc detection.** Damage from a spell you never cast is flagged as a proc with its rate per melee swing. The log can't distinguish procs from activated abilities, so **every badge is a button**: click to cycle **cast → proc → ability**. Corrections persist forever.
 - Pets appear as 🐾 rows in both views; session header shows you + pets = combined.
 
 ## 💰 Loot
 
 **▶ Run tracker**: click **Start run** before a personal instance (or any farming session) and SEQO counts every item and every coin split from that moment. If you zone into an instanced copy of a zone without a run going, a toast reminds you to start one — a live strip shows duration, coin, **motes**, item count and coin/hour, updating each second. **full list ▾** expands every drop of the run (motes highlighted ✨); **End run** freezes the summary and keeps your recent runs listed for comparing clears.
+
+**🧹 Cleanup** (new in 2.3): a panel in the **dock** — an always-on-top strip that snaps to the overlay's bottom edge and follows it around, so the list stays visible over the game while you sort bags (📌 detaches it, ✕ closes it, drag its bottom edge for height). Open it with the button on this tab. It lists every item in your bags and bank with an honest verdict — **still needed** (some class's PoS quest, epic, BiS list, grind or your own flags want it, reason shown), **job done** (safe to vendor/destroy), or **unknown**. Hit **Scan unknowns** and SEQO looks each mystery item up on the wiki once and remembers the answer forever in a knowledge base that syncs between your computers — the lookup your main did serves your mule. Rows show **every quest** that uses the item, and the quest chain prints right on the row — "↳ Vampire Teeth → Electrum-Bladed Wakizashi → needed for: Call of Flame Quest" — resolved once during the scan and remembered. Clicking a quest shows its full rewards, and a ← in the dock's title bar walks back through whatever you opened. A sort control orders each pile by name, category, count or location; tradeskill mats get labeled with their craft ("tradeskill – brewing"); wearable items with no quest use land in their own **🛡 Gear** pile; exaltation items are recognized by name and kept. A copyable `/outputfile inventory` reminder sits at the top so the scan always runs against your real bags. Rows leave the list live as you destroy or vendor items (vendor sales are read from the log too), and 🗑 flags an item junk forever — it drops into Job done. The old Loot-tab sell list is retired; this pile is its replacement. Ground truth is always your inventory file: one `/outputfile inventory` re-syncs exactly.
 
 **⭐ Rare checklist** (new in 2.2): during a run, the strip also tracks the zone's **named mobs** — every rare you kill gets a green ✓ (with a toast), and the ones still up stay listed with ○ so you know what's left in the crawl. The known-rares list is built from [EQLForge](https://eqlforge.com/)'s per-zone Notable NPCs (the community's dungeon-crawl rare lists — support them) plus the wiki zone page's Boss/Named entries and drop tables, and it refreshes automatically the first time you start a run in a zone with old or missing data. Generic mobs and loot objects (a haunted chest, an ashenbone drake) are filtered out — only proper names count, unless a source explicitly calls the mob a boss — and if something slips through, click it in the list to remove it from that zone's rares for good ("restore" on the Rares line brings them back). The same filter applies to the ⭐ RARE UP alerts. This pairs with the game's own [Dungeon Crawl](https://eqlwiki.com/Dungeon_Crawl) instances, where clearing every rare is the objective.
 
@@ -96,10 +101,9 @@ Every kill and every looted item is recorded automatically to a permanent databa
 - **Recent drops** as they happen (with an on-screen toast), session coin earned.
 - **Drop rates (all time):** click a mob to expand its items — `Fine Steel Rapier: 12/21 (57%)`. Rates are per witnessed kill, recorded **per zone** (the same mob name can drop differently in different zones), and sharpen forever as you play.
 - **Difficulty tiers handled correctly:** EQ Legends' D0–D4 tiers (Awakened/Adaptive/Fused/Refined) drop the same items at +N levels, so drop rates **pool across tiers** for maximum sample size — while **mob strength records per tier**, since that's what scales.
-- **Items are links** — click any item to open its wiki page in the Data tab.
+- **Items are links** — click any item and its full detail card opens in the dock: stats with the upgrade slider, every effect with its wiki description spelled out ("Mana Preservation II — reduces mana cost up to 10%", clickable through to every item carrying it), your own drop data, the wiki text and eqlegendstools matches in readable full-width rows, and deep links to the community databases.
 - **Keep-or-sell verdicts:** the game marks half its drops "quest item," but the ones that matter get a badge on the recent-drops list the moment you loot them — **KEEP** (a Plane of Sky quest of *your* classes needs it, with quest name and progress), **SPARE** (you've already collected one), **SELLABLE** (that quest is turned in), **OTHER CLASS** (only classes you don't play use it). Verdicts come straight from your live quest progress on the Quests tab.
 - **⚑ Flag anything yourself:** click the flag next to a drop to cycle *always keep → junk → clear*. Your list is remembered forever, synced between computers, and flagged items announce themselves with a louder toast (⭐ keep / 🗑 junk) whenever they drop — tradeskill mats, epic pieces, known vendor trash. Unknown items stay quiet; click one to search the wiki for quests that mention it.
-- **Sell list:** every JUNK, SELLABLE, or SPARE drop adds itself to a running vendor list with counts and reasons (items the game auto-sells at loot are skipped). Destroying an item ("You successfully destroyed…") checks it off the list automatically — coin received from destroyed items counts toward session coin — and you can also click any row to clear it by hand — 💸. **Scan inventory** adds sellables already sitting in your bags (junk-flagged items and pieces of quests you've turned in — held pieces of *open* quests are your collected copies and are never listed). The list persists between sessions and syncs between computers, so a mule character on your other PC sees it too.
 - **Wiki export** generates a full, ready-to-paste contribution document, organized by zone. Each mob's entry includes: the pooled drop table with rates and sample size, a **strength-by-difficulty table** (level from your /con, max hit, average hit, sample, and casts seen per tier — higher tiers add classes to mobs, and your data shows it), and **measured respawn times** from your camp cycles. Everything is phrased in the wiki's own terminology (`[[Difficulty Level]]`, D-labels) so editors can use it verbatim.
 - With an eqlwiki account configured you can **submit directly**: to your personal sandbox page (default, zero risk) or to each mob's talk page. What you see in the export window is exactly what gets posted.
 
@@ -107,7 +111,7 @@ Every kill and every looted item is recorded automatically to a permanent databa
 
 ![Wiki export](docs/images/seqo-wiki-submit.png)
 
-## 📖 Data
+## 🔎 Lookup (was Data)
 
 A **local-first** game database pulling from **multiple community sources**: everything is served from a cache on your disk; the network is touched only when you click an update button.
 
@@ -161,6 +165,7 @@ The zone selector defaults to wherever you are (it follows you as you zone) and 
 **Plane of Sky** gets the full treatment: every turn-in quest — all 95 rewards across all 16 classes — with the required items, where each one drops, and which Wind Rune the turn-in needs.
 
 - **Pick your classes** — any number, or the **All** chip for all 16 (progress syncs from your game files either way). They persist, and the list shows your quests grouped by class with the turn-in NPC.
+- **Kill-time heads-up** (new in 2.3): when a mob dies whose known drop table (your loot database + the wiki's zone data) holds an epic piece, BiS item, quest piece or wish-list item you *don't own yet*, you get a toast before anyone touches the loot window — "👀 The froglok shin lord can drop Ghoulbane — epic prep (Shadow Knight)". Owned items stay silent.
 - **Items check off automatically as you loot them.** SEQO already watches your loot; when a quest piece drops for one of your classes, it's marked and you get a toast. A ×N badge shows how many you've looted all-time.
 - **Zero-click sync** (new in 2.1.0): type `/outputfile inventory` and `/outputfile achievements` in game — SEQO finds the files next to your log, watches them, and refreshes the moment the game writes them. Items you hold (bags **and bank**) check off, key-ring rewards and completed achievements mark quests **turned in**, and a status line shows how fresh each file is. No buttons.
 - A **summary strip** shows Turned in · Ready · Missing one at a glance, and quests sort **ready-first** within each class.
@@ -170,7 +175,7 @@ The zone selector defaults to wherever you are (it follows you as you zone) and 
 
 💠 **Wind Rune note:** runes convert to currency on pickup, so the inventory dump can't see them — they check off automatically as you loot them, or click them by hand.
 
-Click any item name in a quest to open its stats (with the upgrade slider) on the Data tab; the ☐ box is the check-off.
+Click any item name in a quest to open its full details in the dock; the ☐ box is the check-off.
 
 PoS quest data comes from the excellent [eqlegendstools.com](https://eqlegendstools.com/plane-of-sky-quests/) — and since 2.2 it re-reads their live list on every quest-data update, so changes on their site reach your tracker without a new SEQO build.
 
@@ -180,7 +185,7 @@ PoS quest data comes from the excellent [eqlegendstools.com](https://eqlegendsto
 
 The first entry in the Quests dropdown shows every **race, class and deity unlock** with live progress from your game files:
 
-- **Races** — each race's required factions as progress bars (from `/outputfile faction`), with the fastest known grind route and which drop items to hoard for turn-ins. Routes courtesy of **Alanna's Race Unlock Guide** on eqlwiki.com — please support her work. Since 2.2 the recommended routes re-read from her live guide on every quest-data update.
+- **Races** — each race's required factions as progress bars (from `/outputfile faction`), with the fastest known grind route and which drop items to hoard for turn-ins. Routes courtesy of **Alanna's Race Unlock Guide** on eqlwiki.com — please support her work. Since 2.2 the recommended routes re-read from her live guide on every data sync, and since 2.3 each grind shows **rep-item counters** — `📦 Tumpy Tonic 100 / 800` — counted live from your inventory file and drops, with a remaining-estimate tooltip based on your current standing.
 - **Classes** — each class's Primary Class Unlock as a reward checklist straight from your achievements file; click any reward to jump to its Plane of Sky quest.
 - **Deities** — current status per deity (all "future placeholder" in game today except Agnostic's task).
 - Everything is bypassable with store Unlock Tokens; the view just tracks the earned path.
@@ -189,7 +194,11 @@ The first entry in the Quests dropdown shows every **race, class and deity unloc
 
 Every class's epic quest components with **the exact EQ Legends item names**, following the community ["Epic Items To Keep" checklist by Manlaan](https://eqlwiki.com/User:Manlaan/Epic_Items_To_Keep) on eqlwiki.com — please support the wiki. Auto-checked against your inventory file **including your bank and key ring**, quantities shown (Gnoll Pup Scalp ×4), ⚠ marking entries the wiki hasn't verified, and a toast + automatic KEEP verdict when a piece you still need drops. Full walkthroughs live on each class's Epic Quest wiki page.
 
-**Staying current** (new in 2.2): the quest data keeps itself up to date. Once a week (or whenever you press **⟳ Update quest data** under Settings → 💛 Data credits) SEQO re-reads the epic checklists and unlock grind routes straight from eqlwiki.com and the Plane of Sky quest list from eqlegendstools.com, and swaps the fresh data in on the spot — a toast tells you when something actually changed. The lists that ship with the app are only the fallback for when the sources can't be reached or a page's layout changes so much it can't be parsed; if that happens you get a banner on the affected view with a one-click retry.
+**Staying current** (new in 2.2): the quest data keeps itself up to date. Once a week (or whenever you press **⟳ Sync data** under Settings → 💛 Data credits) SEQO re-reads the epic checklists and unlock grind routes straight from eqlwiki.com and the Plane of Sky quest list from eqlegendstools.com, and swaps the fresh data in on the spot — a toast tells you when something actually changed. Since 2.3 the same sync also re-fetches every cached zone and item page that changed on the wiki, and slowly re-checks old "no quest found" items in the Cleanup knowledge base. The lists that ship with the app are only the fallback for when the sources can't be reached or a page's layout changes so much it can't be parsed; if that happens you get a banner on the affected view with a one-click retry.
+
+### ✨ Exaltations (new in 2.3.0)
+
+Exaltations let you pull a Focus, Worn, Proc or Clicky effect off leveled gear and slot it into other gear — so the real question is always "which items carry the effect I want?" This view answers it: fetch the effect index once (pulled read-only from the wiki's effect categories), pick a type, search or browse the effects, click one — say Mana Preservation II — and every item that carries it lists out, clickable for full stats, with a **✓ on the ones you already own**. Effect pages cache after first fetch and refresh through Sync data.
 
 ### 🏆 BiS gear (new in 2.1.0)
 

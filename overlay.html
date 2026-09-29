@@ -99,6 +99,10 @@
     color: #ff9d9d; border-color: #ff5d5d; background: rgba(255,93,93,.15);
     animation: pulse 1.5s infinite;
   }
+  /* when the row runs out of width, the page tabs give up label space —
+     the AFK and 🔓 buttons on the right must never get clipped off */
+  .tab[data-tab] { flex: 0 1 auto; min-width: 26px; overflow: hidden; text-overflow: ellipsis; }
+  #afk-btn, #unlock-btn, #upd-btn { flex: none; }
   #unlock-btn { display: none; }
   body.locked #unlock-btn {
     display: block;
@@ -403,12 +407,12 @@
         <div id="inner">
           <div id="tabs" data-interactive>
             <div class="tab active" data-tab="meter">&#9876; Meter</div>
-            <div class="tab" data-tab="breakdown">&#128202; Spells</div>
             <div class="tab" data-tab="loot">&#128176; Loot</div>
-            <div class="tab" data-tab="lookup">&#128214; Data</div>
+            <div class="tab" data-tab="lookup">&#128270; Lookup</div>
             <div class="tab" data-tab="map">&#128506; Map</div>
             <div class="tab" data-tab="timers">&#9202; Timers</div>
             <div class="tab" data-tab="quests">&#128220; Quests</div>
+            <div class="tab" data-tab="notes" title="Free-form notes — saved forever, synced between your computers">&#128221;</div>
             <div style="flex:1"></div>
             <div class="tab" id="upd-btn" style="display:none;color:#7dffa0" title="A new SEQO release is available — click to open the download page">&#11014; Update</div>
             <div class="tab" id="afk-btn" title="AFK watch: loud alert if you're attacked. Click again when you're back.">&#128564; AFK</div>
@@ -418,9 +422,18 @@
           <!-- METER -->
           <div class="view active" id="view-meter">
             <div id="c-head">
+              <span style="flex:none;display:flex;gap:3px" data-interactive>
+                <button class="kbtn gold" id="c-mode-fight" style="font-size:10px;padding:1px 7px">⚔ Fight</button>
+                <button class="kbtn" id="c-mode-session" title="Your whole-session damage by source (the old Spells tab)" style="font-size:10px;padding:1px 7px">Σ Session</button>
+              </span>
               <span id="c-title">&#9876; Combat</span>
               <span id="c-live">LIVE</span>
               <span id="c-time"></span>
+              <span style="flex:none;display:flex;gap:3px;align-items:center;margin-left:auto" data-interactive>
+                <select id="c-topn" title="How many players the copied line includes" style="background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10px;padding:0 2px"></select>
+                <button class="kbtn" id="c-copy" style="font-size:10px;padding:1px 6px" title="Copy a one-line DPS summary for in-game chat">&#128203; chat</button>
+                <button class="kbtn" id="c-copyfull" style="font-size:10px;padding:1px 6px" title="Copy the full multi-line breakdown for Discord">&#128203; full</button>
+              </span>
             </div>
             <div id="c-you">
               <div class="stat hl"><b id="s-dps">0</b><span>DPS</span></div>
@@ -432,17 +445,18 @@
             </div>
             <div id="c-rows"></div>
             <div class="emptymsg" id="c-empty">No combat yet.<br>Pick your log file in &#9881; Settings,<br>then go hit something.</div>
+            <div id="c-xp" style="display:none;flex:none;margin-top:3px;padding:3px 8px;background:rgba(125,167,217,.08);border:1px solid rgba(125,167,217,.25);border-radius:6px;font-size:10.5px;color:#9db4e8"></div>
           </div>
 
           <!-- BREAKDOWN -->
           <div class="view" id="view-breakdown">
             <div id="c-head" style="margin-bottom:5px">
+              <span style="flex:none;display:flex;gap:3px" data-interactive>
+                <button class="kbtn" id="b-mode-fight" title="Back to the live meter" style="font-size:10px;padding:1px 7px">⚔ Fight</button>
+                <button class="kbtn gold" id="b-mode-session" style="font-size:10px;padding:1px 7px">Σ Session</button>
+              </span>
               <span id="b-title">Your damage by source</span>
               <span id="b-swings" style="font-size:11px;color:#999;font-weight:400"></span>
-              <span style="flex:none;display:flex;gap:3px" data-interactive>
-                <button class="kbtn" id="b-mode-fight" style="font-size:10px;padding:1px 7px">Fight</button>
-                <button class="kbtn" id="b-mode-session" style="font-size:10px;padding:1px 7px">Session</button>
-              </span>
             </div>
             <div style="font-size:9.5px;color:#777;margin:-3px 0 4px">badges are buttons — click to cycle cast &#8594; proc &#8594; ability</div>
             <div id="b-rows"></div>
@@ -455,12 +469,12 @@
               <span class="sect">Loot</span>
               <button class="kbtn" id="l-run" title="Track loot, coin &amp; rare kills for one run (e.g. a personal instance or dungeon crawl) — click again to end it">&#9654; Start run</button>
               <span id="l-coin"></span>
+              <button class="kbtn" id="l-cleanup" title="Open the Cleanup window: every bag &amp; bank item judged keep-or-toss, live">&#129529; Cleanup</button>
               <button class="kbtn gold" id="l-export" title="Generate wikitext of your observed drop rates">Wiki export &#10697;</button>
             </div>
             <div id="l-scroll" data-interactive>
               <div id="l-run-box"></div>
               <div id="l-recent-box"></div>
-              <div id="l-sell-box"></div>
               <div class="l-divider">Drop rates (all time)</div>
               <div id="l-mobs"></div>
               <div class="emptymsg" id="l-empty" style="padding:10px 0">No loot recorded yet.<br>Kills and drops are tracked automatically.</div>
@@ -483,28 +497,6 @@
               </div>
               <div id="k-status"></div>
               <div id="k-zone"></div>
-            </div>
-            <div id="k-detail">
-              <div style="display:flex;align-items:baseline;gap:8px">
-                <div id="k-dtitle" style="flex:1"></div>
-                <button class="kbtn" id="k-wish" title="Wish list: get alerted where this drops and when it drops">☆ Wish</button>
-                <span id="k-dclose-x" title="Close">✕</span>
-              </div>
-              <div id="k-upgrade" style="display:none">
-                <div id="k-tier-row" style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                  <span style="color:#999;font-size:10.5px">Upgrade tier</span>
-                  <input type="range" id="k-tier" min="0" max="10" value="0" step="1" style="flex:1">
-                  <span id="k-tierval" style="color:#ffd766;font-weight:700;width:26px">+0</span>
-                </div>
-                <div id="k-stats" style="white-space:pre-wrap;font-family:Consolas,monospace;font-size:10.5px;color:#cfe3cf;background:rgba(255,255,255,.05);border-radius:6px;padding:6px 8px;margin-bottom:6px"></div>
-              </div>
-              <div id="k-ddrops" style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin:2px 0 4px;flex:none;max-height:64px;overflow-y:auto"></div>
-              <div id="k-dtext"></div>
-              <div id="k-sources"></div>
-              <div id="k-dbtns">
-                <button class="kbtn gold" id="k-dupdate" title="Fetch this item from eqlwiki AND search eqlegendstools' databases, then cache both locally">Update from sources &#8635;</button>
-                <button class="kbtn" id="k-dclose">Close</button>
-              </div>
             </div>
           </div>
 
@@ -539,6 +531,7 @@
                 <option value="__unlocks">&#128275; Unlocks</option>
                 <option value="__epics">&#9876; Epics (prep)</option>
                 <option value="__bis">&#127942; BiS gear</option>
+                <option value="__exalts">&#10024; Exaltations</option>
                 <option value="" selected>Current zone (auto)</option>
               </select>
               <span id="q-progress" style="color:#888;font-size:10px"></span>
@@ -565,6 +558,16 @@
             </div>
             <div id="q-list" style="flex:1;min-height:0;overflow-y:auto;padding-right:4px"></div>
             <div class="emptymsg" id="q-empty" style="display:none"></div>
+          </div>
+
+          <!-- NOTES -->
+          <div class="view" id="view-notes" data-interactive>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+              <span style="color:#ffd766;font-weight:600;font-size:12px">&#128221; Notes</span>
+              <span id="notes-status" style="color:#666;font-size:9.5px;margin-left:auto"></span>
+            </div>
+            <textarea id="notes-text" spellcheck="false" placeholder="Anything you want to keep handy — /tasko reopens the crawl tracker, camp coords, trade prices…
+Saves as you type and syncs between your computers." style="flex:1;min-height:0;resize:none;background:rgba(255,255,255,.05);color:#dde;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:8px;font-family:Consolas,monospace;font-size:11.5px;line-height:1.5;outline:none"></textarea>
           </div>
 
           <!-- MAP (world travel map) -->
@@ -742,9 +745,9 @@
         <summary>💛 Data credits</summary>
         <div id="credits-list" class="hint" style="margin-top:4px;line-height:1.6"></div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-          <button class="kbtn" id="btn-datacheck" title="Re-read the epic checklists and unlock routes from eqlwiki.com and the Plane of Sky quest data from eqlegendstools.com, right now. BiS gear has its own Update button on its view.">⟳ Update quest data</button>
+          <button class="kbtn" id="btn-datacheck" title="Re-read everything from the live sources: epic checklists and unlock routes from eqlwiki.com, Plane of Sky quests from eqlegendstools.com, plus every cached zone and item page that changed on the wiki, and old item-knowledge unknowns. BiS gear has its own Update button on its view.">⟳ Sync data</button>
           <label class="hint" style="display:flex;gap:4px;align-items:center;margin:0">
-            <input type="checkbox" id="autodatacheck"> weekly auto-update
+            <input type="checkbox" id="autodatacheck"> weekly auto-sync
           </label>
         </div>
         <div class="hint" id="datacheck-status" style="margin-top:4px;white-space:pre-line"></div>
@@ -899,6 +902,7 @@
             if (activeTab === 'loot') renderRunBox();
           }
         }
+        killNeedHeadsUp(ev.target); // "this corpse can hold something you need"
         // your charm pet died (killed by someone else - killing it yourself
         // means it was an ordinary enemy with the same name)
         if (activeCharm && mobKey(ev.target) === activeCharm && ev.killer !== 'You') {
@@ -913,16 +917,14 @@
         if (mob) window.overlay.recordDrop(mob, ev.item, currentZone);
         // verdict BEFORE the quest auto-check, so THIS copy isn't judged a spare
         const verdict = lootVerdict(ev.item);
-        // auto-sold-at-loot items ("...and sold it for...") never need vendoring
-        if (!ev.soldFor && (verdict.kind === 'junk' || verdict.kind === 'sell' || verdict.kind === 'spare'))
-          addToSellList(ev.item, verdict.kind === 'junk' ? 'on your junk list' : verdict.reason);
-        posQuestLoot(ev.item);
+        if (!ev.sold) posQuestLoot(ev.item); // an auto-sold item never reached your bags — no quest progress
         if (lootRun) { // run tracker: count every looted item (and instant-sells as coin)
           lootRun.items.set(ev.item, (lootRun.items.get(ev.item) || 0) + (ev.count || 1));
           if (ev.soldFor) lootRun.coin += ev.soldFor;
         }
-        if (!ev.soldFor) { // live check-off: Epics/BiS/Unlocks see this drop immediately
-          lootedLive.add(normItemName(ev.item));
+        if (!ev.sold) { // live check-off: Epics/BiS/Unlocks see this drop immediately
+          const lk = normItemName(ev.item);
+          lootedLive.set(lk, (lootedLive.get(lk) || 0) + (ev.count || 1));
           if (activeTab === 'quests' && /^__/.test($('q-zone').value)) renderQuests();
         }
         if (ev.mob) lastCorpse = { mob: ev.mob, when: ev.when };
@@ -931,7 +933,10 @@
         if (ev.soldFor) sessionCoin += ev.soldFor;
         // notable-only toasts: personal keep/junk speak up; quest keeps already
         // toast via the quest tracker; everything else stays quiet
-        if (verdict.kind === 'wish')
+        if (ev.sold && (verdict.kind === 'wish' || verdict.kind === 'keep'))
+          // the loot filter just sold something you actually NEED — shout
+          alertFX('⚠ Your loot filter AUTO-SOLD ' + ev.item + ' — but you still need it! (' + verdict.reason + ')', 'afk');
+        else if (verdict.kind === 'wish')
           alertFX('🌟 WISH LIST DROP: ' + ev.item + '!', 'rare');
         else if (verdict.toast)   // epic-prep / BiS drops you still need
           alertFX(verdict.toast, 'rare');
@@ -941,16 +946,53 @@
           toast('\u{1F4B0} ' + ev.item + (mob ? '  —  ' + mob : ''));
         lootDirty = true;
       } else if (ev.type === 'destroyed') {
-        // destroying an item IS how you dispose of loot: check the sell list off
-        const key = verdictKey(ev.item);
-        const e = sellList[key];
-        if (e) {
-          e.count -= ev.count;
-          if (e.count <= 0) delete sellList[key];
-          pushSellList();
-          toast('💸 ' + ev.item + (ev.count > 1 ? ' ×' + ev.count : '') + ' — off the sell list');
-          if (activeTab === 'loot') renderLoot();
+        // it left your bags: the cleanup window and live counts follow
+        const lk = normItemName(ev.item);
+        if (lootedLive.has(lk)) {
+          const left = (lootedLive.get(lk) || 0) - ev.count;
+          if (left > 0) lootedLive.set(lk, left); else lootedLive.delete(lk);
         }
+        if (gameFiles && gameFiles.inventory) {
+          for (const [k, it] of Object.entries(gameFiles.inventory.items || {}))
+            if (normItemName(k) === lk) {
+              it.count -= ev.count;
+              if (it.count <= 0) { delete gameFiles.inventory.items[k]; gameFiles.inventory.__idx = null; }
+            }
+        }
+        cleanupDirty = true;
+      } else if (ev.type === 'vendored') {
+        // sold to a vendor: the cleanup window and live counts follow
+        const vk2 = normItemName(ev.item);
+        if (lootedLive.has(vk2)) {
+          const left = (lootedLive.get(vk2) || 0) - ev.count;
+          if (left > 0) lootedLive.set(vk2, left); else lootedLive.delete(vk2);
+        }
+        if (gameFiles && gameFiles.inventory) {
+          for (const [k, it] of Object.entries(gameFiles.inventory.items || {}))
+            if (normItemName(k) === vk2) {
+              it.count -= ev.count;
+              if (it.count <= 0) { delete gameFiles.inventory.items[k]; gameFiles.inventory.__idx = null; }
+            }
+        }
+        cleanupDirty = true;
+      } else if (ev.type === 'exp') {
+        xp.kills++;
+        if (!xp.first) xp.first = ev.when;
+        xp.last = ev.when;
+        if (ev.pct !== undefined) { xp.pct += ev.pct; if (xp.dingSeen) xp.sinceDing += ev.pct; }
+        else xp.noPct++;
+        if (activeTab === 'meter') renderXpStrip();
+      } else if (ev.type === 'levelup') {
+        xp.level = ev.level;
+        xp.dingSeen = true;
+        xp.sinceDing = 0;
+        alertFX('🎉 DING! Welcome to level ' + ev.level + '!', 'repop');
+        if (activeTab === 'meter') renderXpStrip();
+      } else if (ev.type === 'aa') {
+        xp.aaGained += ev.gained;
+        xp.aaTotal = ev.total;
+        toast('✦ +' + ev.gained + ' AA point' + (ev.gained === 1 ? '' : 's') + ' — ' + ev.total + ' total');
+        if (activeTab === 'meter') renderXpStrip();
       } else if (ev.type === 'consider') {
         noteMobLevel(ev.mob, ev.level);
       } else if (ev.type === 'lootfull') {
@@ -1203,7 +1245,8 @@
     charm: [[620, .15, .05], [430, .32, 0]],                                     // descending "uh-oh"
     afk:   [[1250, .16, .04], [820, .16, .04], [1250, .16, .04], [820, .16, 0]], // hi-lo siren
     invis: [[500, .11, .04], [700, .11, .04], [950, .2, 0]],                     // rising sweep
-    buff:  [[720, .14, .05], [540, .22, 0]]                                      // soft falling "boop"
+    buff:  [[720, .14, .05], [540, .22, 0]],                                     // soft falling "boop"
+    heads: [[700, .12, .05], [950, .2, 0]]                                       // rising "look!" (kill-time need)
   };
 
   let audioCtx = null;
@@ -1786,14 +1829,14 @@
   function renderQuests() {
     const zone = questZone();
     renderSyncLine();
-    const special = zone === '__unlocks' || zone === '__epics' || zone === '__bis';
+    const special = zone === '__unlocks' || zone === '__epics' || zone === '__bis' || zone === '__exalts';
     const pos = !special && isPosZone(zone);
     // PoS-only controls hide for wiki-listed zones and the special views
     $('q-import').style.display = 'none'; // superseded by zero-click sync
     // the how-to only matters until game data is flowing — then free the space
     const synced = gameFiles && (gameFiles.inventory || gameFiles.achievements);
     $('q-help').style.display = pos && !synced ? '' : 'none';
-    $('q-classes').style.display = (special && zone === '__bis') ? 'none' : 'flex';
+    $('q-classes').style.display = (special && (zone === '__bis' || zone === '__exalts')) ? 'none' : 'flex';
     $('q-posrow').style.display = special ? 'none' : 'flex';
     $('q-isle').style.display = pos ? '' : 'none';
     $('q-runehint').style.display = pos ? '' : 'none';
@@ -1803,6 +1846,7 @@
       setQuestEmpty('');
       if (zone === '__unlocks') return renderUnlocks();
       if (zone === '__epics') return renderEpics();
+      if (zone === '__exalts') return renderExalts();
       return renderBis();
     }
     if (!pos) { renderWikiQuests(zone); return; }
@@ -1960,76 +2004,240 @@
     return { kind: 'unknown', label: '', reason: '' };
   }
 
-  // ---- vendor sell list: fills itself from verdicts; click a row when sold ----
-  let sellList = {};   // key -> { name, count, reason }
-  window.overlay.getSellList().then((l) => { sellList = l || {}; });
-  const pushSellList = () => window.overlay.setSellList(sellList);
-
-  function addToSellList(itemName, reason, n) {
-    const key = verdictKey(itemName);
-    const e = sellList[key] || (sellList[key] = { name: itemName.replace(/ \+\d+$/, ''), count: 0, reason });
-    e.count += (n || 1);
-    e.reason = reason;   // freshest reason wins
-    pushSellList();
-    if (activeTab === 'loot') renderLoot();
+  // ---- kill-time heads-up: fires when a mob DIES, before anyone touches the
+  // loot window, if its known drop table holds something you still need
+  // (epic/BiS/quest/wish — all suppressed once you own the item). Known drops
+  // come from your own loot database plus the wiki's zone data.
+  const needToastSeen = new Map(); // mob key -> last toast time
+  function killNeedHeadsUp(mobName) {
+    const mk = mobKey(mobName);
+    const last = needToastSeen.get(mk.toLowerCase()) || 0;
+    if (Date.now() - last < 300000) return; // 5 min per mob
+    const drops = new Set();
+    if (lootDB && lootDB.mobs)
+      for (const m of Object.values(lootDB.mobs))
+        if (m.name.toLowerCase() === mk.toLowerCase())
+          for (const d of Object.keys(m.drops || {})) drops.add(d);
+    for (const n of (zoneData && zoneData.named) || [])
+      if (mobKey(n.mob).toLowerCase() === mk.toLowerCase())
+        for (const d of n.drops || []) drops.add(d.item);
+    if (!drops.size) return;
+    const hits = [];
+    for (const item of [...drops].slice(0, 40)) {
+      const v = lootVerdict(item);
+      if (v.kind !== 'wish' && v.kind !== 'keep') continue;
+      if (/faction turn-in/.test(v.reason)) continue;      // grind mats drop constantly — loot toast covers them
+      if (v.reason === 'on your keep list' && invHas(item)) continue;
+      if (v.kind === 'wish' && invHas(item)) continue;
+      hits.push({ item, reason: v.reason });
+      if (hits.length >= 2) break;
+    }
+    if (!hits.length) return;
+    needToastSeen.set(mk.toLowerCase(), Date.now());
+    alertFX('👀 ' + mk + ' can drop ' +
+      hits.map(h => h.item + ' — ' + h.reason).join(' · ') + '. Check the loot window!', 'heads');
   }
 
-  function renderSellList() {
-    const box = $('l-sell-box');
-    box.innerHTML = '';
-    const entries = Object.entries(sellList);
-    if (!entries.length) return;
-    const head = document.createElement('div');
-    head.className = 'l-divider';
-    head.style.display = 'flex'; head.style.alignItems = 'baseline'; head.style.gap = '8px';
-    head.innerHTML = '<span style="flex:1">Sell list (' + entries.reduce((a, [,e]) => a + e.count, 0) +
-      ')</span><button class="kbtn" id="l-sellscan" title="Add sellables already in your bags: type /outputfile inventory in game, then pick the file">Scan inventory</button>' +
-      '<button class="kbtn" id="l-sellclear" title="Empty the whole sell list">Clear</button>';
-    box.appendChild(head);
-    for (const [key, e] of entries.sort((a, b) => a[1].name.localeCompare(b[1].name))) {
-      const row = document.createElement('div');
-      row.className = 'l-item sell-row';
-      row.title = e.reason + ' — click when sold';
-      row.innerHTML = '<span class="nm"></span><span class="why"></span>';
-      row.querySelector('.nm').textContent = e.name + (e.count > 1 ? '  ×' + e.count : '');
-      row.querySelector('.why').textContent = e.reason;
-      row.addEventListener('click', () => {
-        delete sellList[key];
-        pushSellList();
-        toast('💸 Sold: ' + e.name + (e.count > 1 ? ' ×' + e.count : ''));
-        renderLoot();
-      });
-      box.appendChild(row);
+  // ================= cleanup engine =================
+  // Drives the separate Cleanup window: every bag/bank item classified as
+  // still-needed / job-done / unknown, judged against ALL classes. Unknowns
+  // resolve through the wiki once, then live forever in itemKnowledge
+  // (synced via the game DB, so lookups done on one computer serve the other).
+  let cleanupActive = false, cleanupScanning = false, cleanupDirty = false;
+  let itemKnowledge = {};
+  window.overlay.getItemKnowledge().then((k) => { itemKnowledge = k || {}; });
+  const ALL_CLASSES = Object.keys(window.EQLEpics.EPICS); // window global: safe this early in the script
+  const CLEAN_LOC = /^(General|Bank|SharedBank|Held)/i;
+
+  function classifyForCleanup(name) {
+    const key = normItemName(name);
+    const vk = verdictKey(name);
+    // exaltations are pulled gear effects — no wiki page, always worth keeping
+    if (/exaltation/i.test(name)) return { pile: 'need', reason: 'exaltation — transferable effect' };
+    if (itemVerdicts[vk] === 'junk') return { pile: 'done', reason: 'on your junk list' };
+    if (wishList[vk]) return { pile: 'need', reason: 'on your wish list' };
+    if (itemVerdicts[vk] === 'keep') return { pile: 'need', reason: 'on your keep list' };
+    let done = null;
+    for (const q of POS.quests) {
+      const it = q.items.find(x => x.name.toLowerCase() === key);
+      if (!it) continue;
+      const st = qState(q.reward);
+      if (!st.done) return { pile: 'need', reason: 'PoS: ' + q.reward + ' (' + q.cls + ')' };
+      done = q.reward + ' already turned in';
     }
-    $('l-sellscan').addEventListener('click', scanInventoryForSellables);
-    $('l-sellclear').addEventListener('click', () => { sellList = {}; pushSellList(); renderLoot(); });
+    for (const cls of ALL_CLASSES) {
+      const hit = epicItemsFor(cls).find(it => it.n.toLowerCase() === key);
+      if (hit) return { pile: 'need', reason: 'Epic prep: ' + ((EPICDB.EPICS[cls] || {}).epic || 'epic') + ' (' + cls + ')' + (hit.q > 1 ? ' — need ×' + hit.q : '') };
+    }
+    const bis = bisData();
+    for (const cls of Object.keys(bis)) {
+      for (const [slot, items] of Object.entries(bis[cls] || {})) {
+        if ((items || []).some(it => it.n.toLowerCase() === key))
+          return { pile: 'need', reason: 'BiS ' + slot.toLowerCase() + ' (' + cls + ')' };
+      }
+    }
+    if (UNL.GRIND_ITEMS.some(n => n.toLowerCase() === key))
+      return { pile: 'need', reason: 'race-unlock faction turn-in' };
+    if (done) return { pile: 'done', reason: done };
+    const k = itemKnowledge[key];
+    if (k) {
+      const tsLabel = k.ts !== undefined
+        ? 'tradeskill' + (Array.isArray(k.ts) && k.ts.length === 1 ? ' – ' + k.ts[0] : ' ingredient')
+        : null;
+      if (k.quests && k.quests.length) // every quest listed; the window renders them clickable
+        return { pile: 'need', reason: 'used in: ' + k.quests.join(', ') + (tsLabel ? ' · ' + tsLabel : ''),
+                 quests: k.quests, chain: k.chain };
+      if (tsLabel) return { pile: 'need', reason: tsLabel };
+      if (k.gear) return { pile: 'gear', reason: 'gear — no quest use' };
+      if (k.notFound) return { pile: 'unk', reason: 'no wiki page found' };
+      return { pile: 'done', reason: 'wiki: no quest or tradeskill use found' };
+    }
+    return { pile: 'unk', reason: '' };
   }
 
-  // inventory scan: junk-flagged items + items whose quest is already turned in.
-  // (Held quest pieces for OPEN quests are your collected copies - never listed.)
-  async function scanInventoryForSellables() {
-    const res = await window.overlay.importInventory();
-    if (!res) return;
-    if (res.error) { toast('Scan failed: ' + res.error); return; }
-    const have = new Map();
-    for (const line of res.text.split(/\r?\n/)) {
-      const cols = line.split('\t');
-      if (cols.length < 2 || cols[1] === 'Name' || cols[1] === 'Empty' || !cols[1]) continue;
-      const k = cols[1].trim().replace(/ \+\d+$/, '');
-      have.set(k, (have.get(k) || 0) + (+(cols[3] || 1) || 1));
+  function buildCleanupRows() {
+    const inv = gameFiles && gameFiles.inventory;
+    if (!inv) return [];
+    const rows = [];
+    for (const it of Object.values(inv.items || {})) {
+      if (!it.locs || !it.locs.some(l => CLEAN_LOC.test(l))) continue; // worn gear isn't clutter
+      const bank = it.locs.some(l => /bank/i.test(l));
+      const bags = it.locs.some(l => /^(General|Held)/i.test(l));
+      rows.push({ name: it.name, count: it.count,
+                  where: bank && bags ? 'bags+bank' : bank ? 'bank' : 'bags',
+                  ...classifyForCleanup(it.name) });
     }
-    let added = 0;
-    for (const [name, count] of have) {
-      const key = verdictKey(name);
-      if (sellList[key]) continue;             // already listed
-      if (itemVerdicts[key] === 'junk') { addToSellList(name, 'on your junk list', count); added++; continue; }
-      if (itemVerdicts[key] === 'keep') continue;
-      const v = lootVerdict(name);
-      if (v.kind === 'sell') { addToSellList(name, v.reason, count); added++; }
-    }
-    toast(added ? '🧾 Sell list: ' + added + ' item' + (added === 1 ? '' : 's') + ' added from your bags'
-                : 'Nothing sellable found in that inventory file.');
+    return rows;
   }
+
+  const cleanupStatus = () => {
+    const inv = gameFiles && gameFiles.inventory;
+    return inv ? 'inventory file: ' + fmtAge(inv.mtime) : '⚠ no inventory file — run /outputfile inventory';
+  };
+  function pushCleanup(extra) {
+    if (!cleanupActive) return;
+    window.overlay.cleanupPush(Object.assign({ rows: buildCleanupRows(), status: cleanupStatus() }, extra || {}));
+  }
+
+  // page fetch that prefers the local cache (old cache entries predate the
+  // rewards/questUses fields, so those force one refresh)
+  async function cleanupPage(name) {
+    const c = await window.overlay.getItemData(name);
+    if (c && c.pageTitle && c.rewards !== undefined) return c;
+    return window.overlay.updateItemData(name);
+  }
+
+  // quest chain: quest → reward(s) → what each reward is itself needed for.
+  // Resolved once per item at scan time and remembered in itemKnowledge, so
+  // "Butler Syncalls Fang — Vampire Teeth → Electrum-Bladed Wakizashi →
+  // needed for: Call of Flame Quest" reads straight off the row.
+  async function resolveChain(quests) {
+    const chain = [];
+    for (const q of (quests || []).slice(0, 3)) {
+      try {
+        const qd = await cleanupPage(q);
+        if (!qd || qd.error || !qd.pageTitle) continue;
+        for (const rw of (qd.rewards || []).slice(0, 2)) {
+          const rd = await cleanupPage(rw);
+          const uses = ((rd && !rd.error && rd.questUses) || [])
+            .filter(u => u.toLowerCase() !== q.toLowerCase() && u.toLowerCase() !== rw.toLowerCase());
+          if (uses.length) chain.push(q + ' → ' + rw + ' → needed for: ' + uses.slice(0, 2).join(', '));
+          await new Promise(r => setTimeout(r, 350));
+        }
+      } catch { /* one bad page never stops the pass */ }
+    }
+    return chain;
+  }
+
+  async function runCleanupScan() {
+    if (cleanupScanning) return;
+    cleanupScanning = true;
+    const unknowns = buildCleanupRows().filter(r => r.pile === 'unk' && r.reason === '');
+    let done = 0;
+    for (const r of unknowns) {
+      if (!cleanupActive) break; // window closed — stop fetching
+      window.overlay.cleanupPush({ status: '🔎 wiki: ' + (done + 1) + ' / ' + unknowns.length + ' — ' + r.name, scanning: true });
+      const key = normItemName(r.name);
+      try {
+        const data = await window.overlay.updateItemData(r.name.replace(/\s*\+\d+$/, ''));
+        const entry = (data && !data.error && data.pageTitle)
+          ? { quests: data.questUses || [], page: data.pageTitle, checkedAt: Date.now() }
+          : { quests: [], notFound: true, checkedAt: Date.now() };
+        if (data && data.tradeskill && data.tradeskill.is) entry.ts = data.tradeskill.skills || [];
+        if (data && data.statsblock && /\bslot:\s*[a-z]/i.test(data.statsblock)) entry.gear = true;
+        if (entry.quests.length) {
+          const chain = await resolveChain(entry.quests);
+          if (chain.length) entry.chain = chain;
+        }
+        entry.chainChecked = true;
+        itemKnowledge[key] = entry;
+        window.overlay.setItemKnowledge(key, entry);
+      } catch {
+        itemKnowledge[key] = { quests: [], notFound: true, checkedAt: Date.now() };
+        window.overlay.setItemKnowledge(key, itemKnowledge[key]);
+      }
+      done++;
+      if (done % 5 === 0 || done === unknowns.length) pushCleanup({ scanning: true });
+      await new Promise(res => setTimeout(res, 500)); // be polite to the wiki
+    }
+    // backfill pass: items scanned before chains existed get theirs now
+    const chainless = Object.entries(itemKnowledge)
+      .filter(([, e]) => e.quests && e.quests.length && !e.chainChecked);
+    let chained = 0;
+    for (const [key, e] of chainless) {
+      if (!cleanupActive) break;
+      window.overlay.cleanupPush({ status: '🔗 quest chains: ' + (chained + 1) + ' / ' + chainless.length, scanning: true });
+      const chain = await resolveChain(e.quests);
+      if (chain.length) e.chain = chain;
+      e.chainChecked = true;
+      itemKnowledge[key] = e;
+      window.overlay.setItemKnowledge(key, e);
+      chained++;
+      if (chained % 5 === 0) pushCleanup({ scanning: true });
+    }
+    cleanupScanning = false;
+    pushCleanup({ scanning: false, status: cleanupStatus() + ' · scan done (' + done + ' looked up' +
+                  (chained ? ', ' + chained + ' chains resolved' : '') + ')' });
+  }
+
+  window.overlay.onCleanupState((open) => {
+    cleanupActive = open;
+    if (open) pushCleanup();
+  });
+  window.overlay.onCleanupCmd(async (cmd) => {
+    if (!cmd) return;
+    if (cmd.kind === 'refresh') pushCleanup();
+    else if (cmd.kind === 'scan') runCleanupScan();
+    else if (cmd.kind === 'lookup' && cmd.name) openItemLink(cmd.name.replace(/\s*\+\d+$/, ''));
+    else if (cmd.kind === 'wish' && cmd.name) {
+      // dock's ☆ button: keep the overlay's wish list as the single source
+      const key = verdictKey(cmd.name);
+      const on = !!cmd.on;
+      if (on && !wishList[key]) wishList[key] = { name: cmd.name.replace(/ \+\d+$/, ''), added: Date.now() };
+      if (!on && wishList[key]) delete wishList[key];
+      pushWishList();
+      renderWishList();
+      window.overlay.cleanupPush({ wishState: { name: cmd.name, on } });
+    }
+    else if (cmd.kind === 'wishstate' && cmd.name)
+      window.overlay.cleanupPush({ wishState: { name: cmd.name, on: isWished(cmd.name) } });
+    else if (cmd.kind === 'exaltview' && cmd.name) {
+      // dock's effect link: open the Exaltations view on that effect
+      exaltSel = cmd.name;
+      setTab('quests');
+      $('q-zone').value = '__exalts';
+      renderQuests();
+    }
+    else if (cmd.kind === 'junk' && cmd.name) {
+      const key = verdictKey(cmd.name);
+      itemVerdicts[key] = 'junk';
+      window.overlay.setItemVerdict(key, 'junk');
+      renderLoot();
+    }
+  });
+
+  // (the old vendor sell list retired in 2.3 — 🧹 Cleanup's "Job done" pile
+  //  does its work, live-updating as you vendor and destroy)
 
   // ---- wish list: items/spells you're hunting ----
   let wishList = {};   // key -> { name, added }
@@ -2043,15 +2251,7 @@
     if (wishList[key]) { delete wishList[key]; toast('☆ Removed from wish list: ' + name); }
     else { wishList[key] = { name: name.replace(/ \+\d+$/, ''), added: Date.now() }; toast('🌟 Added to wish list: ' + name); }
     pushWishList();
-    updateWishBtn();
     renderWishList();
-  }
-
-  function updateWishBtn() {
-    const b = $('k-wish');
-    const on = detailName && isWished(detailName);
-    b.textContent = on ? '★ Wished' : '☆ Wish';
-    b.classList.toggle('gold', !!on);
   }
 
   // where can a wished item come from? your own drop history + PoS + cached wiki
@@ -2358,9 +2558,17 @@
     const live = epicsLive && epicsLive.data && epicsLive.data[cls];
     return (live && live.length) ? live : ((EPICDB.EPICS[cls] || {}).items || []);
   };
-  const grindHintFor = (f) =>
-    (unlocksLive && unlocksLive.data && unlocksLive.data[f]) ||
-    (UNL.FACTION_GRINDS[f] && UNL.FACTION_GRINDS[f].hint) || null;
+  // hint + turn-in totals for a faction: live guide data wins, built-in fills in.
+  // (older cached live data stored plain hint strings — handle both shapes)
+  const grindData = (f) => {
+    const live = unlocksLive && unlocksLive.data && unlocksLive.data[f];
+    const builtin = UNL.FACTION_GRINDS[f] || {};
+    const hint = (typeof live === 'string' ? live : live && live.hint) || builtin.hint || null;
+    const needs = Object.assign({}, builtin.needs || {},
+                                (live && typeof live === 'object' && live.needs) || {});
+    return { hint, needs };
+  };
+  const grindHintFor = (f) => grindData(f).hint;
   function applyQuestData(qd) {
     if (!qd) return;
     epicsLive = qd.epicsData || epicsLive;
@@ -2384,11 +2592,17 @@
   });
   window.overlay.getBisData().then((d) => { bisOverride = d; });
   window.overlay.onGamedataUpdated(async () => {
+    const prevInvAt = gameFiles && gameFiles.inventory && gameFiles.inventory.mtime;
     gameFiles = await window.overlay.getGameData();
+    // a fresh inventory dump now CONTAINS everything looted since the last
+    // one — reset the live overlay so counts don't double
+    if (gameFiles && gameFiles.inventory && gameFiles.inventory.mtime !== prevInvAt)
+      lootedLive.clear();
     syncFromAchievements(false);
     syncFromInventory(false);
     toast('🔄 Game data refreshed from your /outputfile files');
     if (activeTab === 'quests') renderQuests();
+    cleanupDirty = true;
   });
 
   const normClass = (s) => (s || '').toLowerCase().replace(/[^a-z]/g, '');
@@ -2398,8 +2612,8 @@
   const normItemName = (s) => (s || '').toLowerCase().replace(/\s*\+\d+$/, '').replace(/`/g, "'").trim();
 
   // items looted while SEQO is running: checkmarks update on the fly,
-  // without waiting for the next /outputfile inventory
-  const lootedLive = new Set();
+  // without waiting for the next /outputfile inventory (name -> count)
+  const lootedLive = new Map();
 
   function invHas(name) {
     const key = normItemName(name);
@@ -2413,6 +2627,17 @@
       inv.__idx = idx;
     }
     return inv.__idx.has(key);
+  }
+
+  // how many of an item you hold: inventory file stacks + live loot since.
+  // (A fresh /outputfile inventory clears lootedLive, so nothing double-counts.)
+  function invCount(name) {
+    const key = normItemName(name);
+    let n = lootedLive.get(key) || 0;
+    const inv = gameFiles && gameFiles.inventory;
+    if (inv) for (const [k, it] of Object.entries(inv.items || {}))
+      if (normItemName(k) === key) n += it.count || 1;
+    return n;
   }
   const factionInfo = (name) =>
     (gameFiles && gameFiles.factions && gameFiles.factions.factions
@@ -2626,12 +2851,31 @@
             const grindItems = new Set();
             for (const o of objs) {
               const fm = /^Get maximum faction with (.+?)\.?$/.exec(o.text);
-              const gh = fm && grindHintFor(fm[1]);
-              if (gh && !o.done) {
+              const gd = fm && grindData(fm[1]);
+              if (gd && gd.hint && !o.done) {
                 const hint = document.createElement('div');
                 hint.className = 'q-npc';
-                hint.textContent = '🧭 ' + fm[1] + ': ' + gh;
+                hint.textContent = '🧭 ' + fm[1] + ': ' + gd.hint;
                 box.appendChild(hint);
+                // rep-item counters: what you hold vs the full-grind total
+                const entries = Object.entries(gd.needs);
+                if (entries.length) {
+                  const cw = document.createElement('div');
+                  cw.className = 'q-npc';
+                  const fi = factionInfo(fm[1]);
+                  for (const [item, total] of entries) {
+                    const have = invCount(item);
+                    const sp = document.createElement('span');
+                    sp.style.cssText = 'margin-right:12px;color:' + (have >= total ? '#7dffa0' : '#9ab');
+                    sp.textContent = '📦 ' + item + ' ' + have + ' / ' + total;
+                    sp.title = (fi && fi.toMax != null
+                      ? 'Full grind takes ' + total + '. At your current standing you still need about ' +
+                        Math.ceil(total * fi.toMax / 2000) + ' more — you hold ' + have + '.'
+                      : 'Total for the full grind per Alanna’s guide. The count comes from your inventory file plus live loot.');
+                    cw.appendChild(sp);
+                  }
+                  box.appendChild(cw);
+                }
                 const gr = UNL.FACTION_GRINDS[fm[1]];
                 if (gr) for (const it of gr.items) grindItems.add(it);
                 break; // grinds overlap within a city — one hint per race is enough
@@ -2809,6 +3053,141 @@
     list.appendChild(creditLine(BISDB.CREDIT));
   }
 
+  // ================= render: ✨ Exaltations =================
+  // Browse every effect that can be pulled into an exaltation slot (Focus /
+  // Worn / Proc / Clicky), pick one, see every item that carries it — with a
+  // ✓ on what you already own. Index and item lists come read-only from the
+  // wiki's effect categories and effect pages, cached after first fetch.
+  let exaltIndex = null, exaltType = 'Focus', exaltFilter = '', exaltSel = null, exaltBusy = false, exaltGen = 0;
+  let getEffectItemsFn = (n) => window.overlay.getEffectItems(n); // indirection so dev hooks can stub it
+  window.overlay.getExaltIndex().then((ix) => { exaltIndex = ix && !ix.error ? ix : null; });
+
+  async function renderExalts() {
+    const list = $('q-list');
+    list.innerHTML = '';
+    setQuestEmpty('');
+
+    if (!exaltIndex) {
+      const box = document.createElement('div');
+      box.style.cssText = 'text-align:center;color:#999;font-size:11px;padding:18px 10px;line-height:1.7';
+      box.innerHTML = 'Browse every Focus / Worn / Proc / Clicky effect that can be pulled<br>into an exaltation slot, and see which items carry it.<br><br>';
+      const b = document.createElement('button');
+      b.className = 'kbtn gold';
+      b.textContent = exaltBusy ? 'Fetching effect index…' : '⟳ Fetch the effect index from the wiki';
+      b.disabled = exaltBusy;
+      b.addEventListener('click', async () => {
+        exaltBusy = true; renderExalts();
+        const ix = await window.overlay.updateExaltIndex();
+        exaltBusy = false;
+        if (ix && !ix.error) { exaltIndex = ix; toast('✨ Effect index fetched'); }
+        else toast('⚠ Could not fetch the effect index: ' + ((ix && ix.error) || 'unknown'));
+        renderExalts();
+      });
+      box.appendChild(b);
+      list.appendChild(box);
+      list.appendChild(creditLine(UNL.CREDITS[1])); // eqlwiki
+      return;
+    }
+
+    // effect detail: the items that carry the selected effect
+    if (exaltSel) {
+      const back = document.createElement('div');
+      back.className = 'q-npc';
+      back.style.cssText = 'cursor:pointer;color:#7da7d9;margin-bottom:4px';
+      back.textContent = '← all ' + exaltType.toLowerCase() + ' effects';
+      back.addEventListener('click', () => { exaltSel = null; renderQuests(); });
+      list.appendChild(back);
+      const hdr = document.createElement('div');
+      hdr.className = 'l-divider';
+      hdr.textContent = '✨ ' + exaltSel;
+      list.appendChild(hdr);
+      const want = exaltSel, gen = ++exaltGen;
+      const d = await getEffectItemsFn(want);
+      // view changed or a newer render started while fetching — this one's stale
+      if (questZone() !== '__exalts' || exaltSel !== want || gen !== exaltGen) return;
+      if (!d || d.error) {
+        const err = document.createElement('div');
+        err.className = 'q-npc';
+        err.textContent = '⚠ ' + ((d && d.error) || 'could not fetch this effect');
+        list.appendChild(err);
+        return;
+      }
+      if (d.desc) {
+        const ds = document.createElement('div');
+        ds.className = 'q-npc';
+        ds.textContent = d.desc;
+        list.appendChild(ds);
+      }
+      let owned = 0;
+      for (const it of d.items) {
+        const have = invHas(it);
+        if (have) owned++;
+        const row = document.createElement('div');
+        row.className = 'q-it' + (have ? ' have' : '');
+        row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') + '</span><span class="nm itemlink"></span>';
+        row.querySelector('.nm').textContent = it;
+        row.title = 'Click for item details';
+        row.addEventListener('click', () => openItemLink(it));
+        list.appendChild(row);
+      }
+      if (!d.items.length) {
+        const none = document.createElement('div');
+        none.className = 'q-npc';
+        none.textContent = 'The wiki page lists no items for this effect yet.';
+        list.appendChild(none);
+      }
+      $('q-progress').textContent = d.items.length ? owned + '/' + d.items.length + ' owned' : '';
+      list.appendChild(creditLine(UNL.CREDITS[1]));
+      return;
+    }
+
+    // effect list: type chips + filter + effects of the chosen type
+    const types = Object.keys(exaltIndex.types);
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:4px;align-items:center;margin-bottom:5px;flex-wrap:wrap';
+    for (const t of types) {
+      const chip = document.createElement('button');
+      chip.className = 'kbtn' + (t === exaltType ? ' gold' : '');
+      chip.style.cssText = 'font-size:10px;padding:1px 8px';
+      chip.textContent = t + ' (' + exaltIndex.types[t].length + ')';
+      chip.addEventListener('click', () => { exaltType = t; renderQuests(); });
+      bar.appendChild(chip);
+    }
+    const search = document.createElement('input');
+    search.placeholder = 'search effects…';
+    search.value = exaltFilter;
+    search.style.cssText = 'margin-left:auto;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:10.5px;width:130px';
+    search.addEventListener('input', () => {
+      exaltFilter = search.value;
+      renderQuests();
+      const s2 = $('q-list').querySelector('input');
+      if (s2) { s2.focus(); s2.setSelectionRange(s2.value.length, s2.value.length); }
+    });
+    bar.appendChild(search);
+    list.appendChild(bar);
+
+    if (!types.includes(exaltType)) exaltType = types[0];
+    const q = exaltFilter.trim().toLowerCase();
+    const effects = (exaltIndex.types[exaltType] || []).filter(e => !q || e.toLowerCase().includes(q));
+    for (const e of effects) {
+      const row = document.createElement('div');
+      row.className = 'q-it';
+      row.innerHTML = '<span class="nm itemlink"></span>';
+      row.querySelector('.nm').textContent = e;
+      row.title = 'Click to see every item that carries ' + e;
+      row.addEventListener('click', () => { exaltSel = e; renderQuests(); });
+      list.appendChild(row);
+    }
+    if (!effects.length) {
+      const none = document.createElement('div');
+      none.className = 'q-npc';
+      none.textContent = 'No ' + exaltType.toLowerCase() + ' effects match "' + exaltFilter + '".';
+      list.appendChild(none);
+    }
+    $('q-progress').textContent = '';
+    list.appendChild(creditLine(UNL.CREDITS[1]));
+  }
+
   // ---------- needed-item engine: epic/BiS/grind drops get toasts + KEEP ----------
   function neededExtraVerdict(key) {
     for (const cls of qSelClasses()) {
@@ -2833,11 +3212,41 @@
     return null;
   }
 
+  $('l-cleanup').addEventListener('click', () => window.overlay.openCleanup());
+
+  // ================= copy buttons =================
+  (() => {
+    const sel = $('c-topn');
+    for (let i = 1; i <= 10; i++) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = 'top ' + i;
+      sel.appendChild(o);
+    }
+    sel.addEventListener('change', () => save({ copyTopN: +sel.value }));
+    $('c-copy').addEventListener('click', () => copyMeter(false));
+    $('c-copyfull').addEventListener('click', () => copyMeter(true));
+  })();
+
+  // ================= notes =================
+  let notesTimer = null;
+  window.overlay.getNotes().then((t) => { $('notes-text').value = t || ''; });
+  $('notes-text').addEventListener('input', () => {
+    $('notes-status').textContent = 'saving…';
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => {
+      window.overlay.setNotes($('notes-text').value);
+      $('notes-status').textContent = 'saved ✓';
+      setTimeout(() => { if ($('notes-status').textContent === 'saved ✓') $('notes-status').textContent = ''; }, 2500);
+    }, 600);
+  });
+
   // ================= tabs =================
   let activeTab = 'meter';
   function setTab(name) {
     activeTab = name;
-    document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    // Session view (old Spells) lives under the Meter tab now
+    const hl = name === 'breakdown' ? 'meter' : name;
+    document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === hl));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
     renderAll();
   }
@@ -2893,10 +3302,9 @@
   }
   window.overlay.onTestTab((tab) => {
     $('export-modal').style.display = 'none'; // reset transient panels between shots
-    $('k-detail').classList.remove('open');
     if (tab.startsWith('item:')) { // dev-only: open item detail, slider mid-way
       setTab('lookup');
-      openItem(tab.slice(5)).then(() => { $('k-tier').value = 5; renderTier(); });
+      openItem(tab.slice(5)); // details render in the dock (see dockshot)
       return;
     }
     if (tab === 'export') { setTab('loot'); $('l-export').click(); return; }
@@ -2963,6 +3371,71 @@
       renderQuests();
       return;
     }
+    if (tab === 'repdemo') { // dev-only: unlocks view w/ rep counters (needs real faction+ach files)
+      setTab('quests');
+      $('q-zone').value = '__unlocks';
+      unlExpanded.add('races|Race Unlock - Dwarf');
+      renderQuests();
+      return;
+    }
+    if (tab === 'needkill') { // dev-only: kill-time need toast
+      zoneData = { named: [{ mob: 'The froglok shin lord', boss: true, drops: [{ item: 'Ghoulbane' }] }] };
+      rebuildNamedSet();
+      handleLogLines(['[Mon Sep 28 21:00:00 2026] You have slain The froglok shin lord!']);
+      setTab('meter');
+      return;
+    }
+    if (tab === 'notes') { $('notes-text').value = 'Test note: /tasko reopens the crawl tracker.'; setTab('notes'); return; }
+    if (tab === 'copydemo') { console.log('COPYCHAT|' + copyMeter(false)); console.log('COPYFULL|' + copyMeter(true)); setTab('meter'); return; }
+    if (tab === 'xpdemo') { // dev-only: XP strip with a session's worth of gains
+      handleLogLines([
+        '[Mon Sep 29 20:00:00 2026] You gain experience! (3.288%)',
+        '[Mon Sep 29 20:04:00 2026] You gain party experience! (1.373%)',
+        '[Mon Sep 29 20:09:00 2026] You gain experience! (2.940%)',
+        '[Mon Sep 29 20:12:00 2026] You have gained a level! Welcome to level 47!',
+        '[Mon Sep 29 20:15:00 2026] You gain experience! (2.104%)',
+        '[Mon Sep 29 20:22:00 2026] You gain experience! (2.612%)',
+        '[Mon Sep 29 20:30:00 2026] You gain party experience! (0.988%)',
+        '[Mon Sep 29 20:38:00 2026] You gain experience! (2.771%)',
+        '[Mon Sep 29 20:45:00 2026] You have gained 2 ability points! You now have 145 ability points.',
+        '[Mon Sep 29 21:00:00 2026] You gain experience! (3.005%)'
+      ]);
+      setTab('meter');
+      return;
+    }
+    if (tab === 'xpdemo50') { // dev-only: XP strip at the level cap
+      const mk = (min, s) => '[Mon Sep 29 ' + String(20 + Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0') + ':00 2026] ' + s;
+      const lines = [];
+      for (let i = 0; i < 54; i++) lines.push(mk(i * 2, 'You gain experience!'));
+      lines.push(mk(35, 'You have gained 1 ability point! You now have 146 ability points.'));
+      lines.push(mk(70, 'You have gained 2 ability points! You now have 148 ability points.'));
+      lines.push(mk(100, 'You have gained 1 ability point! You now have 149 ability points.'));
+      handleLogLines(lines);
+      setTab('meter');
+      return;
+    }
+    if (tab === 'exaltdemo') { // dev-only: exaltations effect list
+      exaltIndex = { types: { Focus: ['Affliction Haste I', 'Burning Affliction III', 'Improved Damage II', 'Mana Preservation II'], Worn: ['Flowing Thought I'], Proc: ['Anarchy'], Clicky: ['Levitation'] }, updated: Date.now() };
+      exaltSel = null;
+      setTab('quests'); $('q-zone').value = '__exalts'; renderQuests();
+      return;
+    }
+    if (tab === 'exaltdemo2') { // dev-only: effect detail with stubbed items
+      exaltIndex = exaltIndex || { types: { Focus: ['Mana Preservation II'] }, updated: Date.now() };
+      getEffectItemsFn = async () => ({ effect: 'Mana Preservation II',
+        desc: 'Reduces the mana cost of spells by up to 10%. This bonus will decay on spells over level 44.',
+        items: ['Black Alloy Medallion', 'Mane Attraction', 'Nisch Mas Ilkvel'] });
+      exaltSel = 'Mana Preservation II';
+      setTab('quests'); $('q-zone').value = '__exalts'; renderQuests();
+      return;
+    }
+    if (tab === 'cleanseed') { // dev-only: seed item knowledge so cleanup shows quest chips / ts / gear
+      itemKnowledge[normItemName('Fresh Fish')] = { quests: ['Exotic Drinks', 'Fishy Deliveries', 'Cabilis Trade Run'], ts: ['baking'], page: 'Fresh Fish', checkedAt: Date.now(), chainChecked: true,
+        chain: ['Exotic Drinks → Electrum-Bladed Wakizashi → needed for: Call of Flame Quest'] };
+      itemKnowledge[normItemName('Snake Scales')] = { quests: [], ts: ['brewing'], page: 'Snake Scales', checkedAt: Date.now() };
+      itemKnowledge[normItemName('Barbarian Spiritist`s Hammer')] = { quests: [], gear: true, page: 'Barbarian Spiritist`s Hammer', checkedAt: Date.now() };
+      return;
+    }
     if (tab === 'datastale') { // dev-only: show the stale-data banner + status line
       dataStaleLabels = ['Epic checklists', 'Race unlock guide'];
       setTab('quests');
@@ -3010,7 +3483,87 @@
   // ================= render: meter =================
   const meterExpanded = new Set(); // names whose damage-by-spell sub-list is open
 
+  // ---- XP strip (bottom of the meter) ----
+  // Legends states the percent of the current level bar per kill, so below
+  // the cap this is REAL progress; at the cap the lines have no percent and
+  // only kill pace can be shown. AA lines carry a running total.
+  const xp = { pct: 0, kills: 0, noPct: 0, first: 0, last: 0,
+               level: 0, sinceDing: 0, dingSeen: false, aaGained: 0, aaTotal: 0 };
+
+  function renderXpStrip() {
+    const el = $('c-xp');
+    if (!xp.kills && !xp.aaGained) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const bits = [];
+    const hrs = xp.first && xp.last > xp.first ? (xp.last - xp.first) / 3600000 : 0;
+    if (xp.pct > 0) {
+      let s = '✦ XP +' + xp.pct.toFixed(1) + '% (' + xp.kills + ' kills)';
+      if (hrs >= 0.1) s += ' · ' + (xp.pct / hrs).toFixed(1) + '%/hr';
+      if (xp.dingSeen) {
+        s += ' · ' + xp.sinceDing.toFixed(1) + '% into L' + (xp.level || '?');
+        if (hrs >= 0.1) {
+          const etaH = (100 - xp.sinceDing) / (xp.pct / hrs);
+          if (etaH > 0 && etaH < 200)
+            s += ' · ~' + (etaH >= 1 ? Math.round(etaH * 10) / 10 + 'h' : Math.round(etaH * 60) + 'm') + ' to ' + ((xp.level || 0) + 1);
+        }
+      }
+      bits.push(s);
+    }
+    // at the level cap the exp lines carry no percent — only AA matters there
+    if (xp.aaGained) {
+      let a = 'AA +' + xp.aaGained;
+      if (hrs >= 0.1) a += ' (' + (xp.aaGained / hrs).toFixed(1) + '/hr)';
+      if (xp.aaTotal) a += ' · ' + xp.aaTotal + ' total';
+      bits.push(a);
+    }
+    if (!bits.length) { el.style.display = 'none'; return; } // capped, no AA yet — nothing to say
+    el.textContent = bits.join('   ·   ');
+    el.title = 'Session XP from your log. The percent is the game’s own per-kill share of your current level bar; the level position and time-to-level appear once a level-up has been seen this session.';
+  }
+
+  // meter rows exactly as displayed (pets folded into You when the setting is on)
+  function meterRowsForCopy() {
+    const s = tracker.summary();
+    if (!s) return null;
+    let rows = s.rows.map(r => ({ ...r }));
+    if (settings && settings.mergePets !== false) {
+      const petNamesNow = new Set((s.petRows || []).map(p => p.name));
+      const petRows = rows.filter(r => petNamesNow.has(r.name));
+      const youRow = rows.find(r => r.name === 'You');
+      if (petRows.length && youRow) {
+        youRow.total += petRows.reduce((a, r) => a + r.total, 0);
+        youRow.dps = youRow.total / s.durS;
+        rows = rows.filter(r => !petNamesNow.has(r.name));
+      }
+    }
+    rows.sort((a, b) => b.total - a.total);
+    for (const r of rows) if (r.name === 'You') r.name = charName || 'You';
+    return { s, rows };
+  }
+
+  function copyMeter(full) {
+    const d = meterRowsForCopy();
+    if (!d) { toast('Nothing to copy — no combat yet'); return; }
+    const n = Math.max(1, Math.min(10, +((settings && settings.copyTopN) || 5)));
+    const top = d.rows.slice(0, n);
+    let text;
+    if (!full) {
+      text = d.s.title + ' (' + fmtDur(d.s.durS) + ') — ' +
+        top.map(r => r.name + ' ' + fmt(r.total) + ' @' + fmt(r.dps)).join(' | ');
+    } else {
+      const lines = ['SEQO — ' + d.s.title + ' · ' + fmtDur(d.s.durS) + (d.s.live ? ' (live)' : '')];
+      for (const [i, r] of top.entries())
+        lines.push((i + 1) + '. ' + r.name + ' — ' + fmt(r.total) + ' dmg · ' + fmt(r.dps) + ' dps' +
+                   (r.maxHit ? ' · max ' + fmt(r.maxHit) : '') + (r.crits ? ' · ' + r.crits + ' crits' : ''));
+      text = lines.join('\n');
+    }
+    window.overlay.copyText(text);
+    toast('📋 Copied ' + (full ? 'full breakdown' : 'chat line') + ' (top ' + top.length + ')');
+    return text;
+  }
+
   function renderMeter() {
+    renderXpStrip();
     const s = tracker.summary();
     const view = $('view-meter');
     if (!s) { $('c-empty').style.display = 'flex'; $('c-rows').style.display = 'none'; return; }
@@ -3222,8 +3775,14 @@
     }
   }
 
-  $('b-mode-fight').addEventListener('click', () => { bMode = 'fight'; renderBreakdown(); });
+  // Meter and Spells are ONE tab now: ⚔ Fight is the live meter, Σ Session is
+  // the whole-session damage-by-source view (the old Spells tab). Per-fight
+  // sources live on the meter itself — click any bar to expand them.
+  bMode = 'session';
+  $('b-mode-fight').addEventListener('click', () => setTab('meter'));
   $('b-mode-session').addEventListener('click', () => { bMode = 'session'; renderBreakdown(); });
+  $('c-mode-fight').addEventListener('click', () => setTab('meter'));
+  $('c-mode-session').addEventListener('click', () => { bMode = 'session'; setTab('breakdown'); });
 
   function escapeHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -3266,6 +3825,38 @@
   });
 
   let runListOpen = false;   // full item list expanded?
+
+  function copyRun(r, live, full) {
+    const dur = (live ? Date.now() : r.endedAt) - r.startedAt;
+    const items = [...r.items.values()].reduce((a, b) => a + b, 0);
+    const moteRows = [...r.items.entries()].filter(([n]) => /mote/i.test(n)).sort((a, b) => b[1] - a[1]);
+    const motes = moteRows.reduce((a, [, c]) => a + c, 0);
+    const rares = r.rares ? r.rares.size : 0;
+    const known = live ? knownRares().length : 0;
+    let text;
+    if (!full) {
+      text = 'Run ' + fmtRunDur(dur) + ' — ' + (fmtCoin(r.coin) || 'no coin') + ' · ' + items + ' items' +
+        (motes ? ' · ' + motes + ' motes' : '') +
+        (rares || known ? ' · rares ' + rares + (known ? '/' + Math.max(known, rares) : '') : '');
+    } else {
+      const lines = ['SEQO run — ' + fmtRunDur(dur) + (live ? ' (live)' : '') +
+                     ' · ' + (fmtCoin(r.coin) || 'no coin') +
+                     (dur > 30000 && r.coin ? ' (' + fmtCoin(Math.round(r.coin * 3600000 / dur)) + '/hr)' : '')];
+      if (moteRows.length)
+        lines.push('Motes (' + motes + '): ' + moteRows.map(([n, c]) => n + ' ×' + c).join(', '));
+      if (r.rares && r.rares.size)
+        lines.push('Rares down (' + r.rares.size + '): ' + [...r.rares.entries()]
+          .map(([n, c]) => n + (c > 1 ? ' ×' + c : '')).join(', '));
+      const top = [...r.items.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      if (top.length) {
+        lines.push('Loot (' + items + '):');
+        for (const [n, c] of top) lines.push('  ' + n + (c > 1 ? ' ×' + c : ''));
+      }
+      text = lines.join('\n');
+    }
+    window.overlay.copyText(text);
+    toast('📋 Copied run ' + (full ? 'report' : 'summary'));
+  }
 
   // Known rares for the current zone: the wiki's named-mob list when we have
   // it, otherwise named mobs you've personally killed here before (lootDB).
@@ -3313,6 +3904,17 @@
       const tog = h.querySelector('.rtoggle');
       tog.textContent = runListOpen ? 'hide list ▴' : 'full list ▾';
       tog.addEventListener('click', () => { runListOpen = !runListOpen; renderRunBox(); });
+      // copy-to-chat buttons for this run
+      const mkCopy = (label, title, full) => {
+        const b = document.createElement('span');
+        b.style.cssText = 'margin-left:8px;cursor:pointer;color:#9ab';
+        b.textContent = label;
+        b.title = title;
+        b.addEventListener('click', (e) => { e.stopPropagation(); copyRun(r, live, full); });
+        return b;
+      };
+      tog.before(mkCopy('📋', 'Copy a one-line run summary for in-game chat', false),
+                 mkCopy('📋+', 'Copy the full run report (motes, rares, every item) for Discord', true));
       d.appendChild(h);
 
       const top = [...r.items.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -3408,7 +4010,6 @@
   function renderLoot() {
     $('l-coin').textContent = sessionCoin ? 'Session coin: ' + fmtCoin(sessionCoin) : '';
     renderRunBox();
-    renderSellList();
 
     const rec = $('l-recent-box');
     rec.innerHTML = '';
@@ -3683,17 +4284,27 @@
   // ---- upgrade tier math (from the wiki's Item Upgrade System page):
   // stats gain a cumulative 10% per tier (weapon DMG 5%/tier), each tier
   // guarantees at least +1; delay never changes; weight shrinks, floor 0.1.
-  const SCALE_STATS = /\b(AC|HP|MANA|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|ACCURACY|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON))(:\s*\+?)(\d+)/gi;
+  // Per the wiki's Item Upgrade System page (re-verified 2026-09-28):
+  //   stats +10% of base per tier · weapon DMG +5%/tier · ACCURACY +2.5%/tier
+  //   all values ROUND DOWN ("42.9 AC becomes 42") · +1 minimum per tier
+  //   delay never changes · weight -10%/tier, floor 0.1.
+  // In game the bonus also grows with item EXPERIENCE between tiers, so a
+  // +3 item halfway to +4 reads higher than the flat +3 numbers here.
+  const SCALE_STATS = /\b(AC|HP|MANA|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON))(:\s*\+?)(\d+)/gi;
   function scaledStats(block, T) {
     if (!T) return block;
     let out = block.replace(SCALE_STATS, (all, stat, sep, num) => {
       const base = +num;
-      const v = Math.max(Math.round(base * (1 + 0.10 * T)), base + T);
+      const v = Math.max(Math.floor(base * (1 + 0.10 * T)), base + T);
       return stat + sep + v;
     });
     out = out.replace(/\b(DMG)(:\s*\+?)(\d+)/gi, (all, stat, sep, num) => {
       const base = +num;
-      const v = Math.max(Math.round(base * (1 + 0.05 * T)), base + T);
+      const v = Math.max(Math.floor(base * (1 + 0.05 * T)), base + T);
+      return stat + sep + v;
+    });
+    out = out.replace(/\b(ACCURACY)(:\s*\+?)(\d+)/gi, (all, stat, sep, num) => {
+      const v = Math.floor(+num * (1 + 0.025 * T));
       return stat + sep + v;
     });
     out = out.replace(/\b(WT)(:\s*)([\d.]+)/gi, (all, stat, sep, num) => {
@@ -3705,165 +4316,16 @@
 
   // open an item's lookup page from anywhere (loot tab, zone list, search)
   function openItemLink(name) {
-    setTab('lookup');
-    openItem(name);
+    openItem(name); // the dock opens over whatever tab you're on
   }
 
-  let detailName = '';
-  let detailStats = '';
-  function renderTier() {
-    const T = +$('k-tier').value;
-    $('k-tierval').textContent = '+' + T;
-    $('k-stats').textContent = scaledStats(detailStats, T);
-    $('k-dtitle').textContent = ($('k-dtitle').dataset.base || detailName) + (T ? ' +' + T : '');
+  // Item details live in the DOCK now — a roomy always-on-top panel under
+  // the overlay. Everything that used to squeeze into this tab's detail box
+  // (stats, slider, effects with descriptions, sources) renders there.
+  function openItem(name) {
+    window.overlay.openDock('item', { name });
+    return Promise.resolve();
   }
-  $('k-tier').addEventListener('input', renderTier);
-
-  function showItemData(cached) {
-    $('k-dtitle').dataset.base = cached.pageTitle || detailName;
-    if (cached.statsblock) {
-      detailStats = cached.statsblock;
-      $('k-upgrade').style.display = 'block';
-      $('k-tier-row').style.display = 'flex';
-      $('k-tier').value = 0;
-      renderTier();
-    } else if (cached.mobsheet) {
-      // mob/god statsheet: same box, no upgrade slider
-      $('k-upgrade').style.display = 'block';
-      $('k-tier-row').style.display = 'none';
-      $('k-stats').textContent = cached.mobsheet;
-      $('k-dtitle').textContent = cached.pageTitle || detailName;
-    } else {
-      $('k-upgrade').style.display = 'none';
-      $('k-dtitle').textContent = cached.pageTitle || detailName;
-    }
-    // mob/boss loot table: clickable chips (from the wiki's Loot/Drops sections)
-    const dd = $('k-ddrops');
-    dd.innerHTML = '';
-    if ((cached.dropsList || []).length) {
-      const lbl = document.createElement('span');
-      lbl.style.cssText = 'color:#777;font-size:10px;margin-right:2px';
-      lbl.textContent = 'Known loot:';
-      dd.appendChild(lbl);
-      for (const it of cached.dropsList) {
-        const c = document.createElement('span');
-        c.className = 'q-cls';
-        c.textContent = it;
-        c.title = 'Open ' + it;
-        c.addEventListener('click', () => openItem(it));
-        dd.appendChild(c);
-      }
-    }
-
-    // per-source sections, each credited
-    const sections = [];
-    // your own kill data beats any database
-    {
-      const mobLower = (cached.pageTitle || detailName || '').toLowerCase();
-      const obs = [];
-      const tiers = new Map();   // strength scales D0-D4 with zone difficulty
-      for (const m of Object.values(lootDB.mobs || {})) {
-        if ((m.name || '').toLowerCase() !== mobLower) continue;
-        if (m.kills) {
-          for (const d of Object.values(m.drops || {}))
-            obs.push(d.name + '  ' + d.count + '/' + m.kills +
-              ' (' + (d.count / m.kills * 100).toFixed(d.count / m.kills >= 0.1 ? 0 : 1) + '%)' +
-              (m.zone ? '  — ' + m.zone : ''));
-        }
-        if (m.maxHit || m.hitCount || m.level) {
-          const tl = tierOf(m.zone || '').tier || 'D0 (base)';
-          const t = tiers.get(tl) || { maxHit: 0, hits: 0, total: 0, level: 0 };
-          t.maxHit = Math.max(t.maxHit, m.maxHit || 0);
-          t.hits += m.hitCount || 0;
-          t.total += m.hitTotal || 0;
-          if (m.level) t.level = m.level;
-          tiers.set(tl, t);
-        }
-      }
-      if (obs.length) sections.push({ label: 'Your own kills', body: obs.join('\n') });
-      if (tiers.size) {
-        const lines = [];
-        for (const [tl, t] of [...tiers.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-          lines.push(tl + ':  ' + (t.level ? 'level ' + t.level + ', ' : '') +
-            'max hit ' + (t.maxHit || '—') +
-            (t.hits ? ', avg ' + Math.round(t.total / t.hits) + ' (' + t.hits + ' hits)' : ''));
-        }
-        sections.push({ label: 'Your observations by difficulty', body: lines.join('\n') });
-      }
-    }
-    if (cached.text) {
-      sections.push({ label: 'eqlwiki.com', body:
-        (cached.dropsfrom ? 'Drops from: ' + cached.dropsfrom + '\n\n' : '') + cached.text });
-    } else if (cached.wikiError) {
-      sections.push({ label: 'eqlwiki.com', body: '⚠ ' + cached.wikiError });
-    }
-    for (const t of cached.tools || []) {
-      sections.push({ label: 'eqlegendstools.com · ' + t.source, body: t.lines.join('\n') });
-    }
-    const dt = $('k-dtext');
-    dt.innerHTML = '';
-    if (!sections.length) dt.textContent = 'No source had data for this item.';
-    for (const s of sections) {
-      const h = document.createElement('div');
-      h.className = 'k-sect-h';
-      h.textContent = s.label;
-      const b = document.createElement('div');
-      b.className = 'k-sect-b';
-      b.textContent = s.body;
-      dt.appendChild(h); dt.appendChild(b);
-    }
-    const c = document.createElement('div');
-    c.className = 'k-cached';
-    c.textContent = 'cached ' + new Date(cached.updated).toLocaleDateString();
-    dt.appendChild(c);
-  }
-
-  // community databases: credited deep links that open in the default
-  // browser. SEQO stays local-first; these are the "go deeper" buttons.
-  const ITEM_SOURCES = [
-    { name: 'eqlwiki',        url: (q) => 'https://eqlwiki.com/index.php?search=' + encodeURIComponent(q) },
-    { name: 'EQLBase',        url: (q) => 'https://eqlbase.com/items/?q=' + encodeURIComponent(q) },
-    { name: 'EQ Legends Tools', url: (q) => 'https://eqlegendstools.com/?s=' + encodeURIComponent(q) },
-    { name: 'Loadout Legends', url: (q) => 'https://www.loadoutlegends.com/database?search=' + encodeURIComponent(q) },
-    { name: 'Gnoll Guard',    url: (q) => 'https://www.gnollguard.com/items?search=' + encodeURIComponent(q) }
-  ];
-
-  function renderItemSources(name) {
-    const box = $('k-sources');
-    box.innerHTML = '<span style="color:#777;font-size:10px;margin-right:2px">Look up on:</span>';
-    for (const s of ITEM_SOURCES) {
-      const b = document.createElement('span');
-      b.className = 'q-cls';
-      b.textContent = s.name + ' ↗';
-      b.title = 'Search "' + name + '" on ' + s.name + ' (opens your browser). Community database — all credit to its maintainers.';
-      b.addEventListener('click', () => window.overlay.openExternal(s.url(name)));
-      box.appendChild(b);
-    }
-  }
-
-  async function openItem(name) {
-    detailName = name;
-    $('k-dtitle').dataset.base = name;
-    $('k-dtitle').textContent = name;
-    $('k-upgrade').style.display = 'none';
-    $('k-detail').classList.add('open');
-    $('k-ddrops').innerHTML = '';
-    updateWishBtn();
-    renderItemSources(name);
-    const cached = await window.overlay.getItemData(name);
-    if (cached) showItemData(cached);
-    else $('k-dtext').textContent = 'Not in the local database yet.\n\nClick "Update from sources" to fetch it once (eqlwiki + eqlegendstools) — after that it\'s available offline.';
-  }
-
-  $('k-dupdate').addEventListener('click', async () => {
-    $('k-dtext').textContent = 'Fetching from sources… (the first run also caches eqlegendstools\'s databases — that one can take ~30 seconds)';
-    const res = await window.overlay.updateItemData(detailName);
-    if (res.error) { $('k-dtext').textContent = '⚠ ' + res.error; return; }
-    showItemData(res);
-  });
-  $('k-dclose').addEventListener('click', () => $('k-detail').classList.remove('open'));
-  $('k-dclose-x').addEventListener('click', () => $('k-detail').classList.remove('open'));
-  $('k-wish').addEventListener('click', () => toggleWish(detailName));
   $('k-go').addEventListener('click', runLocalSearch);
   $('k-wiki').addEventListener('click', runWikiSearch);
   $('k-query').addEventListener('keydown', (e) => {
@@ -4338,6 +4800,11 @@
     if (lootDirty) {
       lootDirty = false;
       if (activeTab === 'loot') renderLoot();
+      cleanupDirty = true;
+    }
+    if (cleanupDirty && cleanupActive && !cleanupScanning) {
+      cleanupDirty = false;
+      pushCleanup();
     }
   }, 500);
 
@@ -4399,6 +4866,7 @@
     $('autoupdcheck').checked = settings.autoCheckUpdates !== false;
     $('autodatacheck').checked = settings.autoDataCheck !== false;
     dataStaleLabels = settings.staleData || [];
+    $('c-topn').value = String(Math.max(1, Math.min(10, +(settings.copyTopN || 5))));
     renderQuestClasses();
     if (activeTab === 'quests') renderQuests();
     document.body.classList.toggle('show-notes', !!settings.showNotes);
@@ -4657,7 +5125,15 @@
       return '✓ ' + QD_LABELS[k] + ': ' + (x.changed ? 'updated' : 'already current') +
              (x.revised ? ' (wiki page of ' + x.revised + ')' : '');
     };
-    return ['epics', 'unlocks', 'pos'].map(bit).join('\n');
+    let out = ['epics', 'unlocks', 'pos'].map(bit).join('\n');
+    if (r.cached && !r.cached.error)
+      out += '\n✓ Cached wiki pages: ' + r.cached.checked + ' checked, ' + r.cached.updated + ' re-fetched' +
+             (r.cached.details && r.cached.details.length ? ' (' + r.cached.details.slice(0, 4).join(', ') +
+              (r.cached.details.length > 4 ? '…' : '') + ')' : '');
+    else if (r.cached) out += '\n⚠ Cached pages: ' + r.cached.error;
+    if (r.knowledge && !r.knowledge.error && r.knowledge.rechecked)
+      out += '\n✓ Item knowledge: ' + r.knowledge.rechecked + ' old unknowns re-checked, ' + r.knowledge.learned + ' resolved';
+    return out;
   }
   async function afterQuestUpdate(r, quiet) {
     applyQuestData(await window.overlay.getQuestData());
@@ -4708,7 +5184,6 @@
     sourceClass = await window.overlay.getSourceClasses() || {};
     posDone = await window.overlay.getPosQuests() || {};
     itemVerdicts = await window.overlay.getItemVerdicts() || {};
-    sellList = await window.overlay.getSellList() || {};
     wishList = await window.overlay.getWishList() || {};
     if (activeTab === 'quests') renderQuests();
     // refill the shared pet set in place (the tracker holds a reference to it)

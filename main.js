@@ -145,6 +145,23 @@ function createWindow() {
             'meter;breakdown;loot;lookup;item:Flowing Black Silk Sash;export').split(';');
           const wait = +(process.env.EQL_TEST_WAIT || 700);
           for (let i = 0; i < tabs.length; i++) {
+            if (tabs[i].startsWith('dockshot')) { // dev-only: open + screenshot the dock ('dockshot' or 'dockshot:item:Name')
+              const spec = tabs[i].slice(9);
+              if (spec.startsWith('item:')) openDock('item', { name: spec.slice(5) });
+              else openDock('cleanup');
+              await new Promise(r => setTimeout(r, wait + 1800));
+              if (spec.startsWith('filter:') && dockWin && !dockWin.isDestroyed()) {
+                await dockWin.webContents.executeJavaScript(
+                  'document.getElementById("filter").value=' + JSON.stringify(spec.slice(7)) +
+                  ';document.getElementById("filter").dispatchEvent(new Event("input"));true');
+                await new Promise(r => setTimeout(r, 400));
+              }
+              if (dockWin && !dockWin.isDestroyed()) {
+                const img = await dockWin.webContents.capturePage();
+                fs.writeFileSync('/tmp/overlay-' + String(i + 1).padStart(2, '0') + '-dock.png', img.toPNG());
+              }
+              continue;
+            }
             win.webContents.send('test-tab', tabs[i]);
             await new Promise(r => setTimeout(r, wait));
             await shot(String(i + 1).padStart(2, '0') + '-' + (tabs[i].split(':')[0].replace(/[^a-z]/gi, '') || 'tab'));
@@ -159,9 +176,11 @@ function createWindow() {
     if (!win) return;
     settings.bounds = win.getBounds();
     saveSettings(settings);
+    snapDock(); // the dock rides along under the overlay
   };
   win.on('moved', rememberBounds);
   win.on('resized', rememberBounds);
+  win.on('move', () => snapDock());
   win.on('restore', () => { // back from taskbar: overlay mode again
     win.setSkipTaskbar(true);
     win.setAlwaysOnTop(true, 'screen-saver');
@@ -587,6 +606,121 @@ ipcMain.on('set-not-rare', (_e, { zone, mob, ignored }) => {
 });
 ipcMain.handle('get-not-rares', () => gameDB.notRares || {});
 
+// free-form notes — plain text, synced with the rest of the game database
+ipcMain.on('set-notes', (_e, text) => {
+  gameDB.notes = String(text || '').slice(0, 200000);
+  saveGameDBSoon();
+});
+ipcMain.handle('get-notes', () => gameDB.notes || '');
+
+// ---------------------------------------------------------------------------
+// Cleanup window: a separate resizable window listing every bag/bank item
+// with a keep/toss verdict. The OVERLAY renderer owns all the logic and data;
+// this window is a dumb view — main just relays rows one way, commands back.
+// ---------------------------------------------------------------------------
+// The dock: one always-on-top panel that SNAPS TO THE OVERLAY'S BOTTOM EDGE
+// and follows it around — the roomy place for anything that needs space
+// (Cleanup, item details). Closable from inside; height is remembered;
+// 📌 detaches it into a free-floating window.
+let dockWin = null;
+let dockDetached = false;
+
+function snapDock() {
+  if (!dockWin || dockWin.isDestroyed() || !win || dockDetached) return;
+  const b = win.getBounds();
+  const h = Math.max(160, settings.dockHeight || 300);
+  dockWin.setBounds({ x: b.x, y: b.y + b.height, width: b.width, height: h });
+}
+
+function openDock(mode, payload) {
+  if (!dockWin || dockWin.isDestroyed()) {
+    dockWin = new BrowserWindow({
+      width: 480, height: Math.max(160, settings.dockHeight || 300),
+      minWidth: 320, minHeight: 160,
+      frame: false, transparent: false, backgroundColor: '#16161d',
+      skipTaskbar: true, resizable: true, alwaysOnTop: true,
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false }
+    });
+    dockWin.setAlwaysOnTop(true, 'screen-saver'); // same layer as the overlay
+    dockWin.loadFile('dock.html');
+    dockWin.on('closed', () => {
+      dockWin = null;
+      if (win) win.webContents.send('cleanup-state', false);
+    });
+    dockWin.on('resized', () => { // user dragged: keep the height, re-snap position/width
+      if (!dockWin || dockWin.isDestroyed()) return;
+      settings.dockHeight = dockWin.getBounds().height;
+      saveSettings(settings);
+      snapDock();
+    });
+    dockWin.webContents.once('did-finish-load', () => {
+      snapDock();
+      dockWin.webContents.send('dock-mode', { mode, payload });
+      if (win && mode === 'cleanup') win.webContents.send('cleanup-state', true);
+    });
+    return;
+  }
+  snapDock();
+  dockWin.focus();
+  dockWin.webContents.send('dock-mode', { mode, payload });
+  if (win && mode === 'cleanup') win.webContents.send('cleanup-state', true);
+}
+
+ipcMain.on('open-dock', (_e, { mode, payload }) => openDock(mode, payload));
+ipcMain.on('open-cleanup', () => openDock('cleanup'));
+ipcMain.on('close-dock', () => { if (dockWin && !dockWin.isDestroyed()) dockWin.close(); });
+ipcMain.on('dock-detach', (_e, detached) => {
+  dockDetached = !!detached;
+  if (!dockDetached) snapDock();
+  else if (dockWin && !dockWin.isDestroyed()) dockWin.setResizable(true);
+});
+
+// overlay → dock (cleanup rows / scan progress)
+ipcMain.on('cleanup-data', (_e, payload) => {
+  if (dockWin && !dockWin.isDestroyed()) dockWin.webContents.send('cleanup-data', payload);
+});
+// dock → overlay (commands: scan / junk / refresh / lookup / exaltview / wish)
+ipcMain.on('cleanup-cmd', (_e, cmd) => {
+  if (win) win.webContents.send('cleanup-cmd', cmd);
+});
+
+// ---------------------------------------------------------------------------
+// Exaltations browser: effect index (per exaltation type) + per-effect item
+// lists, pulled read-only from the wiki and cached in the game DB.
+// ---------------------------------------------------------------------------
+ipcMain.handle('get-exalt-index', () => gameDB.exaltIndex || null);
+ipcMain.handle('update-exalt-index', async () => {
+  try {
+    gameDB.exaltIndex = await updater.fetchExaltIndex();
+    saveGameDBSoon();
+    return gameDB.exaltIndex;
+  } catch (e) { return { error: e.message }; }
+});
+ipcMain.handle('get-effect-items', async (_e, name) => {
+  gameDB.effects = gameDB.effects || {};
+  if (gameDB.effects[name]) return gameDB.effects[name];
+  try {
+    const data = await updater.fetchEffectItems(name);
+    gameDB.effects[name] = data;
+    saveGameDBSoon();
+    return data;
+  } catch (e) { return { error: e.message }; }
+});
+
+// permanent item knowledge (what each item is for), synced with the game DB
+ipcMain.on('set-item-knowledge', (_e, { key, entry }) => {
+  if (!key) return;
+  gameDB.itemKnowledge = gameDB.itemKnowledge || {};
+  gameDB.itemKnowledge[key] = entry;
+  saveGameDBSoon();
+});
+ipcMain.handle('get-item-knowledge', () => gameDB.itemKnowledge || {});
+
+// clipboard for the copy-to-chat buttons (renderer is sandboxed)
+ipcMain.on('copy-text', (_e, text) => {
+  try { require('electron').clipboard.writeText(String(text || '')); } catch { /* ok */ }
+});
+
 async function refreshToolsPages() {
   const pages = { _updated: Date.now() };
   for (const [name, url] of updater.EQLTOOLS_PAGES) {
@@ -636,14 +770,15 @@ ipcMain.handle('search-wiki', async (_e, query) => {
 });
 
 // Manual "Check for updates": compare cached page revisions against the wiki,
-// re-fetch only what actually changed.
-ipcMain.handle('check-updates', async () => {
+// re-fetch only what actually changed. (Also runs as part of Sync data.)
+async function refreshCachedPages() {
   try {
     const zoneEntries = Object.values(gameDB.zones);
     const itemEntries = Object.values(gameDB.items);
     const titles = [...new Set([
       ...zoneEntries.map(z => z.pageTitle),
-      ...itemEntries.map(i => i.pageTitle)
+      ...itemEntries.map(i => i.pageTitle),
+      ...Object.values(gameDB.effects || {}).map(ef => ef.pageTitle)
     ].filter(Boolean))];
     if (!titles.length) return { checked: 0, updated: 0, details: [] };
 
@@ -669,12 +804,45 @@ ipcMain.handle('check-updates', async () => {
         updated++; details.push('item: ' + it.pageTitle);
       }
     }
+    // cached exaltation effect pages follow the same revision compare
+    for (const ef of Object.values(gameDB.effects || {})) {
+      const cur = latest[ef.pageTitle];
+      if (cur === undefined || (ef.revid && ef.revid === cur)) continue;
+      try {
+        gameDB.effects[ef.effect] = await updater.fetchEffectItems(ef.pageTitle);
+        updated++; details.push('effect: ' + ef.effect);
+      } catch { /* keep the cached copy */ }
+    }
     saveGameDBSoon();
     return { checked: titles.length, updated, details };
   } catch (err) {
     return { error: err.message };
   }
-});
+}
+ipcMain.handle('check-updates', () => refreshCachedPages());
+
+// item-knowledge entries that found nothing get a slow re-check — the wiki
+// grows, and an unknown today may be documented next patch (capped per run)
+async function refreshItemKnowledge(cap = 25) {
+  const ik = gameDB.itemKnowledge || {};
+  const stale = Object.entries(ik)
+    .filter(([, e]) => (!e.quests || !e.quests.length) &&
+                       Date.now() - (e.checkedAt || 0) > 30 * 864e5)
+    .slice(0, cap);
+  let learned = 0;
+  for (const [key, e] of stale) {
+    try {
+      const data = await updater.fetchItemData(key);
+      ik[key] = { quests: data.questUses || [], page: data.pageTitle, checkedAt: Date.now() };
+      if (ik[key].quests.length) learned++;
+    } catch {
+      ik[key] = { ...e, notFound: true, checkedAt: Date.now() };
+    }
+    await new Promise(r => setTimeout(r, 400)); // be polite
+  }
+  if (stale.length) { gameDB.itemKnowledge = ik; saveGameDBSoon(); }
+  return { rechecked: stale.length, learned };
+}
 
 // Local search across everything cached: item cache, zone drops, loot DB
 ipcMain.handle('search-local', (_e, query) => {
@@ -1064,13 +1232,13 @@ function parseUnlocksWikitext(text) {
   const flat = (s) => s
     .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a)
     .replace(/\{\{[^}]*\}\}/g, '').replace(/'{2,}/g, '').replace(/\s+/g, ' ').trim();
-  let race = null, sub = null, factions = [], steps = [];
+  let race = null, sub = null, factions = [], steps = [], needs = {};
   const flush = () => {
     if (race && factions.length && steps.length) {
-      const hint = steps.join(' → ');
-      for (const f of factions) byFaction[f] = hint;
+      const entry = { hint: steps.join(' → '), needs };
+      for (const f of factions) byFaction[f] = entry;
     }
-    factions = []; steps = [];
+    factions = []; steps = []; needs = {};
   };
   for (const raw of String(text).split(/\r?\n/)) {
     const line = raw.trim();
@@ -1083,7 +1251,18 @@ function parseUnlocksWikitext(text) {
       const m = /Get maximum faction with \[\[([^\]|]+)(?:\|[^\]]+)?\]\]/i.exec(line);
       if (m) factions.push(m[1].trim());
     } else if (/^recommended method/.test(sub)) {
-      if (/^#+\s*\S/.test(line)) steps.push(flat(line.replace(/^#+\s*/, '')));
+      if (/^#+\s*\S/.test(line)) {
+        steps.push(flat(line.replace(/^#+\s*/, '')));
+        // turn-in totals: "200 [[Lion Delight]]" (a number BEFORE an item
+        // link; links ending in "Quest" are quest names, not items)
+        let m2;
+        const cre = /(\d+)\s*x?\s*\[\[([^\]|]+?)(?:\|([^\]]+))?\]\]/g;
+        while ((m2 = cre.exec(line))) {
+          const item = (m2[3] || m2[2]).trim();
+          if (/quest$/i.test(item)) continue;
+          needs[item] = Math.max(needs[item] || 0, +m2[1]);
+        }
+      }
     }
   }
   flush();
@@ -1191,6 +1370,10 @@ async function updateQuestData() {
   await one('epics', fetchEpicsFromWiki, 'epicsData', revOf('Epic checklists'));
   await one('unlocks', fetchUnlocksFromWiki, 'unlocksData', revOf('Race unlock guide'));
   await one('pos', fetchPosFromSite, 'posData', null);
+  // cached zone + item pages: revision-compare, re-fetch changed only
+  try { out.cached = await refreshCachedPages(); } catch (e) { out.cached = { error: e.message }; }
+  // long-tail: re-check old "no quest found" item-knowledge entries
+  try { out.knowledge = await refreshItemKnowledge(); } catch (e) { out.knowledge = { error: e.message }; }
   saveGameDBSoon();
   if (!fresh.error) settings.lastDataCheckAt = fresh.checkedAt;
   // remember which sources we could NOT refresh although the wiki moved on

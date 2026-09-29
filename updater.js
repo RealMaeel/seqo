@@ -55,11 +55,20 @@ async function getLatestRevisions(titles) {
 
 // Category members (e.g. "Category:Befallen Quests") -> page titles
 async function getCategoryMembers(category, limit = 100) {
-  const j = await api({
-    action: 'query', list: 'categorymembers',
-    cmtitle: 'Category:' + category, cmlimit: String(limit)
-  });
-  return (j.query && j.query.categorymembers || []).map(c => c.title);
+  const out = [];
+  let cont = null;
+  for (let page = 0; page < 4 && out.length < limit; page++) {
+    const params = {
+      action: 'query', list: 'categorymembers',
+      cmtitle: 'Category:' + category, cmlimit: String(Math.min(500, limit))
+    };
+    if (cont) params.cmcontinue = cont;
+    const j = await api(params);
+    for (const c of (j.query && j.query.categorymembers) || []) out.push(c.title);
+    cont = j.continue && j.continue.cmcontinue;
+    if (!cont) break;
+  }
+  return out.slice(0, limit);
 }
 
 // Extract a named parameter from an {{Itempage ...}} style template.
@@ -461,6 +470,37 @@ async function fetchItemData(itemName) {
     if (mob.desc && (!text.trim() || !text.includes(mob.desc.slice(0, 40))))
       text = (mob.desc + '\n\n' + text).trim();
   }
+  // tradeskill use: the wiki categorizes ingredients, and usually names the
+  // craft somewhere on the page — feeds the Cleanup "tradeskill – brewing" label
+  const isTradeskill = /\[\[Category:\s*Tradeskill/i.test(page.wikitext);
+  const TS_RE = /\b(Brewing|Baking|Tailoring|Blacksmithing|Fletching|Jewelcraft|Jewelry Making|Pottery|Alchemy|Tinkering|Research|Poison Making)\b/gi;
+  const tsSkills = [...new Set([...page.wikitext.matchAll(TS_RE)]
+    .map(m => m[1].toLowerCase()))];
+
+  // quest rewards (when this page IS a quest page): reward template params
+  // and links under reward headings — feeds the Cleanup quest-click detail
+  const rewards = new Set();
+  for (const p of ['reward', 'rewards', 'questreward']) {
+    const v = extractTemplateParam(page.wikitext, p);
+    if (v) for (const l of extractLinks(v)) rewards.add(l.label);
+  }
+  const rsecs = page.wikitext.split(/^(=+[^=\n]+=+)\s*$/m);
+  for (let i = 1; i < rsecs.length - 1; i += 2)
+    if (/reward/i.test(rsecs[i]))
+      for (const l of extractLinks(rsecs[i + 1])) rewards.add(l.label);
+
+  // quests this item is used in: template params, quest-section links, and
+  // any "... Quest" links in the body — feeds the Cleanup window
+  const questUses = new Set();
+  for (const param of ['usedin', 'quests', 'questitem', 'relatedquests']) {
+    const v = extractTemplateParam(page.wikitext, param);
+    if (v) for (const l of extractLinks(v)) questUses.add(l.label);
+  }
+  for (const t of parseZoneQuestSections(page.wikitext)) questUses.add(t);
+  let qm;
+  const qre = /\[\[([^\]|#]*?quest[^\]|#]*?)(?:\|[^\]]*)?\]\]/gi;
+  while ((qm = qre.exec(page.wikitext))) questUses.add(qm[1].trim());
+
   return {
     dropsList,
     mobsheet,
@@ -471,6 +511,67 @@ async function fetchItemData(itemName) {
     statsblock,
     dropsfrom,
     text,
+    questUses: [...questUses].filter(q => !/^Category:/i.test(q)).slice(0, 12),
+    tradeskill: { is: isTradeskill, skills: tsSkills },
+    rewards: [...rewards].filter(r => !/^Category:/i.test(r)).slice(0, 10),
+    updated: Date.now()
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Exaltations: effect pages ("Mana Preservation II") list which items carry
+// the effect; effect categories give the full index per exaltation type.
+// ---------------------------------------------------------------------------
+const EFFECT_CATEGORIES = [ // wiki category -> exaltation slot type
+  ['Focus Effects', 'Focus'],
+  ['Worn Effects', 'Worn'],
+  ['Weapon Procs', 'Proc'],
+  ['Proc Effects', 'Proc'],
+  ['Click Effects', 'Clicky'],
+  ['Clicky Effects', 'Clicky'],
+  ['Clickies', 'Clicky']
+];
+
+async function fetchExaltIndex() {
+  const types = {};
+  for (const [cat, type] of EFFECT_CATEGORIES) {
+    try {
+      const members = await getCategoryMembers(cat, 600);
+      if (!members.length) continue;
+      const list = (types[type] = types[type] || []);
+      for (const m of members) if (!list.includes(m) && !/^Category:/i.test(m)) list.push(m);
+    } catch { /* category doesn't exist - fine */ }
+    await new Promise(r => setTimeout(r, 250));
+  }
+  for (const t of Object.keys(types)) types[t].sort();
+  if (!Object.keys(types).length) throw new Error('no effect categories found on the wiki');
+  return { types, updated: Date.now() };
+}
+
+async function fetchEffectItems(effectName) {
+  const page = await getWikitext(effectName) || await resolvePage(effectName);
+  if (!page) throw new Error('No wiki page found for "' + effectName + '"');
+  const items = new Set();
+  // preferred: the template's own items parameter
+  for (const p of ['items_with_effect', 'items', 'itemswitheffect']) {
+    const v = extractTemplateParam(page.wikitext, p);
+    if (v) for (const l of extractLinks(v)) items.add(l.label);
+  }
+  // fallback: every {{:Item}} transclusion on the page
+  if (!items.size) {
+    let m;
+    const re = /\{\{:([^}|#]+?)\}\}/g;
+    while ((m = re.exec(page.wikitext))) items.add(m[1].trim());
+  }
+  const desc = wikitextToText(extractTemplateParam(page.wikitext, 'description') ||
+                              extractTemplateParam(page.wikitext, 'focus_effect') || '').slice(0, 200);
+  return {
+    effect: effectName,
+    pageTitle: page.title,
+    url: WIKI_PAGE(page.title),
+    revid: page.revid,
+    desc,
+    items: [...items].filter(i => !/^Category:/i.test(i)).slice(0, 60),
     updated: Date.now()
   };
 }
@@ -583,7 +684,7 @@ module.exports = {
   fetchZoneData, fetchItemData, searchWiki, getLatestRevisions,
   parseZoneDrops, parseZoneQuestSections, wikitextToText, extractTemplateParam,
   wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE,
-  getCategoryMembers, fetchPagesContent,
+  getCategoryMembers, fetchPagesContent, fetchExaltIndex, fetchEffectItems,
   fetchEqlToolsPages, searchEqlTools, parseDropSections, EQLTOOLS_PAGES,
   parseMobPage, parseTemplateParams
 };

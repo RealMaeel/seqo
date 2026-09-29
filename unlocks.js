@@ -50,105 +50,105 @@
     // Barbarian
     'Rogues of the White Rose': {
       hint: 'Lion Meat Shipment ×200 (Einhorst McMannus, West Karana) → trade 200 Lion Delight to Iceberg in Everfrost. Alt: Gnoll Bounty — 1200 Gnoll Fangs to Lysbith McNaff (Halas).',
-      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight']
+      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 }
     },
     'Wolves of the North': {
       hint: 'Same runs as Rogues of the White Rose — Lion Meat Shipment / Gnoll Bounty raise all three Halas factions together.',
-      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight']
+      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 }
     },
     'Merchants of Halas': {
       hint: 'Rides along with the Lion Meat / Gnoll Fang turn-ins above.',
-      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight']
+      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 }
     },
     // Dark Elf
     'Dark Bargainers': {
       hint: 'Buy ~400 Red Wine and hand them to Lokar To`Biath in Neriak Third Gate.',
-      items: []
+      items: [], needs: { 'Red Wine': 400 }
     },
-    'Dreadguard Outer': { hint: 'Red Wine to Lokar To`Biath (Neriak Third Gate) raises all three Neriak factions.', items: [] },
-    'Dreadguard Inner': { hint: 'Red Wine to Lokar To`Biath (Neriak Third Gate) raises all three Neriak factions.', items: [] },
+    'Dreadguard Outer': { hint: 'Red Wine to Lokar To`Biath (Neriak Third Gate) raises all three Neriak factions.', items: [], needs: { 'Red Wine': 400 } },
+    'Dreadguard Inner': { hint: 'Red Wine to Lokar To`Biath (Neriak Third Gate) raises all three Neriak factions.', items: [], needs: { 'Red Wine': 400 } },
     // Dwarf
     'Storm Guard': {
       hint: 'Tumpy Tonics: brew Kiola Nuts (Cleonae Kalen, Ocean of Tears) + Flasks of Water, give ~800 tonics to Trantor Everhot in Kaladim.',
-      items: ['Kiola Nut', 'Tumpy Tonic']
+      items: ['Kiola Nut', 'Tumpy Tonic'], needs: { 'Tumpy Tonic': 800, 'Kiola Nut': 800 }
     },
-    'Merchants of Kaladim': { hint: 'Tumpy Tonics to Trantor Everhot (Kaladim) — same run as Storm Guard.', items: ['Kiola Nut', 'Tumpy Tonic'] },
-    'Kazon Stormhammer': { hint: 'Tumpy Tonics to Trantor Everhot (Kaladim) — same run as Storm Guard.', items: ['Kiola Nut', 'Tumpy Tonic'] },
+    'Merchants of Kaladim': { hint: 'Tumpy Tonics to Trantor Everhot (Kaladim) — same run as Storm Guard.', items: ['Kiola Nut', 'Tumpy Tonic'], needs: { 'Tumpy Tonic': 800, 'Kiola Nut': 800 } },
+    'Kazon Stormhammer': { hint: 'Tumpy Tonics to Trantor Everhot (Kaladim) — same run as Storm Guard.', items: ['Kiola Nut', 'Tumpy Tonic'], needs: { 'Tumpy Tonic': 800, 'Kiola Nut': 800 } },
     // Erudite
     'Deepwater Knights': {
       hint: 'Kobold Molars from The Warrens/Stonebrunt to Tiam Khonsir; Peacekeeper Staff runs (Lumi Stergnon, Erudin → Emil Parsini, Toxxulia) ×400.',
-      items: ['Kobold Molar', 'Rolled Up Strip of Cloth']
+      items: ['Kobold Molar', 'Rolled Up Strip of Cloth'], needs: { 'Kobold Molar': 400 }
     },
-    'High Council of Erudin': { hint: 'Kobold Molars + Peacekeeper Staff runs — same grind as Deepwater Knights.', items: ['Kobold Molar', 'Rolled Up Strip of Cloth'] },
+    'High Council of Erudin': { hint: 'Kobold Molars + Peacekeeper Staff runs — same grind as Deepwater Knights.', items: ['Kobold Molar', 'Rolled Up Strip of Cloth'], needs: { 'Kobold Molar': 400 } },
     'Heretics': { hint: 'Kill guards/good NPCs in Paineel routes per Alanna’s guide (killing Heretic enemies LOWERS this — check the guide before starting).', items: [] },
     // Froglok
     'Protectors of Gukta': {
       hint: 'Farm ~800 Phosphorous Powder from high-level ghouls in the Ruins of Old Guk, trade 2 at a time to Zok Zribb (Rathe Mountains).',
-      items: ['Phosphorous Powder']
+      items: ['Phosphorous Powder'], needs: { 'Phosphorous Powder': 800 }
     },
-    'Guktan Elders': { hint: 'Phosphorous Powder to Zok Zribb (Rathe Mountains) — same run.', items: ['Phosphorous Powder'] },
-    'Guktan Suppliers': { hint: 'Phosphorous Powder to Zok Zribb (Rathe Mountains) — same run.', items: ['Phosphorous Powder'] },
+    'Guktan Elders': { hint: 'Phosphorous Powder to Zok Zribb (Rathe Mountains) — same run.', items: ['Phosphorous Powder'], needs: { 'Phosphorous Powder': 800 } },
+    'Guktan Suppliers': { hint: 'Phosphorous Powder to Zok Zribb (Rathe Mountains) — same run.', items: ['Phosphorous Powder'], needs: { 'Phosphorous Powder': 800 } },
     // Gnome
     'King Ak`Anon': {
       hint: 'Series C Black Boxes: say "new warrior" to Manik Compolten (Ak`Anon) for a Shiny Card, trade to Clockwork XIIC — ~400 rounds.',
-      items: ['Shiny Card', 'Series C Black Box']
+      items: ['Shiny Card', 'Series C Black Box'], needs: { 'Shiny Card': 400 }
     },
-    'Gem Choppers': { hint: 'Series C Black Box rounds with Clockwork XIIC — same grind.', items: ['Shiny Card', 'Series C Black Box'] },
-    'Eldritch Collective': { hint: 'Series C Black Box rounds with Clockwork XIIC — same grind.', items: ['Shiny Card', 'Series C Black Box'] },
+    'Gem Choppers': { hint: 'Series C Black Box rounds with Clockwork XIIC — same grind.', items: ['Shiny Card', 'Series C Black Box'], needs: { 'Shiny Card': 400 } },
+    'Eldritch Collective': { hint: 'Series C Black Box rounds with Clockwork XIIC — same grind.', items: ['Shiny Card', 'Series C Black Box'], needs: { 'Shiny Card': 400 } },
     // Halfling
     'Guardians of the Vale': {
       hint: 'Buy ~400 Bandages for Joogl Honeybugger (Misty Thicket); Cleric Supplies: Black Wolf Skins + Ruined Wolf Pelts + foraged Berries to Beek Guinders (Rivervale).',
-      items: ['Black Wolf Skin', 'Ruined Wolf Pelt', 'Berries']
+      items: ['Black Wolf Skin', 'Ruined Wolf Pelt', 'Berries'], needs: { 'Bandages': 400 }
     },
-    'Merchants of Rivervale': { hint: 'Bandages to Joogl Honeybugger / Cleric Supplies to Beek Guinders — same runs.', items: ['Black Wolf Skin', 'Ruined Wolf Pelt'] },
-    'Priests of Mischief': { hint: 'Bandages to Joogl Honeybugger / Cleric Supplies to Beek Guinders — same runs.', items: ['Black Wolf Skin', 'Ruined Wolf Pelt'] },
+    'Merchants of Rivervale': { hint: 'Bandages to Joogl Honeybugger / Cleric Supplies to Beek Guinders — same runs.', items: ['Black Wolf Skin', 'Ruined Wolf Pelt'], needs: { 'Bandages': 400 } },
+    'Priests of Mischief': { hint: 'Bandages to Joogl Honeybugger / Cleric Supplies to Beek Guinders — same runs.', items: ['Black Wolf Skin', 'Ruined Wolf Pelt'], needs: { 'Bandages': 400 } },
     // High Elf
     'Clerics of Tunare': {
       hint: 'Muffins (Pincia Brownloe, W. Freeport) to Pandos Flintside; White Wine to Lady Shae (Hogcaller’s Inn); Bat Wings ×4 to Niola Impholder (S. Felwithe).',
-      items: ['Bat Wing']
+      items: ['Bat Wing'], needs: { 'Muffin': 400, 'White Wine': 400, 'Bat Wing': 1600 }
     },
-    'Keepers of the Art': { hint: 'Muffin / White Wine / Bat Wing turn-ins — same Faydwer runs.', items: ['Bat Wing'] },
-    'Merchants of Felwithe': { hint: 'Muffin / White Wine / Bat Wing turn-ins — same Faydwer runs.', items: ['Bat Wing'] },
+    'Keepers of the Art': { hint: 'Muffin / White Wine / Bat Wing turn-ins — same Faydwer runs.', items: ['Bat Wing'], needs: { 'Muffin': 400, 'White Wine': 400, 'Bat Wing': 1600 } },
+    'Merchants of Felwithe': { hint: 'Muffin / White Wine / Bat Wing turn-ins — same Faydwer runs.', items: ['Bat Wing'], needs: { 'Muffin': 400, 'White Wine': 400, 'Bat Wing': 1600 } },
     // Human (Freeport)
     'Coalition of Tradesfolk': {
       hint: 'Tumpy Tonics ×110 to Groflah Steadirt (East Freeport docks, night spawn); Message Intercept: Bottle of Milk to Mojax Hikspin → kill Duggin Scumber, note to Sir Lucan ×42.',
-      items: ['Tumpy Tonic', 'Kiola Nut']
+      items: ['Tumpy Tonic', 'Kiola Nut'], needs: { 'Tumpy Tonic': 110 }
     },
-    'Knights of Truth': { hint: 'Tumpy Tonics to Groflah Steadirt / Message Intercept runs — same grind.', items: ['Tumpy Tonic', 'Kiola Nut'] },
-    'Freeport Militia': { hint: 'Tumpy Tonics to Groflah Steadirt / Message Intercept runs — same grind.', items: ['Tumpy Tonic', 'Kiola Nut'] },
+    'Knights of Truth': { hint: 'Tumpy Tonics to Groflah Steadirt / Message Intercept runs — same grind.', items: ['Tumpy Tonic', 'Kiola Nut'], needs: { 'Tumpy Tonic': 110 } },
+    'Freeport Militia': { hint: 'Tumpy Tonics to Groflah Steadirt / Message Intercept runs — same grind.', items: ['Tumpy Tonic', 'Kiola Nut'], needs: { 'Tumpy Tonic': 110 } },
     // Human (Qeynos)
     'Merchants of Qeynos': {
       hint: 'Buy ~400 Brandy for Captain Rohand; 1600 Honey Mead ×4 at a time to Trumpy Irontoe (South Qeynos).',
-      items: []
+      items: [], needs: { 'Brandy': 400, 'Honey Mead': 1600 }
     },
-    'Guards of Qeynos': { hint: 'Brandy to Captain Rohand / Honey Mead to Trumpy Irontoe — same runs.', items: [] },
-    'Corrupt Qeynos Guard': { hint: 'Brandy to Captain Rohand / Honey Mead to Trumpy Irontoe — same runs.', items: [] },
+    'Guards of Qeynos': { hint: 'Brandy to Captain Rohand / Honey Mead to Trumpy Irontoe — same runs.', items: [], needs: { 'Brandy': 400, 'Honey Mead': 1600 } },
+    'Corrupt Qeynos Guard': { hint: 'Brandy to Captain Rohand / Honey Mead to Trumpy Irontoe — same runs.', items: [], needs: { 'Brandy': 400, 'Honey Mead': 1600 } },
     // Iksar
     'New Sebilisian Expedition': {
       hint: 'Forge Metal Bits (2 Small Pieces of Ore + Water Flask) ×4 to Crusader Iktra (North Ro) ×160; or Small Pieces of High Quality Ore (brick + chisel) ×180.',
-      items: ['Small Piece of Ore', 'Small Brick of High Quality Ore', 'Metal Bits', 'Small Piece of High Quality Ore']
+      items: ['Small Piece of Ore', 'Small Brick of High Quality Ore', 'Metal Bits', 'Small Piece of High Quality Ore'], needs: { 'Metal Bits': 640, 'Small Piece of High Quality Ore': 180 }
     },
     // Ogre
     'Oggok Guards': {
       hint: 'Fresh Baked Muffins: bake ~400 Muffins (needs ~667 foraged Fruit, 135+ baking), crate via Gretta Mottle (S. Kaladim), deliver in Feerrott/Oggok. Very long — consider starting as Ogre.',
-      items: ['Fruit']
+      items: ['Fruit'], needs: { 'Fresh Baked Muffin': 400, 'Fruit': 667 }
     },
-    'Clurg': { hint: 'Fresh Baked Muffin deliveries — same (very long) grind.', items: ['Fruit'] },
-    'Merchants of Oggok': { hint: 'Fresh Baked Muffin deliveries — same (very long) grind.', items: ['Fruit'] },
+    'Clurg': { hint: 'Fresh Baked Muffin deliveries — same (very long) grind.', items: ['Fruit'], needs: { 'Fresh Baked Muffin': 400, 'Fruit': 667 } },
+    'Merchants of Oggok': { hint: 'Fresh Baked Muffin deliveries — same (very long) grind.', items: ['Fruit'], needs: { 'Fresh Baked Muffin': 400, 'Fruit': 667 } },
     // Troll
     'Da Bashers': {
       hint: 'Farm ~400 Deathfist Slashed Belts (Commonlands orcs) for Bregna in Grobb; or Grub Locker runs: The Gobbler (Neriak FQ) → Nerbilik (Ocean of Tears) ×400.',
-      items: ['Deathfist Slashed Belt', 'Grub Locker']
+      items: ['Deathfist Slashed Belt', 'Grub Locker'], needs: { 'Deathfist Slashed Belt': 400, 'Grub Locker': 400 }
     },
-    'Grobb Merchants': { hint: 'Deathfist Slashed Belts to Bregna / Grub Locker runs — same grind.', items: ['Deathfist Slashed Belt', 'Grub Locker'] },
-    'Dark Ones': { hint: 'Deathfist Slashed Belts to Bregna / Grub Locker runs — same grind.', items: ['Deathfist Slashed Belt', 'Grub Locker'] },
+    'Grobb Merchants': { hint: 'Deathfist Slashed Belts to Bregna / Grub Locker runs — same grind.', items: ['Deathfist Slashed Belt', 'Grub Locker'], needs: { 'Deathfist Slashed Belt': 400, 'Grub Locker': 400 } },
+    'Dark Ones': { hint: 'Deathfist Slashed Belts to Bregna / Grub Locker runs — same grind.', items: ['Deathfist Slashed Belt', 'Grub Locker'], needs: { 'Deathfist Slashed Belt': 400, 'Grub Locker': 400 } },
     // Wood Elf
     'Emerald Warriors': {
       hint: 'Muffins to Pandos Flintside (buy from Pincia Brownloe, W. Freeport); White Wine to Lady Shae at Hogcaller’s Inn.',
-      items: []
+      items: [], needs: { 'Muffin': 400, 'White Wine': 400 }
     },
-    'Soldiers of Tunare': { hint: 'Muffin / White Wine turn-ins — same runs as Emerald Warriors.', items: [] },
-    'Kelethin Merchants': { hint: 'Muffin / White Wine turn-ins — same runs as Emerald Warriors.', items: [] }
+    'Soldiers of Tunare': { hint: 'Muffin / White Wine turn-ins — same runs as Emerald Warriors.', items: [], needs: { 'Muffin': 400, 'White Wine': 400 } },
+    'Kelethin Merchants': { hint: 'Muffin / White Wine turn-ins — same runs as Emerald Warriors.', items: [], needs: { 'Muffin': 400, 'White Wine': 400 } }
   };
 
   // Race-level notes for unlocks that aren't plain "max 3 factions"
