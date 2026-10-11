@@ -1184,6 +1184,17 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           learnedZoneMap[ev.longName] = ev.shortName;
           window.overlay.learnZoneMap(ev.longName, ev.shortName);
         }
+        // YOUR OWN /who row is authoritative about where you are — the only
+        // zone signal when a zone logs no entry line (the planes) or the log
+        // was cleared mid-session
+        if (ev.player && charName && ev.player.toLowerCase() === charName.toLowerCase() &&
+            cleanZoneName(ev.longName) !== currentZone) {
+          lastZoneChangeAt = ev.when;
+          currentZoneInst = !!ev.inst;
+          setZone(ev.longName, { autoFetch: true });
+          save({ lastZone: cleanZoneName(ev.longName) });
+          toast('📍 Zone set from /who: ' + cleanZoneName(ev.longName));
+        }
         // fresh zone knowledge may change where "you are here" glows
         if (activeTab === 'map') drawMap();
       }

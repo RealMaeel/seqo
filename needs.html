@@ -11,12 +11,16 @@
   body.large { font-size: 115%; }
 
   #topbar { flex: none; display: flex; align-items: center; gap: 6px; padding: 3px 8px;
-            background: rgba(255,255,255,.04); border-bottom: 1px solid rgba(255,255,255,.08); }
+            background: rgba(255,255,255,.04); border-bottom: 1px solid rgba(255,255,255,.08);
+            -webkit-app-region: drag; }
+  #topbar > * { -webkit-app-region: no-drag; }
   #title { color: #ffd766; font-weight: 600; font-size: 11.5px; flex: 1;
-           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+           -webkit-app-region: drag; }
   .tbtn { background: none; border: none; color: #aaa; font-size: 13px; cursor: pointer;
           width: 22px; height: 20px; border-radius: 4px; flex: none; }
   .tbtn:hover { background: rgba(255,255,255,.12); color: #fff; }
+  #btn-pin.detached { color: #7dffa0; }
 
   #list { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 6px 5px; }
   #list::-webkit-scrollbar { width: 7px; }
@@ -49,6 +53,7 @@
 <body>
   <div id="topbar">
     <span id="title">🎯 Zone needs</span>
+    <button class="tbtn" id="btn-pin" title="Detach from the overlay (drag the title to move it) / re-attach">📌</button>
     <button class="tbtn" id="btn-min" title="Minimize to a one-line bar">—</button>
     <button class="tbtn" id="btn-close" title="Close the needs panel (the Loot tab's 🎯 Needs button reopens it)">✕</button>
   </div>
@@ -135,15 +140,24 @@
   window.overlay.onNeedsMin((v) => {
     minimized = !!v;
     document.body.classList.toggle('min', minimized);
+    $('btn-min').textContent = minimized ? '▣' : '—';
+    $('btn-min').title = minimized ? 'Restore the panel' : 'Minimize to a one-line bar';
     render();
   });
 
+  let detached = false;
+  $('btn-pin').addEventListener('click', (e) => {
+    e.stopPropagation();
+    detached = !detached;
+    $('btn-pin').classList.toggle('detached', detached);
+    $('btn-pin').title = detached ? 'Re-attach to the overlay' : 'Detach from the overlay (drag the title to move it)';
+    window.overlay.needsDetach(detached);
+  });
   $('btn-min').addEventListener('click', (e) => {
     e.stopPropagation();
     window.overlay.needsMinimize(!minimized);
   });
   $('btn-close').addEventListener('click', (e) => { e.stopPropagation(); window.overlay.closeNeeds(); });
-  $('topbar').addEventListener('click', () => { if (minimized) window.overlay.needsMinimize(false); });
 
   // ask the overlay for a first fill
   window.overlay.needsCmd({ kind: 'refresh' });

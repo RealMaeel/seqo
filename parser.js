@@ -255,11 +255,17 @@
     if ((m = /^Your Location is (-?[\d.]+), (-?[\d.]+), (-?[\d.]+)/.exec(msg)))
       return { type: 'loc', when, ns: +m[1], ew: +m[2], z: +m[3] };
 
-    // /who all output includes the zone's short name:
-    //   "... ZONE: The Feerrott (feerrott)"
+    // /who output includes the zone's short name:
+    //   "[50 SHD/DRU/BRD] Maeel (Dark Elf) <Guild> ZONE: The Feerrott (feerrott)"
     //   "... ZONE: Nagafen's Lair 1160 (soldungb_1160)"   (instanced)
-    if ((m = /ZONE: (.+?)(?: \d+)? \(([a-z0-9]+?)(?:_\d+)?\)/i.exec(msg)))
-      return { type: 'zonemap', when, longName: m[1].trim(), shortName: m[2].toLowerCase() };
+    // The player name matters: YOUR OWN row is also the only reliable zone
+    // signal when a zone logs no entry line (the planes) or the log was
+    // cleared mid-session — a plain /who row for yourself says where you are.
+    if ((m = /ZONE: (.+?)(?: \d+)? \(([a-z0-9]+?)(?:_(\d+))?\)/i.exec(msg))) {
+      const pm = /^\[[^\]]*\]\s+(\w+)/.exec(msg);
+      return { type: 'zonemap', when, longName: m[1].trim(), shortName: m[2].toLowerCase(),
+               inst: !!m[3], player: pm ? pm[1] : null };
+    }
 
     return null;
   }

@@ -261,6 +261,7 @@ function applyLockState() {
     win.setIgnoreMouseEvents(false);
   }
   win.webContents.send('lock-state', settings.locked);
+  snapDock();  // the drawn panel shifts between edit/locked — children follow
   updateTrayMenu();
 }
 
@@ -722,26 +723,52 @@ ipcMain.handle('get-notes', () => gameDB.notes || '');
 let dockWin = null;
 let dockDetached = false;
 let needsWin = null;          // zone-needs strip: its own slim window
+let needsDetached = false;
 const NEEDS_MIN_H = 32;       // minimized: one summary line
 
 function needsHeight() {
   return settings.needsPanelMin ? NEEDS_MIN_H : Math.max(90, settings.needsHeight || 150);
 }
 
+// attached windows sit at ~the overlay's opacity (floored so they stay usable)
+const childOpacity = () => Math.max(0.3, Math.min(1, settings.opacity !== undefined ? settings.opacity : 0.95));
+function applyChildOpacity() {
+  for (const w of [dockWin, needsWin])
+    if (w && !w.isDestroyed()) { try { w.setOpacity(childOpacity()); } catch { /* ok */ } }
+}
+
+// The overlay DRAWS its panel centered inside the window (480×290 design,
+// uniformly scaled; the 30px toolbar strip only exists in edit mode). Snapping
+// children to the WINDOW bottom leaves a gap in locked mode — snap to the
+// drawn panel instead. Mirrors rescale() in overlay.html exactly.
+function panelRect() {
+  const b = win.getBounds();
+  const tb = settings.locked ? 0 : 30;
+  const availW = b.width, availH = b.height - tb;
+  const s = Math.min(availW / 480, availH / 290);
+  const w = Math.round(480 * s), h = Math.round(290 * s);
+  return {
+    x: b.x + Math.round((availW - w) / 2),
+    bottom: b.y + tb + Math.round((availH + h) / 2),
+    w
+  };
+}
+
 function snapDock() {
   if (!win) return;
-  const b = win.getBounds();
-  let y = b.y + b.height;
-  // the zone-needs strip rides directly under the overlay…
-  if (needsWin && !needsWin.isDestroyed()) {
+  const r = panelRect();
+  const width = Math.max(320, r.w);
+  let y = r.bottom;
+  // the zone-needs strip rides directly under the overlay's drawn panel…
+  if (needsWin && !needsWin.isDestroyed() && !needsDetached) {
     const h = needsHeight();
-    needsWin.setBounds({ x: b.x, y, width: b.width, height: h });
+    needsWin.setBounds({ x: r.x, y, width, height: h });
     y += h;
   }
   // …and the dock stacks under whatever is above it
   if (dockWin && !dockWin.isDestroyed() && !dockDetached) {
     const h = Math.max(160, settings.dockHeight || 300);
-    dockWin.setBounds({ x: b.x, y, width: b.width, height: h });
+    dockWin.setBounds({ x: r.x, y, width, height: h });
   }
 }
 
@@ -768,6 +795,7 @@ function openDock(mode, payload) {
     });
     dockWin.webContents.once('did-finish-load', () => {
       snapDock();
+      applyChildOpacity();
       dockWin.webContents.send('ui-scale', settings.textScale || 'normal');
       dockWin.webContents.send('dock-mode', { mode, payload });
       if (win && mode === 'cleanup') win.webContents.send('cleanup-state', true);
@@ -831,6 +859,7 @@ function openNeeds() {
   });
   needsWin.webContents.once('did-finish-load', () => {
     snapDock();
+    applyChildOpacity();
     needsWin.webContents.send('ui-scale', settings.textScale || 'normal');
     needsWin.webContents.send('needs-min', !!settings.needsPanelMin);
     if (win) win.webContents.send('needs-state', true);
@@ -840,6 +869,10 @@ function openNeeds() {
 }
 ipcMain.on('open-needs', () => openNeeds());
 ipcMain.on('close-needs', () => { if (needsWin && !needsWin.isDestroyed()) needsWin.close(); });
+ipcMain.on('needs-detach', (_e, detached) => {
+  needsDetached = !!detached;
+  if (!needsDetached) snapDock();
+});
 ipcMain.on('needs-minimize', (_e, minimized) => {
   settings.needsPanelMin = !!minimized;
   saveSettings(settings);
@@ -2191,6 +2224,8 @@ ipcMain.on('update-settings', (_evt, partial) => {
     for (const w of [dockWin, needsWin])
       if (w && !w.isDestroyed()) w.webContents.send('ui-scale', settings.textScale);
   }
+  // the Appearance → Opacity slider drives the attached windows too
+  if (Object.prototype.hasOwnProperty.call(partial, 'opacity')) applyChildOpacity();
 });
 
 ipcMain.handle('app-version', () => app.getVersion());

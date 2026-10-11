@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('overlay', {
   openNeeds: () => ipcRenderer.send('open-needs'),
   closeNeeds: () => ipcRenderer.send('close-needs'),
   needsMinimize: (v) => ipcRenderer.send('needs-minimize', v),
+  needsDetach: (v) => ipcRenderer.send('needs-detach', v),
   onNeedsMin: (cb) => ipcRenderer.on('needs-min', (_e, v) => cb(v)),
   needsPush: (payload) => ipcRenderer.send('needs-data', payload),
   onNeedsData: (cb) => ipcRenderer.on('needs-data', (_e, p) => cb(p)),
