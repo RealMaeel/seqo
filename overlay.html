@@ -95,24 +95,52 @@
     white-space: nowrap; flex: none;
   }
   .tab.active { color: #ffd766; border-color: rgba(255,215,102,.5); background: rgba(255,215,102,.1); }
-  #afk-btn.on {
-    color: #ff9d9d; border-color: #ff5d5d; background: rgba(255,93,93,.15);
+  .tab[data-tab] { flex: 0 1 auto; min-width: 26px; overflow: hidden; text-overflow: ellipsis; }
+  /* title-bar action buttons: AFK + update dot live up here now */
+  #afk-btn.on, #afk-btn2.on {
+    color: #ff9d9d !important;
     animation: pulse 1.5s infinite;
   }
-  /* when the row runs out of width, the page tabs give up label space —
-     the AFK and 🔓 buttons on the right must never get clipped off */
-  .tab[data-tab] { flex: 0 1 auto; min-width: 26px; overflow: hidden; text-overflow: ellipsis; }
-  #afk-btn, #unlock-btn, #upd-btn { flex: none; }
-  #unlock-btn { display: none; }
-  body.locked #unlock-btn {
-    display: block;
-    color: #ffd766; border-color: rgba(255,215,102,.5);
+  #upd-btn {
+    -webkit-app-region: no-drag; cursor: pointer; color: #7dffa0;
+    font-size: 12px; padding: 0 7px; align-self: center;
+    border: 1px solid rgba(125,255,160,.5); border-radius: 9px; line-height: 17px;
+    animation: pulse 2.5s infinite;
   }
+  /* locked mode: a tiny floating strip with the two controls that still matter */
+  #lockbar {
+    display: none; position: absolute; top: 2px; right: 6px; z-index: 30;
+    gap: 2px; align-items: center;
+    background: rgba(20,20,28,.85); border: 1px solid rgba(255,215,102,.3);
+    border-radius: 10px; padding: 0 4px;
+  }
+  #lockbar span { cursor: pointer; font-size: 12px; padding: 1px 4px; color: #ffd766; }
+  #lockbar span:hover { color: #fff; }
+  body.locked #lockbar { display: flex; opacity: .35; transition: opacity .2s; }
+  body.locked.hovering #lockbar { opacity: 1; }
   body.locked #tabs { opacity: .3; transition: opacity .2s; }
   body.locked.hovering #tabs { opacity: 1; }
 
   .view { flex: 1; min-height: 0; display: none; flex-direction: column; color: #ddd; }
   .view.active { display: flex; }
+
+  /* ------- bottom bar: run button + XP readout on every tab ------- */
+  #bottombar { flex: none; display: flex; align-items: center; gap: 8px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,.08); }
+  .bbbtn {
+    background: rgba(255,215,102,.08); border: 1px solid rgba(255,215,102,.4);
+    color: #ffd766; border-radius: 10px; padding: 1px 9px; font-size: 10.5px;
+    cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums; flex: none;
+  }
+  .bbbtn:hover { background: rgba(255,215,102,.18); }
+  .bbbtn.running { background: rgba(125,255,160,.1); border-color: rgba(125,255,160,.5); color: #7dffa0; }
+  #bb-xp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; color: #9db4e8; }
+  #bb-reset {
+    flex: none; display: none; color: #778; font-size: 10px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.15); border-radius: 10px; padding: 0 7px;
+  }
+  #bb-reset:hover { color: #ffd766; border-color: rgba(255,215,102,.5); }
+  body.locked #bottombar { opacity: .35; transition: opacity .2s; }
+  body.locked.hovering #bottombar { opacity: 1; }
 
   /* ------- meter ------- */
   #c-head {
@@ -232,7 +260,42 @@
   .q-it .loc { color: #777; font-size: 10px; flex: 1; text-align: right; }
   .q-it .cnt { color: #ffd766; font-size: 10px; }
   .q-it .rune { font-size: 9px; }
-  .q-npc { color: #888; font-size: 10px; padding: 1px 0 2px 4px; }
+  .q-it.covered .box, .q-it.covered .nm { color: #6fa8dc; }
+  .wishstar { cursor: pointer; color: #666; font-size: 11px; flex: none; padding: 0 2px; }
+  .wishstar.on { color: #ffd766; }
+  .wishstar:hover { color: #ffd766; }
+  /* outputfile reminder chips (per-view bars + the login strip) */
+  .ofchip {
+    display: inline-flex; align-items: center; margin: 0 6px 2px 0; padding: 0 7px;
+    border-radius: 9px; cursor: pointer; font-size: 10px;
+    background: rgba(255,215,102,.12); border: 1px solid rgba(255,215,102,.35); color: #ffd766;
+    white-space: nowrap;
+  }
+  .ofchip:hover { background: rgba(255,215,102,.25); }
+  .outfilebar { display: flex; flex-wrap: wrap; align-items: center; }
+  #loginbar {
+    flex: none; display: flex; flex-wrap: wrap; gap: 3px; align-items: center;
+    background: rgba(125,167,217,.1); border: 1px solid rgba(125,167,217,.35);
+    border-radius: 7px; padding: 2px 7px; margin-bottom: 4px;
+    font-size: 10px; color: #9db4e8;
+  }
+  .qview-chip {
+    font-size: 10px; padding: 1px 7px; border-radius: 10px; cursor: pointer;
+    color: #aaa; background: rgba(255,255,255,.07); border: 1px solid transparent; white-space: nowrap;
+  }
+  .qview-chip.active { color: #ffd766; border-color: rgba(255,215,102,.5); background: rgba(255,215,102,.1); }
+  .q-npc { color: #888; font-size: 10px; padding: 1px 0 2px 4px; line-height: 1.45; }
+  .q-npc.q-route { color: #9ab; }
+  .q-npc.q-route + .q-counters { padding-left: 14px; }
+
+  /* Large-text setting: the fine print grows a step across the overlay */
+  body.large .q-npc { font-size: 11.5px; }
+  body.large .q-it { font-size: 12px; }
+  body.large .q-it .loc { font-size: 11px; }
+  body.large .q-it .cnt { font-size: 11px; }
+  body.large #bb-xp { font-size: 11.5px; }
+  body.large .k-drop, body.large .k-result { font-size: 12px; }
+  body.large .hint { font-size: 11.5px; }
 
   /* ------- loot verdict badges ------- */
   .v-badge {
@@ -357,48 +420,78 @@
 
   /* ------- settings panel ------- */
   #settings {
-    position: absolute; top: 34px; right: 4px; width: 240px;
+    position: absolute; top: 34px; right: 4px; width: 258px;
     display: none;
-    background: rgba(18, 18, 26, .97);
+    background: rgba(16, 16, 24, .98);
     border: 1px solid rgba(255,215,102,.35);
-    border-radius: 8px; padding: 12px;
+    border-radius: 10px; padding: 8px 12px 12px;
     color: #ddd; font-size: 12px; z-index: 40;
     max-height: calc(100% - 40px); overflow-y: auto;
   }
   body.edit.settings-open #settings { display: block; }
-  #settings label { display: block; margin: 8px 0 3px; color: #ffd766; }
-  #settings details { border-top: 1px solid rgba(255,255,255,.08); padding: 2px 0 6px; }
-  #settings details:first-child { border-top: none; }
+  #settings label { display: block; margin: 10px 0 3px; color: #cfc9a8; font-size: 11px; letter-spacing: .2px; }
+  #settings details { border-radius: 8px; margin-top: 6px; background: rgba(255,255,255,.03); padding: 2px 9px 8px; border: 1px solid rgba(255,255,255,.06); }
+  #settings details:not([open]) { padding-bottom: 2px; }
   #settings summary {
     cursor: pointer; color: #ffd766; font-weight: 600; font-size: 12.5px;
-    padding: 5px 0; list-style: none; user-select: none;
+    padding: 6px 0; list-style: none; user-select: none; margin: 0 -2px;
   }
   #settings summary::before { content: '▸ '; color: #888; }
   #settings details[open] summary::before { content: '▾ '; }
   #settings summary::-webkit-details-marker { display: none; }
-  #settings input[type=range] { width: 100%; }
+  #settings summary small { color: #778; font-weight: 400; font-size: 10px; margin-left: 4px; }
+  #settings input[type=range] { width: 100%; accent-color: #ffd766; }
   #settings select, #settings input[type=text], #settings input[type=password] {
     width: 100%; background: #26262f; color: #eee;
-    border: 1px solid #444; border-radius: 4px; padding: 4px;
+    border: 1px solid #444; border-radius: 5px; padding: 4px 6px;
   }
   #settings input[type=color] { width: 100%; height: 26px; border: none; background: none; padding: 0; cursor: pointer; }
-  #settings .row { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
-  #settings .hint { color: #888; margin-top: 10px; line-height: 1.4; }
+  #settings .row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  #settings .hint { color: #888; margin-top: 8px; line-height: 1.45; font-size: 10.5px; }
   #settings button {
     background: #3a3a46; color: #eee; border: 1px solid #555;
-    border-radius: 4px; padding: 3px 8px; cursor: pointer;
+    border-radius: 5px; padding: 3px 9px; cursor: pointer;
   }
+  #settings button:hover { background: #474757; }
+  /* one setting per row: label left, control right */
+  #settings .setrow {
+    display: flex; align-items: center; gap: 8px; margin-top: 7px; min-height: 20px;
+  }
+  #settings .setrow > span { flex: 1; color: #ddd; line-height: 1.3; }
+  #settings .setrow .sub { display: block; color: #778; font-size: 10px; margin-top: 1px; }
+  /* checkboxes become toggle switches (same inputs, same ids — just styled) */
+  #settings .setrow input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; flex: none; margin: 0;
+    width: 30px; height: 16px; border-radius: 9px; cursor: pointer;
+    background: #3a3a46; border: 1px solid #555; position: relative; transition: background .15s;
+  }
+  #settings .setrow input[type=checkbox]::after {
+    content: ''; position: absolute; top: 1px; left: 1px; width: 12px; height: 12px;
+    border-radius: 50%; background: #999; transition: left .15s, background .15s;
+  }
+  #settings .setrow input[type=checkbox]:checked { background: rgba(255,215,102,.45); border-color: #b99a3e; }
+  #settings .setrow input[type=checkbox]:checked::after { left: 15px; background: #ffd766; }
+  #settings .setrow select { width: auto; flex: none; max-width: 120px; }
   .val { color: #999; float: right; }
 </style>
 </head>
 <body>
   <div id="frame">
     <div id="toolbar">
-      <div id="dragzone">SEQO — drag here</div>
+      <div id="dragzone">SEQO</div>
+      <span id="upd-btn" style="display:none" title="A new SEQO release is available — click to open the download page">&#11014;</span>
+      <button id="help-btn" title="Help — how every feature works, plus an FAQ">&#10067;</button>
+      <button id="afk-btn" title="AFK watch: loud alert if you're attacked. Click again when you're back.">&#128564;</button>
       <button id="btn-min" title="Minimize (restore: Ctrl+Alt+H or tray icon)">&#8212;</button>
       <button id="btn-settings" title="Settings">&#9881;</button>
       <button id="btn-lock" title="Lock (click-through)">&#128274;</button>
       <button id="btn-close" title="Quit">&#10005;</button>
+    </div>
+
+    <!-- locked mode: the two controls you still need, floating top-right -->
+    <div id="lockbar" data-interactive>
+      <span id="afk-btn2" title="AFK watch: loud alert if you're attacked. Click again when you're back.">&#128564;</span>
+      <span id="unlock-btn" title="Unlock the overlay (back to edit mode)">&#128275;</span>
     </div>
 
     <div id="viewport">
@@ -412,12 +505,11 @@
             <div class="tab" data-tab="map">&#128506; Map</div>
             <div class="tab" data-tab="timers">&#9202; Timers</div>
             <div class="tab" data-tab="quests">&#128220; Quests</div>
-            <div class="tab" data-tab="notes" title="Free-form notes — saved forever, synced between your computers">&#128221;</div>
-            <div style="flex:1"></div>
-            <div class="tab" id="upd-btn" style="display:none;color:#7dffa0" title="A new SEQO release is available — click to open the download page">&#11014; Update</div>
-            <div class="tab" id="afk-btn" title="AFK watch: loud alert if you're attacked. Click again when you're back.">&#128564; AFK</div>
-            <div class="tab" id="unlock-btn" title="Unlock the overlay (back to edit mode)">&#128275;</div>
+            <div class="tab" data-tab="notes" title="Free-form notes — saved forever, synced between your computers">&#128221; Notes</div>
           </div>
+
+          <!-- login reminder: fresh session → refresh the /outputfile exports -->
+          <div id="loginbar" data-interactive style="display:none"></div>
 
           <!-- METER -->
           <div class="view active" id="view-meter">
@@ -445,7 +537,6 @@
             </div>
             <div id="c-rows"></div>
             <div class="emptymsg" id="c-empty">No combat yet.<br>Pick your log file in &#9881; Settings,<br>then go hit something.</div>
-            <div id="c-xp" style="display:none;flex:none;margin-top:3px;padding:3px 8px;background:rgba(125,167,217,.08);border:1px solid rgba(125,167,217,.25);border-radius:6px;font-size:10.5px;color:#9db4e8"></div>
           </div>
 
           <!-- BREAKDOWN -->
@@ -470,6 +561,7 @@
               <button class="kbtn" id="l-run" title="Track loot, coin &amp; rare kills for one run (e.g. a personal instance or dungeon crawl) — click again to end it">&#9654; Start run</button>
               <span id="l-coin"></span>
               <button class="kbtn" id="l-cleanup" title="Open the Cleanup window: every bag &amp; bank item judged keep-or-toss, live">&#129529; Cleanup</button>
+              <button class="kbtn" id="l-needs" title="Open the zone-needs panel: a small strip under the overlay listing what you still need from this zone — starred gear, epic pieces, unlock turn-ins with live counters">&#127919; Needs</button>
               <button class="kbtn gold" id="l-export" title="Generate wikitext of your observed drop rates">Wiki export &#10697;</button>
             </div>
             <div id="l-scroll" data-interactive>
@@ -525,13 +617,15 @@
 
           <!-- QUESTS (Plane of Sky) -->
           <div class="view" id="view-quests" data-interactive>
+            <div id="q-views" style="display:flex;gap:3px;margin-bottom:4px;flex-wrap:wrap">
+              <span class="qview-chip active" data-qview="">&#128220; Quests</span>
+              <span class="qview-chip" data-qview="__unlocks">&#128275; Unlocks</span>
+              <span class="qview-chip" data-qview="__epics">&#9876; Epics</span>
+              <span class="qview-chip" data-qview="__bis">&#127942; BiS</span>
+              <span class="qview-chip" data-qview="__exalts">&#10024; Exalts</span>
+            </div>
             <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
-              <span style="color:#ffd766;font-weight:600;font-size:12px">Quests</span>
               <select id="q-zone" title="Which zone's quests to show. Auto follows you as you zone." style="flex:1;min-width:0;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px">
-                <option value="__unlocks">&#128275; Unlocks</option>
-                <option value="__epics">&#9876; Epics (prep)</option>
-                <option value="__bis">&#127942; BiS gear</option>
-                <option value="__exalts">&#10024; Exaltations</option>
                 <option value="" selected>Current zone (auto)</option>
               </select>
               <span id="q-progress" style="color:#888;font-size:10px"></span>
@@ -589,6 +683,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           <div id="spelltimers" data-interactive style="display:none;flex:none;gap:5px;flex-wrap:wrap;padding-top:2px"></div>
           <!-- camp bar: pinned timers, visible on every tab -->
           <div id="campbar" data-interactive style="display:none;flex:none;gap:5px;flex-wrap:wrap;padding-top:2px"></div>
+          <!-- bottom bar: run controls + XP/AA readout, visible on every tab -->
+          <div id="bottombar" data-interactive>
+            <button id="bb-run" class="bbbtn" title="Track loot, coin, motes and rare kills between Start and End — instance clears, camps, farm sessions. Same run as the Loot tab.">&#9654; Start run</button>
+            <span id="bb-xp"></span>
+            <span id="bb-reset" title="Reset the session XP/AA pace — kills, percent and per-hour start over. Your level position, level and AA total stay.">&#8634; reset</span>
+          </div>
 
           <!-- wiki export modal -->
           <div id="export-modal" data-interactive style="position:absolute;inset:24px 8px 8px;background:rgba(14,14,20,.98);border:1px solid rgba(255,215,102,.4);border-radius:8px;display:none;flex-direction:column;padding:10px;z-index:46">
@@ -615,7 +715,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
     <div id="settings">
       <details open>
-        <summary>🧙 Character &amp; Log</summary>
+        <summary>⚙ General <small>character, log, updates</small></summary>
         <label>Character</label>
         <select id="charsel"><option value="">— pick log below —</option></select>
         <div class="row" style="margin-top:4px">
@@ -626,17 +726,27 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         <div class="row" style="margin-top:2px">
           <button id="btn-clearlog" style="flex:1">Clear log now</button>
         </div>
-        <div class="row"><input type="checkbox" id="autoclear"><span>Auto-clear log when overlay closes</span></div>
-        <div class="row"><input type="checkbox" id="archiveclear"><span>Archive a copy before clearing</span></div>
+        <div class="setrow"><span>Auto-clear log on close<span class="sub">empties the log file whenever SEQO exits</span></span><input type="checkbox" id="autoclear"></div>
+        <div class="setrow"><span>Archive before clearing<span class="sub">keeps a dated copy next to the log</span></span><input type="checkbox" id="archiveclear"></div>
         <label>Marked pets</label>
         <div id="petchips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"></div>
-        <div class="hint" style="margin-top:2px">Names SEQO counts as your pets on the meter. Clicked someone by accident? Remove them here with &#10005;.</div>
+        <div class="hint" style="margin-top:2px">Names SEQO counts as your pets on the meter — remove a mistake with &#10005;.</div>
+        <label>SEQO updates (GitHub)</label>
+        <input type="text" id="upd-repo" placeholder="yourname/seqo" spellcheck="false" style="margin-bottom:4px" title="The GitHub repository SEQO checks for new releases">
+        <div class="setrow"><span>Check for new releases at launch</span><input type="checkbox" id="autoupdcheck"></div>
+        <div class="row" style="margin-top:2px">
+          <span id="appupd-status" style="flex:1;color:#bbb;font-size:11px"></span>
+          <button id="btn-appupd">Check now</button>
+          <button id="btn-appupd-get" style="display:none">Get update ⬆</button>
+        </div>
       </details>
 
       <details>
         <summary>🎨 Appearance</summary>
         <label>Opacity <span class="val" id="opacity-val"></span></label>
         <input type="range" id="opacity" min="5" max="100" step="1">
+        <div class="setrow"><span>Text size<span class="sub">the fine print, here and in the attached windows</span></span>
+          <select id="textscale"><option value="normal">Normal</option><option value="large">Large</option></select></div>
         <label>Font size (notes) <span class="val" id="fontsize-val"></span></label>
         <input type="range" id="fontsize" min="10" max="72" step="1">
         <label>Font</label>
@@ -648,31 +758,33 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         </select>
         <label>Accent / text color</label>
         <input type="color" id="fontcolor">
-        <div class="row"><input type="checkbox" id="aspect"><span>Keep window aspect ratio</span></div>
-        <div class="row"><input type="checkbox" id="shownotes"><span>Show notes text</span></div>
-        <div class="row"><input type="checkbox" id="mergepets"><span>Add pet damage to yours (meter)</span></div>
+        <div class="setrow"><span>Keep window aspect ratio</span><input type="checkbox" id="aspect"></div>
+        <div class="setrow"><span>Show notes text<span class="sub">the free-floating text block on the overlay</span></span><input type="checkbox" id="shownotes"></div>
+        <div class="setrow"><span>Merge pet damage into yours<span class="sub">on the meter and in copied lines</span></span><input type="checkbox" id="mergepets"></div>
       </details>
 
       <details>
-        <summary>🔔 Alerts</summary>
-        <div class="row"><input type="checkbox" id="alertflash"><span>Flash overlay on alerts</span></div>
-        <div class="row"><input type="checkbox" id="alertsound"><span>Play alert sounds</span></div>
+        <summary>🔔 Alerts &amp; Sounds</summary>
+        <div class="setrow"><span>Flash overlay on alerts</span><input type="checkbox" id="alertflash"></div>
+        <div class="setrow"><span>Play alert sounds</span><input type="checkbox" id="alertsound"></div>
         <label>Alert volume <span class="val" id="alertvol-val"></span></label>
         <input type="range" id="alertvol" min="0" max="100" step="5">
-        <div class="row"><input type="checkbox" id="buffalerts"><span>Alert when your buffs wear off</span></div>
+        <div class="setrow"><span>Buff fade alerts<span class="sub">when your watched buffs wear off</span></span><input type="checkbox" id="buffalerts"></div>
+        <div class="setrow"><span>Login file reminder<span class="sub">one toast per login until your /outputfile exports are fresh</span></span><input type="checkbox" id="loginremind"></div>
+        <div class="setrow"><span>Flag best-in-slot drops<span class="sub">off: BiS stays a view you browse. On: BiS drops for YOUR class toast and get KEEP verdicts</span></span><input type="checkbox" id="bisflag"></div>
         <div class="row" style="margin-top:4px">
           <button id="btn-testalerts" style="flex:1">Test all alerts &#128276;</button>
         </div>
 
         <label>Muted alerts</label>
         <div id="mutelist" style="font-size:11px;color:#bbb;max-height:110px;overflow-y:auto"></div>
-        <div class="hint" style="margin-top:2px">Every buff/fade alert seen this session shows up here — check one to mute it permanently. Spammy effects go quiet, everything else stays loud.</div>
+        <div class="hint" style="margin-top:2px">Every buff/fade alert seen this session shows up here — check one to mute it permanently.</div>
 
         <label>Spell timers (countdown on the Meter when you cast)</label>
         <textarea id="spelltimercfg" rows="3" spellcheck="false"
           style="width:100%;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:4px;font-size:10.5px;resize:vertical"
           placeholder="Mesmerization = 42&#10;Enthrall = 1:12"></textarea>
-        <div class="hint" style="margin-top:2px">One per line: <b>Spell = seconds</b> (or m:ss). Casting the spell starts the countdown (ranks match: "Mesmerization" covers Mesmerization VI); recasting restarts it. Interrupts and resists cancel it. Red at 6s, ping at zero.</div>
+        <div class="hint" style="margin-top:2px">One per line: <b>Spell = seconds</b> (or m:ss). Casting starts the countdown; recasting restarts it. Red at 6s, ping at zero.</div>
 
         <label>Buff fade watch (rename fades to spell names)</label>
         <textarea id="buffwatch" rows="3" spellcheck="false"
@@ -682,16 +794,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       </details>
 
       <details>
-        <summary>📖 Wiki &amp; Data</summary>
-        <label>SEQO updates (GitHub)</label>
-        <input type="text" id="upd-repo" placeholder="yourname/seqo" spellcheck="false" style="margin-bottom:4px" title="The GitHub repository SEQO checks for new releases">
-        <div class="row"><input type="checkbox" id="autoupdcheck"><span>Check for a new SEQO release at launch</span></div>
-        <div class="row" style="margin-top:2px">
-          <span id="appupd-status" style="flex:1;color:#bbb;font-size:11px"></span>
-          <button id="btn-appupd">Check now</button>
-          <button id="btn-appupd-get" style="display:none">Get update ⬆</button>
-        </div>
-        <div class="row"><input type="checkbox" id="autozone"><span>Auto-fetch zone data on zone entry</span></div>
+        <summary>📂 Game Data &amp; Sync</summary>
+        <div class="setrow"><span>Auto-fetch zone data<span class="sub">pulls the wiki's page when you enter a new zone</span></span><input type="checkbox" id="autozone"></div>
         <label>Game database</label>
         <div class="row" style="margin-top:2px">
           <span id="upd-status" style="flex:1;color:#bbb;font-size:11px">manual updates only</span>
@@ -709,8 +813,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           <button id="btn-addsync">Add file&hellip;</button>
           <button id="btn-addsyncdir" title="Mirror a whole folder (e.g. a custom UI skin) — new files inside it are picked up automatically">Add folder&hellip;</button>
           <button id="btn-syncnow">Sync now</button>
-          <span id="sync-status" style="flex:1;color:#7dffa0;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         </div>
+        <div id="sync-last" style="color:#9ab;font-size:10.5px;margin-top:4px;line-height:1.5;white-space:pre-line"></div>
+        <div id="sync-status" style="color:#7dffa0;font-size:10px;margin-top:2px;line-height:1.45;max-height:72px;overflow-y:auto;white-space:pre-line"></div>
         <div class="hint" style="margin-top:4px">Mirror loadout/UI files through the shared folder — newest wins, .seqo.bak backup kept. Camp before switching computers.</div>
         <details style="margin-top:4px">
           <summary style="color:#9ab;font-size:11px;cursor:pointer">Which file do I sync for each game option?</summary>
@@ -728,7 +833,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       </details>
 
       <details>
-        <summary>🌐 Wiki Contribution (advanced)</summary>
+        <summary>🌐 Advanced <small>wiki contribution</small></summary>
         <div class="hint" style="margin-top:4px;line-height:1.5;color:#d8b46a">
           SEQO can submit your observed drop data to eqlwiki.com, and it works &mdash; but please use it
           the way the wiki's developers prefer: <b>talk to them on their Discord first</b>, submit to your
@@ -742,10 +847,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       </details>
 
       <details>
-        <summary>💛 Data credits</summary>
+        <summary>💛 About <small>version, credits, data sync</small></summary>
         <div id="credits-list" class="hint" style="margin-top:4px;line-height:1.6"></div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-          <button class="kbtn" id="btn-datacheck" title="Re-read everything from the live sources: epic checklists and unlock routes from eqlwiki.com, Plane of Sky quests from eqlegendstools.com, plus every cached zone and item page that changed on the wiki, and old item-knowledge unknowns. BiS gear has its own Update button on its view.">⟳ Sync data</button>
+          <button class="kbtn" id="btn-datacheck" title="Re-read everything from the live sources: epic checklists and unlock routes from eqlwiki.com, Plane of Sky quests from eqlegendstools.com, plus every cached zone, item and guide page that changed on the wiki, and old item-knowledge unknowns. BiS gear has its own Update button on its view.">⟳ Sync data</button>
           <label class="hint" style="display:flex;gap:4px;align-items:center;margin:0">
             <input type="checkbox" id="autodatacheck"> weekly auto-sync
           </label>
@@ -851,6 +956,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // ================= log feed =================
   function handleLogLines(lines) {
     for (const l of lines) {
+      noteLogTime(l);   // login detection for the outputfile reminder
       // fade-watch: exact-line matches rename a fade to its spell name and
       // take priority over the generic fade handler below
       if (fadeWatch.size) {
@@ -925,8 +1031,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         if (!ev.sold) { // live check-off: Epics/BiS/Unlocks see this drop immediately
           const lk = normItemName(ev.item);
           lootedLive.set(lk, (lootedLive.get(lk) || 0) + (ev.count || 1));
-          if (activeTab === 'quests' && /^__/.test($('q-zone').value)) renderQuests();
+          if (activeTab === 'quests' && qView) renderQuests();
         }
+        if (needsOpen) pushNeeds(ev.item); else needsDirty = true; // live counters + row flash
         if (ev.mob) lastCorpse = { mob: ev.mob, when: ev.when };
         recentDrops.unshift({ item: ev.item, mob: mob || '(unknown)', verdict });
         recentDrops = recentDrops.slice(0, 8);
@@ -975,24 +1082,25 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
             }
         }
         cleanupDirty = true;
+        needsDirty = true;
       } else if (ev.type === 'exp') {
         xp.kills++;
         if (!xp.first) xp.first = ev.when;
         xp.last = ev.when;
         if (ev.pct !== undefined) { xp.pct += ev.pct; if (xp.dingSeen) xp.sinceDing += ev.pct; }
         else xp.noPct++;
-        if (activeTab === 'meter') renderXpStrip();
+        renderXpStrip();
       } else if (ev.type === 'levelup') {
         xp.level = ev.level;
         xp.dingSeen = true;
         xp.sinceDing = 0;
         alertFX('🎉 DING! Welcome to level ' + ev.level + '!', 'repop');
-        if (activeTab === 'meter') renderXpStrip();
+        renderXpStrip();
       } else if (ev.type === 'aa') {
         xp.aaGained += ev.gained;
         xp.aaTotal = ev.total;
         toast('✦ +' + ev.gained + ' AA point' + (ev.gained === 1 ? '' : 's') + ' — ' + ev.total + ' total');
-        if (activeTab === 'meter') renderXpStrip();
+        renderXpStrip();
       } else if (ev.type === 'consider') {
         noteMobLevel(ev.mob, ev.level);
       } else if (ev.type === 'lootfull') {
@@ -1003,6 +1111,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         lootDirty = true;
       } else if (ev.type === 'zone') {
         currentZoneVariant = ev.variant || '';
+        lastZoneChangeAt = ev.when;        // kill gaps never learn across a zone line
+        currentZoneInst = !!ev.inst;       // instanced copies never teach timers
         setZone(ev.zone, { autoFetch: true });
         save({ lastZone: cleanZoneName(ev.zone) });
         if (currentZoneVariant) toast('Zone tier: ' + currentZoneVariant + ' — data recorded separately');
@@ -1106,7 +1216,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   });
 
   window.overlay.appVersion().then(v => {
-    $('dragzone').textContent = 'SEQO v' + v + ' — drag here';
+    $('dragzone').textContent = 'SEQO v' + v;
     $('version-line').textContent = 'SEQO v' + v;
   });
   window.overlay.getLootDB().then((db) => { lootDB = db; renderLoot(); });
@@ -1125,8 +1235,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   }
 
   // ================= camp timers + rare detection =================
-  const timers = new Map();        // mob -> {mob, zone, lastDeath, respawnS, learned, pinned, notified}
-  let respawnDB = {};              // learned "zone|mob" -> seconds
+  const timers = new Map();        // mob -> {mob, zone, lastDeath, resp, pinned, notified, windowNotified}
+  let respawnDB = {};              // "zone|mob" -> seconds (legacy) or respawn entry object
   window.overlay.getRespawns().then(r => { respawnDB = r || {}; });
   let namedSet = new Set();        // lowercased named-mob names for current zone
   const rareSeen = new Map();      // mob -> last toast time
@@ -1160,39 +1270,111 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     window.overlay.setNotRare(z, mobKey(name), ignored);
   }
 
+  // ---- respawn knowledge (v2.4): entries are objects, legacy plain seconds
+  // still load. { s, min?, max?, src: 'learned'|'manual'|'wiki', n, samples[] }
+  // A min/max pair is a SPAWN WINDOW ("15–30m"); s alone is a fixed cycle.
+  const normRespawn = (v) =>
+    v == null ? null
+    : typeof v === 'number' ? { s: v, src: 'learned', n: 1, samples: [v] }
+    : v;
+  let lastZoneChangeAt = 0;     // kills can't teach gaps that span a zone line
+  let currentZoneInst = false;  // instanced copies never teach the base zone
+
   function resolveRespawn(mob) {
-    const learned = respawnDB[lootZone() + '|' + mob];
-    if (learned) return { s: learned, src: 'learned' };
-    if (zoneData && zoneData.respawnSeconds) return { s: zoneData.respawnSeconds, src: 'zone' };
+    const e = normRespawn(respawnDB[lootZone() + '|' + mob]);
+    if (e) return e;
+    if (zoneData && zoneData.respawnSeconds)
+      return { s: zoneData.respawnSeconds, src: 'wiki', n: 0 };
     return null;
+  }
+
+  // pedigree marker shown after the countdown
+  const respMark = (e) => !e ? ''
+    : e.src === 'manual' ? ' ✎'
+    : e.src === 'wiki' ? ' ~wiki'
+    : (e.n || 0) >= 3 ? ' ⟲'
+    : ' ~';
+
+  // cluster-and-vote gap learning: collect kill-to-kill gaps, drop obvious
+  // missed-cycle outliers, then decide fixed cycle vs spawn window.
+  function learnGap(key, gap) {
+    const dbKey = lootZone() + '|' + key;
+    const cur = normRespawn(respawnDB[dbKey]);
+    if (cur && cur.src === 'manual') return cur;     // ✎ beats everything
+    const samples = ((cur && cur.samples) || []).concat(gap).slice(-12);
+    // drop missed-cycle outliers: anything ≥ 2.8× the shortest sample
+    const lo = Math.min(...samples);
+    const used = samples.filter(s => s < lo * 2.8);
+    const sorted = [...used].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const spread = sorted[sorted.length - 1] / sorted[0];
+    let e;
+    if (sorted.length >= 2 && spread > 1.15) {
+      // consistent variance = spawn window (think 15–30 min wanderers)
+      e = { min: sorted[0], max: sorted[sorted.length - 1], s: median,
+            src: 'learned', n: sorted.length, samples };
+    } else {
+      e = { s: median, src: 'learned', n: sorted.length, samples };
+    }
+    respawnDB[dbKey] = e;
+    window.overlay.learnRespawn(lootZone(), key, e);
+    return e;
+  }
+
+  function setManualRespawn(mob, text) {
+    const dbKey = lootZone() + '|' + mob;
+    const cur = normRespawn(respawnDB[dbKey]);
+    if (!text) { // revert to auto: keep learned samples if any, else forget
+      if (cur && cur.samples && cur.samples.length) {
+        const next = { ...cur, src: 'learned' };
+        delete next.manual;
+        respawnDB[dbKey] = next;
+        window.overlay.learnRespawn(lootZone(), mob, next);
+      } else {
+        delete respawnDB[dbKey];
+        window.overlay.learnRespawn(lootZone(), mob, null);
+      }
+      return true;
+    }
+    // "15-30" (bare numbers = minutes) is a window · "6:40" / "400" / "25m" is fixed
+    const range = text.match(/^\s*(\d+(?::\d{2})?[smh]?)\s*[-–]\s*(\d+(?::\d{2})?[smh]?)\s*$/);
+    let e = null;
+    if (range) {
+      const side = (s) => /[:smh]/.test(s) ? parseDuration(s) : (+s * 60);
+      const a = side(range[1]), b = side(range[2]);
+      if (a && b && b > a) e = { min: a, max: b, s: Math.round((a + b) / 2), src: 'manual', manual: text.trim() };
+    } else {
+      const s = parseDuration(text.trim());
+      if (s > 0) e = { s, src: 'manual', manual: text.trim() };
+    }
+    if (!e) return false;
+    if (cur && cur.samples) e.samples = cur.samples; // keep history for a later revert
+    respawnDB[dbKey] = e;
+    window.overlay.learnRespawn(lootZone(), mob, e);
+    return true;
   }
 
   function onKill(ev) {
     const mob = mobKey(ev.target);
     const t = timers.get(mob);
-    // learn the spawn cycle from death-to-death gaps: the true respawn can't
-    // be LONGER than any observed gap, so keep the shortest plausible one
+    // teach the spawn cycle from death-to-death gaps — but never from
+    // instanced copies, and never across a zone transition
     const learnCycle = (timer, key, when) => {
-      if (!timer.lastDeath) return;
+      if (!timer.lastDeath || currentZoneInst) return;
+      if (timer.lastDeath < lastZoneChangeAt) return;   // gap spans a zone line
       const gap = Math.round((when - timer.lastDeath) / 1000);
-      if (gap < 90 || gap > 21600) return; // not a plausible full cycle
-      const cur = timer.learned ? timer.respawnS : null;
-      if (!cur || gap < cur) {
-        timer.respawnS = gap; timer.learned = true;
-        respawnDB[lootZone() + '|' + key] = gap;
-        window.overlay.learnRespawn(lootZone(), key, gap);
-      }
+      if (gap < 90 || gap > 21600) return;              // not a plausible cycle
+      timer.resp = learnGap(key, gap);
     };
 
     if (t && t.zone === currentZone) {
       learnCycle(t, mob, ev.when);
-      t.lastDeath = ev.when; t.notified = false; t.up = false;
+      t.lastDeath = ev.when; t.notified = false; t.windowNotified = false; t.up = false;
     } else {
-      const r = resolveRespawn(mob);
       timers.set(mob, {
         mob, zone: currentZone, lastDeath: ev.when,
-        respawnS: r ? r.s : null, learned: r ? r.src === 'learned' : false,
-        pinned: false, notified: false, phs: loadPhs(mob)
+        resp: resolveRespawn(mob),
+        pinned: false, notified: false, windowNotified: false, phs: loadPhs(mob)
       });
     }
 
@@ -1200,7 +1382,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     for (const camp of timers.values()) {
       if (camp.pinned && camp.zone === currentZone && camp.phs && camp.phs.has(mob) && camp.mob !== mob) {
         learnCycle(camp, camp.mob, ev.when);
-        camp.lastDeath = ev.when; camp.notified = false; camp.up = false;
+        camp.lastDeath = ev.when; camp.notified = false; camp.windowNotified = false; camp.up = false;
       }
     }
 
@@ -1225,17 +1407,17 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const t = timers.get(mob);
     if (t) { t.pinned = true; if (!t.phs) t.phs = loadPhs(mob); }
     else {
-      const r = resolveRespawn(mob);
       timers.set(mob, {
         mob, zone: currentZone, lastDeath: 0,
-        respawnS: r ? r.s : null, learned: r ? r.src === 'learned' : false,
-        pinned: true, notified: false, phs: loadPhs(mob)
+        resp: resolveRespawn(mob),
+        pinned: true, notified: false, windowNotified: false, phs: loadPhs(mob)
       });
     }
     renderTimers(); renderCampBar();
   }
 
-  let linkMode = null; // camp mob name currently selecting a placeholder
+  let linkMode = null;     // camp mob name currently selecting a placeholder
+  let editTimerFor = null; // mob whose ✎ manual-timer editor is open
 
   // ---- alert effects: toast + border flash + a DISTINCT sound per alert kind ----
   // each pattern: [frequencyHz, durationS, gapAfterS]
@@ -1275,7 +1457,6 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       }
     } catch { /* audio unavailable */ }
   }
-  const beep = () => playPattern('rare'); // legacy alias
 
   function alertFX(msg, kind = 'rare') {
     toast(msg, true);
@@ -1620,8 +1801,14 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   function fmtCountdown(t, now) {
     if (t.up) return { txt: '⚔ UP NOW', due: true };
     const alive = (now - t.lastDeath) / 1000;
-    if (t.respawnS) {
-      const left = t.respawnS - alive;
+    const e = t.resp;
+    if (e && e.min && e.max && e.max > e.min) {   // spawn window: "15–30m"
+      if (alive < e.min) return { txt: 'window in ' + fmtDur(e.min - alive) + ' (' + fmtDur(e.min) + '–' + fmtDur(e.max) + ')', due: false };
+      if (alive < e.max) return { txt: '🪟 WINDOW OPEN · ' + fmtDur(e.max - alive) + ' left', due: true };
+      return { txt: 'DUE (' + fmtDur(alive - e.max) + ' past window)', due: true };
+    }
+    if (e && e.s) {
+      const left = e.s - alive;
       if (left > 0) return { txt: 'repop in ' + fmtDur(left), due: false };
       return { txt: 'DUE (' + fmtDur(-left) + ' over)', due: true };
     }
@@ -1649,10 +1836,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       .map(s => '<option value="' + s.replace(/"/g, '&quot;') + '">').join('');
 
     for (const t of list) {
-      if (!t.respawnS) { // zone data may have loaded after this timer was created
-        const r = resolveRespawn(t.mob);
-        if (r) { t.respawnS = r.s; t.learned = r.src === 'learned'; }
-      }
+      if (!t.resp) t.resp = resolveRespawn(t.mob); // zone data may have loaded late
       const c = t.lastDeath ? fmtCountdown(t, now) : { txt: 'waiting for kill', due: false };
       const div = document.createElement('div');
       div.className = 'l-mob';
@@ -1666,9 +1850,24 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       nm.style.overflow = 'hidden'; nm.style.textOverflow = 'ellipsis'; nm.style.whiteSpace = 'nowrap';
       const cd = document.createElement('span');
       cd.className = 'k';
-      cd.textContent = c.txt + (t.respawnS ? (t.learned ? ' ⟲' : '') : '');
+      cd.textContent = c.txt + respMark(t.resp);
+      cd.title = !t.resp ? 'No timer source yet — SEQO learns the cycle from kill-to-kill gaps'
+        : t.resp.src === 'manual' ? 'Manual timer (✎ to change or revert to auto)'
+        : t.resp.src === 'wiki' ? 'Zone-wide timer from the wiki — unverified for this mob'
+        : (t.resp.n || 0) >= 3 ? 'Learned from ' + t.resp.n + ' of your own kill cycles'
+        : 'Tentative — learned from only ' + (t.resp.n || 1) + ' cycle' + ((t.resp.n || 1) === 1 ? '' : 's') + ' so far';
       if (c.due) { cd.style.color = '#7dffa0'; cd.style.fontWeight = '700'; }
-      div.append(star, nm, cd);
+      // ✎ manual override: fixed ("6:40", "25m") or window ("15-30" = minutes)
+      const pen = document.createElement('span');
+      pen.textContent = '✎';
+      pen.style.cssText = 'flex:none;cursor:pointer;color:' + (t.resp && t.resp.src === 'manual' ? '#ffd766' : '#667') + ';padding:0 3px';
+      pen.title = 'Set the timer yourself: "6:40" or "25m" fixed, "15-30" for a 15–30 minute window. Empty = back to auto.';
+      pen.addEventListener('click', (e) => {
+        e.stopPropagation();
+        editTimerFor = editTimerFor === t.mob ? null : t.mob;
+        renderTimers();
+      });
+      div.append(star, nm, cd, pen);
 
       if (t.pinned) {
         const ph = document.createElement('span');
@@ -1701,6 +1900,40 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         renderTimers(); renderCampBar();
       });
       rows.appendChild(div);
+
+      // inline ✎ editor
+      if (editTimerFor === t.mob) {
+        const ed = document.createElement('div');
+        ed.style.cssText = 'display:flex;gap:5px;align-items:center;padding:2px 6px 3px 24px';
+        const inp = document.createElement('input');
+        inp.placeholder = (t.resp && t.resp.manual) || '6:40 · 25m · 15-30';
+        inp.value = (t.resp && t.resp.src === 'manual' && t.resp.manual) || '';
+        inp.style.cssText = 'width:110px;background:#26262f;color:#eee;border:1px solid #555;border-radius:4px;padding:1px 5px;font-size:10.5px';
+        const apply = () => {
+          const v = inp.value.trim();
+          if (setManualRespawn(t.mob, v)) {
+            t.resp = resolveRespawn(t.mob);
+            t.notified = false; t.windowNotified = false;
+            editTimerFor = null;
+            toast(v ? '✎ ' + t.mob + ' timer set to ' + v : '↩ ' + t.mob + ' back to automatic timing');
+            renderTimers(); renderCampBar();
+          } else {
+            toast('⚠ Couldn\'t read "' + v + '" — try 6:40, 25m, or 15-30');
+          }
+        };
+        const ok = document.createElement('button');
+        ok.className = 'kbtn gold'; ok.textContent = 'set'; ok.style.fontSize = '10px';
+        ok.addEventListener('click', (e) => { e.stopPropagation(); apply(); });
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') { editTimerFor = null; renderTimers(); } });
+        inp.addEventListener('click', (e) => e.stopPropagation());
+        const hint = document.createElement('span');
+        hint.style.cssText = 'color:#778;font-size:9.5px';
+        hint.textContent = t.resp && t.resp.src === 'manual' ? 'empty + set = back to auto' : '"15-30" = window in minutes';
+        ed.append(inp, ok, hint);
+        ed.addEventListener('click', (e) => e.stopPropagation());
+        rows.appendChild(ed);
+        setTimeout(() => inp.focus(), 0);
+      }
 
       // placeholder list under a pinned camp (click a PH to unlink)
       if (t.pinned && t.phs && t.phs.size) {
@@ -1741,17 +1974,30 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   $('mt-dur').addEventListener('keydown', (e) => { if (e.key === 'Enter') mtStart(); });
   $('mt-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { $('mt-dur').focus(); } });
 
-  // tick: countdowns + due notifications
+  // tick: countdowns + due / window-open notifications
   setInterval(() => {
     const now = Date.now();
     for (const t of timers.values()) {
-      if (t.pinned && t.lastDeath && t.respawnS && !t.notified && (now - t.lastDeath) / 1000 >= t.respawnS) {
+      const e = t.resp;
+      if (!t.pinned || !t.lastDeath || !e) continue;
+      const alive = (now - t.lastDeath) / 1000;
+      if (e.min && e.max && e.max > e.min) {
+        if (!t.windowNotified && alive >= e.min) {
+          t.windowNotified = true;
+          alertFX('🪟 ' + t.mob + ' spawn window OPEN (' + fmtDur(e.min) + '–' + fmtDur(e.max) + ')', 'repop');
+        }
+        if (!t.notified && alive >= e.max) {
+          t.notified = true;
+          alertFX('⏲ ' + t.mob + ' past its spawn window — can be up any moment!', 'repop');
+        }
+      } else if (e.s && !t.notified && alive >= e.s) {
         t.notified = true;
         alertFX('⏲ ' + t.mob + ' repop due!', 'repop');
       }
     }
-    if (activeTab === 'timers') renderTimers();
+    if (activeTab === 'timers' && !editTimerFor) renderTimers(); // ✎ editor keeps focus
     if (activeTab === 'loot' && lootRun) renderRunBox(); // live run clock
+    if (lootRun) updateRunButtons();                     // bottom-bar clock ticks everywhere
     renderCampBar();
   }, 1000);
 
@@ -1820,9 +2066,20 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     return set;
   }
 
+  // which sub-view the Quests tab shows: '' = zone quests, or one of the
+  // chip views ('__unlocks' / '__epics' / '__bis' / '__exalts')
+  let qView = '';
+  function setQuestView(v) {
+    qView = v || '';
+    document.querySelectorAll('#q-views .qview-chip')
+      .forEach(c => c.classList.toggle('active', c.dataset.qview === qView));
+  }
+  document.querySelectorAll('#q-views .qview-chip').forEach(c =>
+    c.addEventListener('click', () => { setQuestView(c.dataset.qview); renderQuests(); }));
+
   // which zone the Quests tab is looking at ('' in the select = follow the game)
   function questZone() {
-    return $('q-zone').value || currentZone || 'Plane of Sky';
+    return qView || $('q-zone').value || currentZone || 'Plane of Sky';
   }
   const isPosZone = (z) => /plane of sky/i.test(z || '');
 
@@ -1833,6 +2090,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const pos = !special && isPosZone(zone);
     // PoS-only controls hide for wiki-listed zones and the special views
     $('q-import').style.display = 'none'; // superseded by zero-click sync
+    $('q-zone').style.display = special ? 'none' : '';  // the zone picker is for zone quests
     // the how-to only matters until game data is flowing — then free the space
     const synced = gameFiles && (gameFiles.inventory || gameFiles.achievements);
     $('q-help').style.display = pos && !synced ? '' : 'none';
@@ -1996,7 +2254,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       } else others.add(q.cls);
     }
     // epic prep / race-grind / BiS needs outrank spare & sellable
-    const extra = neededExtraVerdict(key);
+    const extra = neededExtraVerdict(key, itemName);
     if (extra) return extra;
     if (dup) return { kind: 'spare', label: 'SPARE', reason: 'already collected for ' + dup };
     if (doneQ) return { kind: 'sell', label: 'SELLABLE', reason: doneQ + ' already turned in' };
@@ -2044,10 +2302,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // resolve through the wiki once, then live forever in itemKnowledge
   // (synced via the game DB, so lookups done on one computer serve the other).
   let cleanupActive = false, cleanupScanning = false, cleanupDirty = false;
+  let needsDirty = false;   // zone-needs panel: refresh on the next tick
   let itemKnowledge = {};
   window.overlay.getItemKnowledge().then((k) => { itemKnowledge = k || {}; });
   const ALL_CLASSES = Object.keys(window.EQLEpics.EPICS); // window global: safe this early in the script
-  const CLEAN_LOC = /^(General|Bank|SharedBank|Held)/i;
 
   function classifyForCleanup(name) {
     const key = normItemName(name);
@@ -2065,19 +2323,32 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       if (!st.done) return { pile: 'need', reason: 'PoS: ' + q.reward + ' (' + q.cls + ')' };
       done = q.reward + ' already turned in';
     }
+    // epics: the demand engine understands recipes — ingredients whose crafted
+    // reward you already own (or whose epic is finished) land in "job done"
+    let epicCovered = null;
     for (const cls of ALL_CLASSES) {
-      const hit = epicItemsFor(cls).find(it => it.n.toLowerCase() === key);
-      if (hit) return { pile: 'need', reason: 'Epic prep: ' + ((EPICDB.EPICS[cls] || {}).epic || 'epic') + ' (' + cls + ')' + (hit.q > 1 ? ' — need ×' + hit.q : '') };
+      const d = epicClassDemand(cls, key);
+      if (d.need > 0) {
+        const cnt = d.need > 1 ? ' — need ×' + d.need : '';
+        return { pile: 'need', reason: 'Epic prep: ' + ((EPICDB.EPICS[cls] || {}).epic || 'epic') + ' (' + cls + ')' + cnt };
+      }
+      if (!epicCovered && d.coveredBy.length)
+        epicCovered = d.coveredBy[0] + ' (' + cls + ')';
     }
-    const bis = bisData();
-    for (const cls of Object.keys(bis)) {
-      for (const [slot, items] of Object.entries(bis[cls] || {})) {
+    if (epicCovered) return { pile: 'done', reason: 'epic job done — ' + epicCovered };
+    // BiS: only when the opt-in flag is on, and only your own class
+    if (settings.bisFlag && settings.bisClass && bisData()[settings.bisClass]) {
+      for (const [slot, items] of Object.entries(bisData()[settings.bisClass])) {
         if ((items || []).some(it => it.n.toLowerCase() === key))
-          return { pile: 'need', reason: 'BiS ' + slot.toLowerCase() + ' (' + cls + ')' };
+          return { pile: 'need', reason: 'BiS ' + slot.toLowerCase() + ' (' + settings.bisClass + ')' };
       }
     }
+    // faction turn-ins stay "needed" only while a faction that eats them isn't maxed
+    const grind = grindItemNeed(key);
+    if (grind)
+      return { pile: 'need', reason: 'faction turn-in — ' + grind.faction + (grind.total ? ' (' + grind.have + '/' + grind.total + ')' : '') };
     if (UNL.GRIND_ITEMS.some(n => n.toLowerCase() === key))
-      return { pile: 'need', reason: 'race-unlock faction turn-in' };
+      return { pile: 'done', reason: 'faction turn-in — all factions that use it are maxed' };
     if (done) return { pile: 'done', reason: done };
     const k = itemKnowledge[key];
     if (k) {
@@ -2100,19 +2371,44 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (!inv) return [];
     const rows = [];
     for (const it of Object.values(inv.items || {})) {
-      if (!it.locs || !it.locs.some(l => CLEAN_LOC.test(l))) continue; // worn gear isn't clutter
-      const bank = it.locs.some(l => /bank/i.test(l));
-      const bags = it.locs.some(l => /^(General|Held)/i.test(l));
-      rows.push({ name: it.name, count: it.count,
-                  where: bank && bags ? 'bags+bank' : bank ? 'bank' : 'bags',
+      // per-bucket counts from main's parser; an old cached file (pre-2.4)
+      // falls back to prefix-matching the stored location names
+      const by = it.by || (() => {
+        const b = { bags: 0, depot: 0, bank: 0, shared: 0, stored: 0, worn: 0 };
+        for (const l of it.locs || []) {
+          if (/^(General|Held)/i.test(l)) b.bags = b.bags || it.count;
+          else if (/^Personal-?Depot/i.test(l)) b.depot = b.depot || it.count;
+          else if (/^SharedBank/i.test(l)) b.shared = b.shared || it.count;
+          else if (/^Bank/i.test(l)) b.bank = b.bank || it.count;
+          else if (/^Equipment/i.test(l)) b.stored = b.stored || it.count;
+        }
+        return b;
+      })();
+      const stored = (by.bags || 0) + (by.depot || 0) + (by.bank || 0) + (by.shared || 0) + (by.stored || 0);
+      if (!stored) continue; // worn gear, slotted augs and the exaltation registry aren't clutter
+      rows.push({ name: it.name, count: stored, by,
                   ...classifyForCleanup(it.name) });
     }
     return rows;
   }
 
+  // auto-scan: uncached items look themselves up the moment the window opens
+  // or new unknowns appear (fresh inventory file, new loot). The 🔎 button
+  // stays as a manual re-run.
+  function maybeAutoScan() {
+    if (!cleanupActive || cleanupScanning) return;
+    if (Date.now() - lastScanAbort < 600000) return; // wiki was unreachable — retry later, not in a loop
+    if (buildCleanupRows().some(r => r.pile === 'unk' && r.reason === '')) runCleanupScan();
+  }
+  let lastScanAbort = 0;
+
   const cleanupStatus = () => {
     const inv = gameFiles && gameFiles.inventory;
-    return inv ? 'inventory file: ' + fmtAge(inv.mtime) : '⚠ no inventory file — run /outputfile inventory';
+    if (!inv) return '⚠ no inventory file — run /outputfile inventory';
+    let s = 'inventory file: ' + fmtAge(inv.mtime);
+    if (inv.depotCarried)
+      s += ' · 📦 storage carried from ' + fmtAge(inv.depotCarried.at) + ' (the game only exports the depot while you’re at it)';
+    return s;
   };
   function pushCleanup(extra) {
     if (!cleanupActive) return;
@@ -2160,6 +2456,14 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       const key = normItemName(r.name);
       try {
         const data = await window.overlay.updateItemData(r.name.replace(/\s*\+\d+$/, ''));
+        // "no page" is an ANSWER (cache it forever) — a network failure is
+        // not: cache nothing and stop the pass, the wiki is unreachable
+        if (data && data.error && !/no wiki page found/i.test(data.error)) {
+          window.overlay.cleanupPush({ status: '⚠ wiki unreachable (' + data.error + ') — scan paused, nothing mis-cached', scanning: false });
+          cleanupScanning = false;
+          lastScanAbort = Date.now();
+          return;
+        }
         const entry = (data && !data.error && data.pageTitle)
           ? { quests: data.questUses || [], page: data.pageTitle, checkedAt: Date.now() }
           : { quests: [], notFound: true, checkedAt: Date.now() };
@@ -2172,10 +2476,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         entry.chainChecked = true;
         itemKnowledge[key] = entry;
         window.overlay.setItemKnowledge(key, entry);
-      } catch {
-        itemKnowledge[key] = { quests: [], notFound: true, checkedAt: Date.now() };
-        window.overlay.setItemKnowledge(key, itemKnowledge[key]);
-      }
+      } catch { /* transient failure: leave it unknown, the next scan retries */ }
       done++;
       if (done % 5 === 0 || done === unknowns.length) pushCleanup({ scanning: true });
       await new Promise(res => setTimeout(res, 500)); // be polite to the wiki
@@ -2202,7 +2503,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   window.overlay.onCleanupState((open) => {
     cleanupActive = open;
-    if (open) pushCleanup();
+    if (open) { pushCleanup(); setTimeout(maybeAutoScan, 400); }
   });
   window.overlay.onCleanupCmd(async (cmd) => {
     if (!cmd) return;
@@ -2225,7 +2526,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       // dock's effect link: open the Exaltations view on that effect
       exaltSel = cmd.name;
       setTab('quests');
-      $('q-zone').value = '__exalts';
+      setQuestView('__exalts');
       renderQuests();
     }
     else if (cmd.kind === 'junk' && cmd.name) {
@@ -2252,6 +2553,25 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     else { wishList[key] = { name: name.replace(/ \+\d+$/, ''), added: Date.now() }; toast('🌟 Added to wish list: ' + name); }
     pushWishList();
     renderWishList();
+    document.querySelectorAll('.wishstar[data-item]').forEach(s => {
+      if (verdictKey(s.dataset.item) === key) {
+        s.textContent = wishList[key] ? '★' : '☆';
+        s.classList.toggle('on', !!wishList[key]);
+      }
+    });
+    needsDirty = true;
+  }
+
+  // the universal ⭐ toggle: one star per item row, everywhere items are listed.
+  // Starred items get toasts, KEEP verdicts, and a row in the zone-needs panel.
+  function wishStar(name) {
+    const s = document.createElement('span');
+    s.className = 'wishstar' + (isWished(name) ? ' on' : '');
+    s.dataset.item = name;
+    s.textContent = isWished(name) ? '★' : '☆';
+    s.title = 'Wish list: star what you\'re hunting — SEQO watches for it everywhere';
+    s.addEventListener('click', (ev) => { ev.stopPropagation(); toggleWish(name); });
+    return s;
   }
 
   // where can a wished item come from? your own drop history + PoS + cached wiki
@@ -2541,7 +2861,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       o.value = z; o.textContent = z;
       zsel.appendChild(o);
     }
-    zsel.addEventListener('change', renderQuests);
+    zsel.addEventListener('change', () => { setQuestView(''); renderQuests(); });
     $('q-hidedone').addEventListener('change', renderQuests);
     $('q-import').addEventListener('click', importInventory);
     renderQuestClasses();
@@ -2566,9 +2886,92 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const hint = (typeof live === 'string' ? live : live && live.hint) || builtin.hint || null;
     const needs = Object.assign({}, builtin.needs || {},
                                 (live && typeof live === 'object' && live.needs) || {});
-    return { hint, needs };
+    return { hint, needs, routes: builtin.routes || null };
   };
   const grindHintFor = (f) => grindData(f).hint;
+
+  // ---- epic demand engine ----
+  // How many of an item your selected classes still want, understanding the
+  // sub-quest recipes in epics.js FEEDS: owning a crafted reward (Darkforge
+  // Breastplate) silences the ingredients that make it (Decayed pieces), a
+  // chain of rewards works (Decrepit Sheath → Corrupted Ghoulbane), owning
+  // the finished epic silences the whole class, and manual tick-offs cover
+  // turn-ins the inventory file can't see.
+  const feedsFor = (cls) => (EPICDB.FEEDS && EPICDB.FEEDS[cls]) || [];
+  let epicTicks = {};   // 'cls|item' -> true: manually marked as handed in
+  window.overlay.getEpicTicks().then((t) => { epicTicks = t || {}; });
+  const tickKey = (cls, n) => cls + '|' + normItemName(n);
+  const isTicked = (cls, n) => !!epicTicks[tickKey(cls, n)];
+  function toggleEpicTick(cls, name) {
+    const k = tickKey(cls, name);
+    if (epicTicks[k]) delete epicTicks[k]; else epicTicks[k] = true;
+    window.overlay.setEpicTick(k, !!epicTicks[k]);
+    needsDirty = true;
+  }
+
+  // a product (sub-quest reward) no longer needs its ingredients when you own
+  // it, ticked it off, own something it feeds into, or own the finished epic
+  function productSatisfied(cls, name, seen) {
+    seen = seen || new Set();
+    const k = normItemName(name);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    if (invHas(name) || isTicked(cls, name)) return true;
+    for (const f of feedsFor(cls))
+      if (Object.keys(f.parts).some(p => normItemName(p) === k) && productSatisfied(cls, f.product, seen))
+        return true;
+    return false;
+  }
+
+  // one class's remaining want for an item: { need, coveredBy[] }
+  function epicClassDemand(cls, name) {
+    const k = normItemName(name);
+    if (isTicked(cls, name)) return { need: 0, coveredBy: ['ticked off by you'] };
+    const epicName = (EPICDB.EPICS[cls] || {}).epic;
+    if (epicName && epicName !== 'Epic Quest' && invHas(epicName))
+      return { need: 0, coveredBy: [epicName + ' finished'] };
+    const feeds = feedsFor(cls).filter(f => Object.keys(f.parts).some(p => normItemName(p) === k));
+    if (feeds.length) {
+      let need = 0; const coveredBy = [];
+      for (const f of feeds) {
+        const qty = f.parts[Object.keys(f.parts).find(p => normItemName(p) === k)] || 1;
+        if (productSatisfied(cls, f.product)) coveredBy.push(f.product + ' owned');
+        else need += qty;
+      }
+      return { need, coveredBy };
+    }
+    const flat = epicItemsFor(cls).find(it => normItemName(it.n) === k);
+    if (flat) return { need: (flat.q > 1 ? flat.q : 1), coveredBy: [] };
+    return { need: 0, coveredBy: [] };
+  }
+
+  // total demand across the classes selected on the Quests tab
+  function epicDemand(name, classes) {
+    const per = [];
+    let total = 0;
+    for (const cls of (classes || qSelClasses())) {
+      const d = epicClassDemand(cls, name);
+      if (d.need || d.coveredBy.length) per.push({ cls, need: d.need, coveredBy: d.coveredBy });
+      total += d.need;
+    }
+    return { total, per, have: invCount(name) };
+  }
+
+  // race-unlock turn-in: still worth keeping only while a faction that eats
+  // it isn't maxed. Returns { faction, have, total } or null.
+  function grindItemNeed(key) {
+    for (const [fname, g] of Object.entries(UNL.FACTION_GRINDS)) {
+      const data = grindData(fname);
+      const inNeeds = Object.keys(data.needs || {}).some(n => normItemName(n) === key);
+      const inItems = (g.items || []).some(n => normItemName(n) === key);
+      if (!inNeeds && !inItems) continue;
+      const fi = factionInfo(fname);
+      if (fi && fi.toMax === 0) continue;         // already maxed — no need
+      const needName = Object.keys(data.needs || {}).find(n => normItemName(n) === key);
+      return { faction: fname, have: invCount(key), total: needName ? data.needs[needName] : 0 };
+    }
+    return null;
+  }
   function applyQuestData(qd) {
     if (!qd) return;
     epicsLive = qd.epicsData || epicsLive;
@@ -2603,7 +3006,96 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     toast('🔄 Game data refreshed from your /outputfile files');
     if (activeTab === 'quests') renderQuests();
     cleanupDirty = true;
+    needsDirty = true;
+    checkLoginBarDone();   // fresh files may satisfy the login reminder
   });
+
+  // ---- outputfile freshness: per-view reminder bars + a once-per-login toast ----
+  const OUTFILES = [
+    ['inventory', '/outputfile inventory'],
+    ['achievements', '/outputfile achievements'],
+    ['factions', '/outputfile faction']
+  ];
+  const outfileMtime = (kind) => (gameFiles && gameFiles[kind] && gameFiles[kind].mtime) || 0;
+
+  // a slim bar naming the game exports this view feeds on, each with a
+  // one-click 📋 copy of the exact command — shown only when a file is
+  // missing or stale, gone while everything is fresh
+  function outfileBar(kinds) {
+    const stale = [];
+    for (const kind of kinds) {
+      const mt = outfileMtime(kind);
+      if (!mt || Date.now() - mt > 60 * 60000 || (loginAt && mt < loginAt)) stale.push({ kind, mt });
+    }
+    if (!stale.length) return null;
+    const bar = document.createElement('div');
+    bar.className = 'q-npc outfilebar';
+    const lead = document.createElement('span');
+    lead.textContent = '📂 This view reads your game exports — refresh:';
+    lead.style.marginRight = '6px';
+    bar.appendChild(lead);
+    for (const s of stale) {
+      const cmd = OUTFILES.find(o => o[0] === s.kind)[1];
+      const chip = document.createElement('span');
+      chip.className = 'ofchip';
+      chip.textContent = '📋 ' + cmd + ' · ' + (s.mt ? fmtAge(s.mt) : 'never seen');
+      chip.title = 'Click to copy, then paste into the game’s chat. SEQO picks the new file up by itself within a second.';
+      chip.addEventListener('click', () => { window.overlay.copyText(cmd); toast('📋 Copied ' + cmd + ' — paste it in game'); });
+      bar.appendChild(chip);
+    }
+    return bar;
+  }
+
+  // login detection: the game's welcome line, or 30+ minutes of log silence
+  let lastLineAt = 0, loginAt = 0, loginReminded = false;
+  function noteLogTime(l) {
+    if (l.charCodeAt(0) !== 91) return; // not "[..." — not a timestamped line
+    const ts = Date.parse(l.slice(1, l.indexOf(']')));
+    if (isNaN(ts)) return;
+    const isWelcome = l.includes('] Welcome to EverQuest');
+    if ((lastLineAt && ts - lastLineAt > 30 * 60000) || isWelcome) {
+      loginAt = ts;
+      loginReminded = false;
+      setTimeout(maybeLoginReminder, 1200);
+    }
+    if (ts > lastLineAt) lastLineAt = ts;
+  }
+
+  function maybeLoginReminder() {
+    if (!settings || settings.loginReminder === false || loginReminded || !loginAt) return;
+    const stale = OUTFILES.filter(([k]) => outfileMtime(k) < loginAt);
+    if (!stale.length) return;
+    loginReminded = true;
+    const bar = $('loginbar');
+    bar.innerHTML = '';
+    const lead = document.createElement('span');
+    lead.textContent = '📂 Fresh session — update your tracking files:';
+    bar.appendChild(lead);
+    for (const [, cmd] of stale) {
+      const b = document.createElement('span');
+      b.className = 'ofchip';
+      b.textContent = '📋 ' + cmd;
+      b.title = 'Click to copy, then paste into the game’s chat';
+      b.addEventListener('click', () => { window.overlay.copyText(cmd); toast('📋 Copied ' + cmd + ' — paste it in game'); });
+      bar.appendChild(b);
+    }
+    const x = document.createElement('span');
+    x.textContent = '✕';
+    x.style.cssText = 'cursor:pointer;margin-left:auto;color:#888;padding:0 4px';
+    x.title = 'Dismiss (it comes back next login; turn it off for good in ⚙ Alerts & Sounds)';
+    x.addEventListener('click', () => { bar.style.display = 'none'; });
+    bar.appendChild(x);
+    bar.style.display = 'flex';
+  }
+
+  function checkLoginBarDone() {
+    const bar = $('loginbar');
+    if (!loginAt || bar.style.display === 'none') return;
+    if (OUTFILES.every(([k]) => outfileMtime(k) >= loginAt)) {
+      bar.style.display = 'none';
+      toast('✅ Tracking files all fresh — counters and checkmarks are live');
+    }
+  }
 
   const normClass = (s) => (s || '').toLowerCase().replace(/[^a-z]/g, '');
 
@@ -2635,6 +3127,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const key = normItemName(name);
     let n = lootedLive.get(key) || 0;
     const inv = gameFiles && gameFiles.inventory;
+    // the trailing Equipment/Augmentation/Activated sections are parsed as
+    // real items too (count 1 each), so this single loop covers everything
     if (inv) for (const [k, it] of Object.entries(inv.items || {}))
       if (normItemName(k) === key) n += it.count || 1;
     return n;
@@ -2645,13 +3139,6 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   const achSections = () =>
     (gameFiles && gameFiles.achievements && gameFiles.achievements.sections) || [];
   const achSection = (re) => achSections().find(s => re.test(s.name));
-
-  function classAchievement(cls) {
-    const sec = achSection(/Untapped Potential: Class/i);
-    if (!sec) return null;
-    return sec.achievements.find(a =>
-      normClass(a.name.replace(/^Primary Class Unlock - /i, '')) === normClass(cls)) || null;
-  }
 
   // achievements file is ground truth: an "Obtain <reward>" objective marked C
   // means that PoS quest reward is in hand → mark the quest turned in.
@@ -2758,12 +3245,19 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       '<span style="display:block;width:' + pct + '%;height:100%;background:' + (pct >= 100 ? '#7dffa0' : '#ffd766') + '"></span></span>';
   }
 
+  // the dock's 📖 guide mode: a wiki page (or one section) as readable text
+  const GUIDE_TITLE = "Alanna's Race Unlock Guide";   // wiki redirect → User:Alanna/…
+  const openGuide = (payload) => window.overlay.openDock('guide', payload);
+
   function renderUnlocks() {
     const list = $('q-list');
     list.innerHTML = '';
     $('q-progress').textContent = '';
     const sbU = staleBanner('Race unlock guide');
     if (sbU) list.appendChild(sbU);
+    // unlocks read all three exports: status, progress bars AND rep counters
+    const ofU = outfileBar(['achievements', 'factions', 'inventory']);
+    if (ofU) list.appendChild(ofU);
     if (!achSections().length) {
       setQuestEmpty('No achievements data yet.\n\nIn game, type  /outputfile achievements\n(and /outputfile faction for progress bars).\nSEQO reads the files automatically — no clicks needed.');
       list.appendChild(creditLine(UNL.CREDITS[0]));
@@ -2801,9 +3295,25 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         card.className = 'q-quest' + (ach.done ? ' done' : '');
         const head = document.createElement('div');
         head.className = 'q-head';
-        head.innerHTML = '<span>' + (unlExpanded.has(key) ? '▾' : '▸') + '</span><span class="rw"></span><span class="st"></span>';
+        head.innerHTML = '<span>' + (unlExpanded.has(key) ? '▾' : '▸') + '</span><span class="rw"></span><span class="gd" title="Read the guide for this unlock here, in the attached window">📖</span><span class="st"></span>';
         head.querySelector('.rw').textContent = label;
         head.querySelector('.st').textContent = ach.done ? 'UNLOCKED' : (objs.length ? got + '/' + objs.length : '');
+        const gd = head.querySelector('.gd');
+        gd.style.cssText = 'cursor:pointer;opacity:.55;flex:none';
+        if (g.key === 'races') {
+          gd.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            openGuide({ title: GUIDE_TITLE, anchor: label, label: label + ' unlock' });
+          });
+        } else if (g.key === 'deity') {
+          gd.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            openGuide({ title: label, label: label + ' unlock',
+                        fallback: { title: GUIDE_TITLE, label: 'Race Unlock Guide' } });
+          });
+        } else {
+          gd.style.display = 'none'; // class unlocks jump to their PoS quests instead
+        }
         head.addEventListener('click', () => {
           unlExpanded.has(key) ? unlExpanded.delete(key) : unlExpanded.add(key);
           renderQuests();
@@ -2823,9 +3333,16 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
               const fi = factionInfo(fname);
               const pct = o.done ? 1 : fi ? (fi.toMax != null ? (2000 - fi.toMax) / 2000 : (fi.value + 2000) / 4000) : 0;
               row.innerHTML = '<span class="box">' + (o.done ? '☑' : '☐') + '</span><span class="nm"></span>' +
-                unlBar(pct) + '<span class="loc"></span>';
+                unlBar(pct) + '<span class="fgd" title="Read this faction’s wiki page here">📖</span><span class="loc"></span>';
               row.querySelector('.nm').textContent = fname;
               row.querySelector('.loc').textContent = o.done ? 'MAX' : fi ? (fi.value + ' / 2000') : 'no faction data';
+              const fgd = row.querySelector('.fgd');
+              fgd.style.cssText = 'cursor:pointer;opacity:.55;flex:none;font-size:10px';
+              fgd.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                openGuide({ title: fname, label: fname,
+                            fallback: { title: GUIDE_TITLE, anchor: label, label: label + ' unlock' } });
+              });
               const gh = grindHintFor(fname);
               if (gh) row.title = gh + '  (route courtesy of Alanna — eqlwiki.com)';
             } else if (om && g.key === 'classes') {
@@ -2849,32 +3366,47 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           }
           if (g.key === 'races') {
             const grindItems = new Set();
+            // rep-item counters for one route (or the single grind): held vs total
+            const addCounters = (needs, fname) => {
+              const entries = Object.entries(needs || {});
+              if (!entries.length) return;
+              const cw = document.createElement('div');
+              cw.className = 'q-npc q-counters';
+              const fi = factionInfo(fname);
+              for (const [item, total] of entries) {
+                const have = invCount(item);
+                const sp = document.createElement('span');
+                sp.style.cssText = 'margin-right:12px;color:' + (have >= total ? '#7dffa0' : '#9ab');
+                sp.textContent = '📦 ' + item + ' ' + have + ' / ' + total;
+                sp.title = (fi && fi.toMax != null
+                  ? 'Full grind takes ' + total + '. At your current standing you still need about ' +
+                    Math.ceil(total * fi.toMax / 2000) + ' more — you hold ' + have + '.'
+                  : 'Total for the full grind per Alanna’s guide. The count comes from your inventory file plus live loot.');
+                cw.appendChild(sp);
+              }
+              box.appendChild(cw);
+            };
             for (const o of objs) {
               const fm = /^Get maximum faction with (.+?)\.?$/.exec(o.text);
               const gd = fm && grindData(fm[1]);
-              if (gd && gd.hint && !o.done) {
-                const hint = document.createElement('div');
-                hint.className = 'q-npc';
-                hint.textContent = '🧭 ' + fm[1] + ': ' + gd.hint;
-                box.appendChild(hint);
-                // rep-item counters: what you hold vs the full-grind total
-                const entries = Object.entries(gd.needs);
-                if (entries.length) {
-                  const cw = document.createElement('div');
-                  cw.className = 'q-npc';
-                  const fi = factionInfo(fm[1]);
-                  for (const [item, total] of entries) {
-                    const have = invCount(item);
-                    const sp = document.createElement('span');
-                    sp.style.cssText = 'margin-right:12px;color:' + (have >= total ? '#7dffa0' : '#9ab');
-                    sp.textContent = '📦 ' + item + ' ' + have + ' / ' + total;
-                    sp.title = (fi && fi.toMax != null
-                      ? 'Full grind takes ' + total + '. At your current standing you still need about ' +
-                        Math.ceil(total * fi.toMax / 2000) + ' more — you hold ' + have + '.'
-                      : 'Total for the full grind per Alanna’s guide. The count comes from your inventory file plus live loot.');
-                    cw.appendChild(sp);
-                  }
-                  box.appendChild(cw);
+              if (gd && (gd.hint || gd.routes) && !o.done) {
+                if (gd.routes && gd.routes.length > 1) {
+                  // the guide gives real alternatives: labeled options, each
+                  // with its own route text and its own counters
+                  gd.routes.forEach((rt, i) => {
+                    const hint = document.createElement('div');
+                    hint.className = 'q-npc q-route';
+                    const tag = rt.tag === 'evil' ? ' 🌙 evil races' : rt.tag === 'good' ? ' 🌞 good races' : '';
+                    hint.textContent = '🧭 Option ' + String.fromCharCode(65 + i) + ' — ' + rt.label + tag + ': ' + rt.hint;
+                    box.appendChild(hint);
+                    addCounters(rt.needs, fm[1]);
+                  });
+                } else {
+                  const hint = document.createElement('div');
+                  hint.className = 'q-npc';
+                  hint.textContent = '🧭 ' + fm[1] + ': ' + gd.hint;
+                  box.appendChild(hint);
+                  addCounters(gd.needs, fm[1]);
                 }
                 const gr = UNL.FACTION_GRINDS[fm[1]];
                 if (gr) for (const it of gr.items) grindItems.add(it);
@@ -2902,6 +3434,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   function selectPosQuest(reward) {
     const q = POS.quests.find(x => x.reward.toLowerCase() === reward.toLowerCase());
+    setQuestView('');
     $('q-zone').value = 'Plane of Sky';
     if (q) {
       qExpanded.add(q.reward);
@@ -2930,6 +3463,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     list.appendChild(banner);
     const sbE = staleBanner('Epic checklists');
     if (sbE) list.appendChild(sbE);
+    const ofE = outfileBar(['inventory']);   // checkmarks read your inventory export
+    if (ofE) list.appendChild(ofE);
 
     if (epicsLive && epicsLive.data) {
       const fresh = document.createElement('div');
@@ -2964,14 +3499,32 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       const box = document.createElement('div');
       box.className = 'q-items';
       for (const it of e.items) {
-        const have = invHas(it.n);
+        const dCls = epicClassDemand(cls, it.n);
+        const dAll = epicDemand(it.n);          // all selected classes: shared items show true totals
+        const haveN = invCount(it.n);
+        const covered = dCls.need === 0 && dCls.coveredBy.length > 0;
+        const done = covered || (dAll.total > 0 ? haveN >= dAll.total : invHas(it.n));
         const row = document.createElement('div');
-        row.className = 'q-it' + (have ? ' have' : '');
-        row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') + '</span><span class="nm itemlink"></span><span class="loc"></span>';
-        row.querySelector('.nm').textContent = it.n + (it.q > 1 ? ' ×' + it.q : '');
-        row.querySelector('.loc').textContent = (it.u ? '⚠ ' : '') + it.src;
-        row.title = it.src + (it.u ? ' — the wiki marks this entry unverified' : '') + ' — click the name for item details';
+        row.className = 'q-it' + (covered ? ' covered' : done ? ' have' : '');
+        row.innerHTML = '<span class="box">' + (done ? '☑' : '☐') + '</span><span class="nm itemlink"></span><span class="cnt"></span><span class="loc"></span>';
+        row.querySelector('.nm').textContent = it.n;
+        if (!covered && dAll.total > 1)
+          row.querySelector('.cnt').textContent = Math.min(haveN, dAll.total) + '/' + dAll.total +
+            (dAll.per.filter(p => p.need).length > 1 ? ' (shared)' : '');
+        row.querySelector('.loc').textContent = covered
+          ? '✔ ' + dCls.coveredBy[0]
+          : (it.u ? '⚠ ' : '') + it.src;
+        row.title = (covered
+          ? 'Covered: ' + dCls.coveredBy.join(', ') + ' — this ingredient only exists to make that.'
+          : it.src + (it.u ? ' — the wiki marks this entry unverified' : ''))
+          + ' — click the name for item details, the checkbox to tick off a turn-in the inventory file can\'t see';
         row.querySelector('.nm').addEventListener('click', (ev) => { ev.stopPropagation(); openItemLink(it.n); });
+        row.querySelector('.box').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          toggleEpicTick(cls, it.n);
+          renderQuests();
+        });
+        row.insertBefore(wishStar(it.n), row.querySelector('.loc'));
         box.appendChild(row);
       }
       const note = document.createElement('div');
@@ -3022,6 +3575,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     when.textContent = bisOverride ? 'list updated ' + fmtAge(bisOverride.updated) : 'built-in list (' + BISDB.CAPTURED + ')';
     bar.append(sel, upd, when);
     list.appendChild(bar);
+    const ofB = outfileBar(['inventory']);   // ☑ owned marks read your inventory export
+    if (ofB) list.appendChild(ofB);
 
     const cls = sel.value;
     const data = bisData()[cls] || {};
@@ -3044,8 +3599,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           '<span style="color:#9ab;font-size:9.5px;white-space:nowrap">' + stats + '</span><span class="loc"></span>';
         row.querySelector('.nm').textContent = it.n;
         row.querySelector('.loc').textContent = it.src;
-        row.title = (it.sp ? it.sp + ' — ' : '') + it.src;
+        row.title = (it.sp ? it.sp + ' — ' : '') + it.src + ' — ☆ stars it onto your wish list';
         row.querySelector('.nm').addEventListener('click', (ev) => { ev.stopPropagation(); openItemLink(it.n); });
+        row.insertBefore(wishStar(it.n), row.querySelector('.loc'));
         list.appendChild(row);
       }
     }
@@ -3188,20 +3744,29 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     list.appendChild(creditLine(UNL.CREDITS[1]));
   }
 
-  // ---------- needed-item engine: epic/BiS/grind drops get toasts + KEEP ----------
-  function neededExtraVerdict(key) {
-    for (const cls of qSelClasses()) {
-      const epicName = (EPICDB.EPICS[cls] && EPICDB.EPICS[cls].epic) || 'their epic';
-      const hit = epicItemsFor(cls).find(it => it.n.toLowerCase() === key);
-      if (hit && !invHas(hit.n)) {
-        return { kind: 'keep', label: 'KEEP', reason: 'epic prep: ' + epicName + ' (' + cls + ')', toast: '⚔ Epic prep: ' + hit.n + ' — needed for ' + epicName + ' (' + cls + ')' };
-      }
+  // ---------- needed-item engine: epic/grind/BiS drops get toasts + KEEP ----------
+  function neededExtraVerdict(key, displayName) {
+    const shown = displayName || key;
+    // epic prep — the demand engine covers recipes, shared items and ×N counts
+    const d = epicDemand(key);
+    if (d.total > 0 && d.have < d.total) {
+      const who = d.per.filter(p => p.need);
+      const epicName = who.length ? ((EPICDB.EPICS[who[0].cls] || {}).epic || 'epic') : 'epic';
+      const clsTxt = who.map(p => p.cls).join(' + ');
+      const cnt = d.total > 1 ? ' — ' + d.have + '/' + d.total : '';
+      return { kind: 'keep', label: 'KEEP',
+               reason: 'epic prep: ' + epicName + ' (' + clsTxt + ')' + cnt,
+               toast: '⚔ Epic prep: ' + shown + ' — needed for ' + epicName + ' (' + clsTxt + ')' + cnt };
     }
-    if (UNL.GRIND_ITEMS.some(n => n.toLowerCase() === key)) {
-      return { kind: 'keep', label: 'KEEP', reason: 'race-unlock faction turn-in', toast: null };
+    // race-unlock turn-ins, only while a faction that eats them isn't maxed
+    const g = grindItemNeed(key);
+    if (g) {
+      const cnt = g.total ? ' (' + g.have + '/' + g.total + ')' : '';
+      return { kind: 'keep', label: 'KEEP', reason: 'faction turn-in — ' + g.faction + cnt, toast: null };
     }
+    // BiS: opt-in (settings toggle, off by default), your class only
     const cls = settings && settings.bisClass;
-    if (cls && bisData()[cls]) {
+    if (settings.bisFlag && cls && bisData()[cls]) {
       for (const [slot, items] of Object.entries(bisData()[cls])) {
         const hit = items.find(it => it.n.toLowerCase() === key);
         if (hit && !invHas(hit.n)) {
@@ -3213,6 +3778,73 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   }
 
   $('l-cleanup').addEventListener('click', () => window.overlay.openCleanup());
+
+  // ================= zone-needs panel =================
+  // Everything still obtainable in the CURRENT zone, grouped by why you need
+  // it. Lives in its own slim window (persistent + minimizable); this side
+  // builds the rows and pushes them whenever anything relevant changes.
+  let needsOpen = false;
+  $('l-needs').addEventListener('click', () => window.overlay.openNeeds());
+
+  function buildZoneNeeds() {
+    if (!currentZone) return { zone: '', rows: [] };
+    // candidate items obtainable here: your own loot DB + the wiki's zone page
+    const sources = new Map(); // norm name -> { item, mobs: Set }
+    const addSrc = (item, mob) => {
+      if (!item) return;
+      const k = normItemName(item);
+      let e = sources.get(k);
+      if (!e) sources.set(k, e = { item, mobs: new Set() });
+      if (mob) e.mobs.add(mob);
+    };
+    for (const m of Object.values(lootDB.mobs || {})) {
+      if ((m.zone || '') !== currentZone) continue;
+      for (const d of Object.values(m.drops || {})) addSrc(d.name, m.name);
+    }
+    for (const n of (zoneData && zoneData.named) || [])
+      for (const d of n.drops || []) addSrc(d.item, n.mob === '(zone drops)' ? '' : n.mob);
+    const rows = [];
+    for (const { item, mobs } of sources.values()) {
+      const key = verdictKey(item);
+      if (wishList[key]) {                                  // ⭐ starred gear
+        if (!invHas(item)) rows.push({ g: 'wish', item, mobs: [...mobs] });
+        continue;
+      }
+      const d = epicDemand(item);                           // ⚔ epic pieces
+      if (d.total > 0 && d.have < d.total) {
+        const who = d.per.filter(p => p.need).map(p => p.cls).join(' + ');
+        rows.push({ g: 'epic', item, have: d.have, need: d.total, mobs: [...mobs],
+                    reason: ((EPICDB.EPICS[(d.per[0] || {}).cls] || {}).epic || 'epic') + ' (' + who + ')' });
+        continue;
+      }
+      const g = grindItemNeed(key);                         // 🔓 unlock mats
+      if (g && (!g.total || g.have < g.total))
+        rows.push({ g: 'unlock', item, have: g.have, need: g.total || 0,
+                    faction: g.faction, mobs: [...mobs] });
+    }
+    const order = { wish: 0, epic: 1, unlock: 2 };
+    rows.sort((a, b) => (order[a.g] - order[b.g]) || a.item.localeCompare(b.item));
+    return { zone: currentZone, rows };
+  }
+
+  function pushNeeds(flash) {
+    if (!needsOpen) return;
+    const p = buildZoneNeeds();
+    p.scale = (settings && settings.textScale) || 'normal';
+    if (flash) p.flash = flash;
+    window.overlay.needsPush(p);
+  }
+
+  window.overlay.onNeedsState((open) => {
+    needsOpen = open;
+    if (open) pushNeeds();
+  });
+  window.overlay.onNeedsCmd((cmd) => {
+    if (!cmd) return;
+    if (cmd.kind === 'refresh') pushNeeds();
+    else if (cmd.kind === 'item' && cmd.name) openItem(cmd.name);
+    else if (cmd.kind === 'wish' && cmd.name) toggleWish(cmd.name);
+  });
 
   // ================= copy buttons =================
   (() => {
@@ -3269,9 +3901,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   $('afk-btn').addEventListener('click', () => {
     afkMode = !afkMode;
     $('afk-btn').classList.toggle('on', afkMode);
+    $('afk-btn2').classList.toggle('on', afkMode);   // the locked-mode twin
     if (!afkMode) stopAfkAlarm();
     toast(afkMode ? '😴 AFK watch ON — will alert if you\'re attacked' : '👋 AFK watch off, welcome back');
   });
+  $('afk-btn2').addEventListener('click', () => $('afk-btn').click());
 
   setInterval(() => { // repeating siren while the alarm is active
     if (afkAlarm && afkMode) {
@@ -3355,7 +3989,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         window.dispatchEvent(new MouseEvent('mousemove', { clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 }));
         return id + '=' + interactiveNow;
       };
-      console.log('LOCKTEST ' + ['l-run', 'l-export', 'afk-btn', 'unlock-btn', 'l-coin'].map(probe).join(' '));
+      console.log('LOCKTEST ' + ['l-run', 'l-export', 'afk-btn2', 'unlock-btn', 'l-coin', 'bb-run'].map(probe).join(' '));
       return;
     }
     if (tab === 'qlive') { // dev-only: epics view with injected live wiki data
@@ -3367,13 +4001,13 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           { n: 'LIVE-DATA-MARKER Sword', src: 'proves the live override renders', u: true }
         ] } };
       setTab('quests');
-      $('q-zone').value = '__epics';
+      setQuestView('__epics');
       renderQuests();
       return;
     }
     if (tab === 'repdemo') { // dev-only: unlocks view w/ rep counters (needs real faction+ach files)
       setTab('quests');
-      $('q-zone').value = '__unlocks';
+      setQuestView('__unlocks');
       unlExpanded.add('races|Race Unlock - Dwarf');
       renderQuests();
       return;
@@ -3385,7 +4019,112 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       setTab('meter');
       return;
     }
+    if (tab === 'needsdemo') { // dev-only: seed state for the zone-needs panel
+      currentZone = 'Upper Guk';
+      zoneData = { named: [
+        { mob: 'The froglok shin lord', boss: true, drops: [{ item: 'Ghoulbane' }] },
+        { mob: 'a froglok noble', drops: [{ item: 'Shiny Brass Idol' }] }
+      ] };
+      rebuildNamedSet();
+      settings.posClasses = ['Shadow Knight'];
+      wishList[verdictKey('Shiny Brass Idol')] = { name: 'Shiny Brass Idol', added: Date.now() };
+      lootDB.mobs['Upper Guk|a gnoll elite'] = { name: 'a gnoll elite', zone: 'Upper Guk', kills: 12,
+        drops: { 'gnoll fang': { name: 'Gnoll Fang', count: 9 } } };
+      lootedLive.set(normItemName('Gnoll Fang'), 437);
+      needsDirty = true;
+      setTab('loot');
+      return;
+    }
+    if (tab === 'logindemo') { // dev-only: the fresh-session outputfile reminder
+      loginAt = Date.now();
+      loginReminded = false;
+      maybeLoginReminder();
+      setTab('meter');
+      return;
+    }
+    if (tab === 'timerdemo') { // dev-only: respawn pedigrees + a spawn window
+      currentZone = 'Lower Guk';
+      respawnDB['Lower Guk|the ghoul arch magus'] = { s: 1230, src: 'learned', n: 5, samples: [1200, 1230, 1260, 1225, 1235] };
+      respawnDB['Lower Guk|a ghoul sentinel'] = { s: 420, src: 'learned', n: 1, samples: [420] };
+      respawnDB['Lower Guk|the froglok king'] = { min: 900, max: 1800, s: 1350, src: 'learned', n: 4, samples: [900, 1200, 1500, 1800] };
+      respawnDB['Lower Guk|a reanimated hand'] = { s: 400, src: 'manual', manual: '6:40' };
+      const base = Date.now();
+      for (const [m, ago] of [['the ghoul arch magus', 300], ['a ghoul sentinel', 100], ['the froglok king', 1000], ['a reanimated hand', 250]])
+        timers.set(m, { mob: m, zone: currentZone, lastDeath: base - ago * 1000, resp: resolveRespawn(m), pinned: m === 'the froglok king', notified: false, windowNotified: true, phs: new Set() });
+      setTab('timers');
+      return;
+    }
     if (tab === 'notes') { $('notes-text').value = 'Test note: /tasko reopens the crawl tracker.'; setTab('notes'); return; }
+    if (tab === 'settings') { document.body.classList.add('settings-open'); return; } // dev-only
+    if (tab === 'verify') { // dev-only: logic assertions, results on the console
+      const out = [];
+      const chk = (name, cond, extra) => out.push((cond ? 'PASS' : 'FAIL') + ' ' + name + (extra !== undefined ? ' = ' + JSON.stringify(extra) : ''));
+      try {
+        // respawn learning: cluster/median, window detection, outlier drop
+        currentZone = 'VerifyZone'; currentZoneVariant = '';
+        for (const m of ['steady mob', 'window mob', 'outlier mob', 'pen mob'])
+          delete respawnDB['VerifyZone|' + m];   // idempotent across runs
+        for (const g of [600, 610, 590, 605]) learnGap('steady mob', g);
+        const e1 = respawnDB['VerifyZone|steady mob'];
+        chk('learnGap fixed median', e1 && !e1.min && e1.s >= 600 && e1.s <= 610 && e1.n === 4, e1 && e1.s);
+        for (const g of [900, 1500, 1200]) learnGap('window mob', g);
+        const e2 = respawnDB['VerifyZone|window mob'];
+        chk('learnGap spawn window', e2 && e2.min === 900 && e2.max === 1500, e2 && [e2.min, e2.max]);
+        for (const g of [600, 610, 1900]) learnGap('outlier mob', g);
+        const e3 = respawnDB['VerifyZone|outlier mob'];
+        chk('learnGap outlier dropped', e3 && !e3.min && e3.s <= 620, e3 && e3.s);
+        // manual override parsing + revert
+        chk('manual 6:40', setManualRespawn('pen mob', '6:40') && respawnDB['VerifyZone|pen mob'].s === 400);
+        chk('manual 15-30 window', setManualRespawn('pen mob', '15-30') &&
+            respawnDB['VerifyZone|pen mob'].min === 900 && respawnDB['VerifyZone|pen mob'].max === 1800);
+        chk('manual beats learning', (learnGap('pen mob', 333) || {}).src === 'manual');
+        chk('manual revert', setManualRespawn('pen mob', '') && !(respawnDB['VerifyZone|pen mob'] || {}).manual);
+        // epic demand engine against the REAL inventory file (Darkforge owned)
+        const d1 = epicClassDemand('Shadow Knight', 'Decayed Chainmail');
+        chk('Decayed Chainmail covered by owned Darkforge BP', d1.need === 0 && d1.coveredBy.length > 0, d1.coveredBy[0]);
+        const d2 = epicClassDemand('Shadow Knight', 'Damaged Militia Helm');
+        chk('Militia Helms covered by owned Darkforge Helm', d2.need === 0 && d2.coveredBy.length > 0);
+        const d3 = epicClassDemand('Shadow Knight', 'Enchanted Platinum Bar');
+        chk('EPB still needs 1 for the Decrepit Sheath', d3.need === 1 && d3.coveredBy.length === 1, d3);
+        const d4 = epicClassDemand('Shadow Knight', 'Ghoulbane');
+        chk('Ghoulbane needed (no Corrupted Ghoulbane)', d4.need === 1);
+        // manual tick-off covers a turn-in
+        toggleEpicTick('Shadow Knight', 'Ghoulbane');
+        chk('ticked Ghoulbane now covered', epicClassDemand('Shadow Knight', 'Ghoulbane').need === 0);
+        toggleEpicTick('Shadow Knight', 'Ghoulbane');
+        // shared demand across classes (SK + MAG both list an item? use epicDemand with explicit classes on EPB)
+        const dd = epicDemand('Enchanted Platinum Bar', ['Shadow Knight']);
+        chk('epicDemand totals + have from inventory', dd.total === 1 && typeof dd.have === 'number', dd.have);
+        // items whose only copy sits in the trailing Equipment/KeyRing section
+        // (equipped gear with upgrade suffixes) must still COUNT as owned
+        const dSL = epicClassDemand('Shadow Knight', 'Soul Leech, Dark Sword of Blood');
+        chk('Soul Leech +5 (Equipment section) counts as owned',
+            invCount('Soul Leech, Dark Sword of Blood') >= 1 &&
+            (dSL.need === 0 || invCount('Soul Leech, Dark Sword of Blood') >= dSL.need),
+            invCount('Soul Leech, Dark Sword of Blood'));
+        chk('Ball of Everliving Golem +7 counts as owned', invCount('Ball of Everliving Golem') >= 1,
+            invCount('Ball of Everliving Golem'));
+        // live loot counters
+        lootedLive.set(normItemName('Gnoll Fang'), (lootedLive.get(normItemName('Gnoll Fang')) || 0) + 3);
+        chk('invCount merges live loot', invCount('Gnoll Fang') >= 3, invCount('Gnoll Fang'));
+        const g1 = grindItemNeed(verdictKey('Gnoll Fang'));
+        chk('grindItemNeed counts vs total', !!g1 && g1.total === 1200 && g1.have >= 3, g1 && g1.have + '/' + g1.total);
+        // clock + quest view state
+        chk('fmtClock m:ss', fmtClock(62000) === '1:02', fmtClock(62000));
+        chk('fmtClock h:mm:ss', fmtClock(3723000) === '1:02:03', fmtClock(3723000));
+        setQuestView('__bis');
+        chk('quest chips drive the view', questZone() === '__bis');
+        setQuestView('');
+        // BiS stays quiet unless the flag is on
+        settings.bisFlag = false; settings.bisClass = 'Shadow Knight';
+        const quiet = neededExtraVerdict(verdictKey('Umbral Platemail Breastplate'), 'Umbral Platemail Breastplate');
+        chk('BiS silent with flag off', !quiet || quiet.label !== 'BiS');
+      } catch (err) { out.push('FAIL exception: ' + err.message); }
+      for (const line of out) console.log('VERIFY|' + line);
+      console.log('VERIFY|DONE ' + out.filter(l => l.startsWith('PASS')).length + '/' + out.length);
+      return;
+    }
+    if (tab.startsWith('qscroll:')) { $('q-list').scrollTop = +tab.slice(8) || 0; return; } // dev-only
     if (tab === 'copydemo') { console.log('COPYCHAT|' + copyMeter(false)); console.log('COPYFULL|' + copyMeter(true)); setTab('meter'); return; }
     if (tab === 'xpdemo') { // dev-only: XP strip with a session's worth of gains
       handleLogLines([
@@ -3417,7 +4156,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (tab === 'exaltdemo') { // dev-only: exaltations effect list
       exaltIndex = { types: { Focus: ['Affliction Haste I', 'Burning Affliction III', 'Improved Damage II', 'Mana Preservation II'], Worn: ['Flowing Thought I'], Proc: ['Anarchy'], Clicky: ['Levitation'] }, updated: Date.now() };
       exaltSel = null;
-      setTab('quests'); $('q-zone').value = '__exalts'; renderQuests();
+      setTab('quests'); setQuestView('__exalts'); renderQuests();
       return;
     }
     if (tab === 'exaltdemo2') { // dev-only: effect detail with stubbed items
@@ -3426,7 +4165,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         desc: 'Reduces the mana cost of spells by up to 10%. This bonus will decay on spells over level 44.',
         items: ['Black Alloy Medallion', 'Mane Attraction', 'Nisch Mas Ilkvel'] });
       exaltSel = 'Mana Preservation II';
-      setTab('quests'); $('q-zone').value = '__exalts'; renderQuests();
+      setTab('quests'); setQuestView('__exalts'); renderQuests();
       return;
     }
     if (tab === 'cleanseed') { // dev-only: seed item knowledge so cleanup shows quest chips / ts / gear
@@ -3439,20 +4178,21 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (tab === 'datastale') { // dev-only: show the stale-data banner + status line
       dataStaleLabels = ['Epic checklists', 'Race unlock guide'];
       setTab('quests');
-      $('q-zone').value = '__epics';
+      setQuestView('__epics');
       renderQuests();
       return;
     }
     if (tab.startsWith('unlockx:')) { // dev-only: expand one race unlock row
       unlExpanded.add('races|Race Unlock - ' + tab.slice(8));
       setTab('quests');
-      $('q-zone').value = '__unlocks';
+      setQuestView('__unlocks');
       renderQuests();
       return;
     }
     if (tab.startsWith('qview:')) { // dev-only: 'qview:__unlocks' / '__epics' / '__bis' / zone name
       setTab('quests');
-      $('q-zone').value = tab.slice(6);
+      const v = tab.slice(6);
+      if (/^__/.test(v)) setQuestView(v); else { setQuestView(''); $('q-zone').value = v; }
       renderQuests();
       return;
     }
@@ -3491,9 +4231,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
                level: 0, sinceDing: 0, dingSeen: false, aaGained: 0, aaTotal: 0 };
 
   function renderXpStrip() {
-    const el = $('c-xp');
-    if (!xp.kills && !xp.aaGained) { el.style.display = 'none'; return; }
-    el.style.display = 'block';
+    // lives on the bottom bar now, visible on every tab
+    const el = $('bb-xp');
+    if (!xp.kills && !xp.aaGained) { el.textContent = ''; $('bb-reset').style.display = 'none'; return; }
+    $('bb-reset').style.display = 'inline-block';
     const bits = [];
     const hrs = xp.first && xp.last > xp.first ? (xp.last - xp.first) / 3600000 : 0;
     if (xp.pct > 0) {
@@ -3516,10 +4257,17 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       if (xp.aaTotal) a += ' · ' + xp.aaTotal + ' total';
       bits.push(a);
     }
-    if (!bits.length) { el.style.display = 'none'; return; } // capped, no AA yet — nothing to say
-    el.textContent = bits.join('   ·   ');
-    el.title = 'Session XP from your log. The percent is the game’s own per-kill share of your current level bar; the level position and time-to-level appear once a level-up has been seen this session.';
+    if (!bits.length) { el.textContent = ''; return; } // capped, no AA yet — nothing to say
+    el.textContent = bits.join('  ·  ');
+    el.title = el.textContent + '\n\nSession XP from your log. The percent is the game’s own per-kill share of your current level bar; the level position and time-to-level appear once a level-up has been seen this session. ↺ resets the pace counters.';
   }
+
+  $('bb-reset').addEventListener('click', () => {
+    xp.pct = 0; xp.kills = 0; xp.noPct = 0; xp.first = 0; xp.last = 0; xp.aaGained = 0;
+    // level, sinceDing, dingSeen and aaTotal survive — only the pace resets
+    renderXpStrip();
+    toast('↺ XP/AA pace reset — level position and AA total kept');
+  });
 
   // meter rows exactly as displayed (pets folded into You when the setting is on)
   function meterRowsForCopy() {
@@ -3798,12 +4546,33 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     return (h ? h + 'h ' : '') + (m % 60) + 'm ' + (s % 60) + 's';
   };
 
-  $('l-run').addEventListener('click', () => {
+  // compact h:mm:ss / m:ss clock for the bottom-bar run button
+  const fmtClock = (ms) => {
+    const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
+    return (h ? h + ':' + String(m % 60).padStart(2, '0') : String(m)) + ':' + String(s % 60).padStart(2, '0');
+  };
+
+  // the Loot-tab button and the bottom-bar button drive the same run
+  function updateRunButtons() {
+    const bb = $('bb-run'), lr = $('l-run');
+    if (lootRun) {
+      const clock = fmtClock(Date.now() - lootRun.startedAt);
+      bb.textContent = '⏹ End run · ' + clock;
+      bb.classList.add('running');
+      lr.innerHTML = '⏹ End run';
+      lr.classList.add('gold');
+    } else {
+      bb.textContent = '▶ Start run';
+      bb.classList.remove('running');
+      lr.innerHTML = '▶ Start run';
+      lr.classList.remove('gold');
+    }
+  }
+
+  function toggleRun() {
     if (!lootRun) {
       lootRun = { startedAt: Date.now(), coin: 0, items: new Map(), rares: new Map() };
-      $('l-run').innerHTML = '⏹ End run';
-      $('l-run').classList.add('gold');
-      toast('▶ Run started — tracking loot, coin & rare kills until you end it');
+      toast('▶ Run started — tracking loot, coin, motes & rare kills until you end it');
       // zone data parsed before the boss/named extraction existed (or never
       // fetched): refresh it once so the rare checklist is complete
       if (currentZone && (!zoneData || (zoneData.parserV || 0) < 2))
@@ -3814,15 +4583,16 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       lootRunHistory = lootRunHistory.slice(0, 8);
       const r = lootRun;
       lootRun = null;
-      $('l-run').innerHTML = '▶ Start run';
-      $('l-run').classList.remove('gold');
       const items = [...r.items.values()].reduce((a, b) => a + b, 0);
       toast('⏹ Run ended — ' + (fmtCoin(r.coin) || 'no coin') + ' · ' + items + ' items' +
             (r.rares && r.rares.size ? ' · ' + r.rares.size + ' rare' + (r.rares.size === 1 ? '' : 's') : '') +
             ' · ' + fmtRunDur(r.endedAt - r.startedAt));
     }
+    updateRunButtons();
     renderLoot();
-  });
+  }
+  $('l-run').addEventListener('click', toggleRun);
+  $('bb-run').addEventListener('click', toggleRun);
 
   let runListOpen = false;   // full item list expanded?
 
@@ -3831,19 +4601,20 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const items = [...r.items.values()].reduce((a, b) => a + b, 0);
     const moteRows = [...r.items.entries()].filter(([n]) => /mote/i.test(n)).sort((a, b) => b[1] - a[1]);
     const motes = moteRows.reduce((a, [, c]) => a + c, 0);
+    const motesHr = motes && dur > 30000 ? (motes * 3600000 / dur).toFixed(1) : '';
     const rares = r.rares ? r.rares.size : 0;
     const known = live ? knownRares().length : 0;
     let text;
     if (!full) {
       text = 'Run ' + fmtRunDur(dur) + ' — ' + (fmtCoin(r.coin) || 'no coin') + ' · ' + items + ' items' +
-        (motes ? ' · ' + motes + ' motes' : '') +
+        (motes ? ' · ' + motes + ' motes' + (motesHr ? ' (' + motesHr + '/hr)' : '') : '') +
         (rares || known ? ' · rares ' + rares + (known ? '/' + Math.max(known, rares) : '') : '');
     } else {
       const lines = ['SEQO run — ' + fmtRunDur(dur) + (live ? ' (live)' : '') +
                      ' · ' + (fmtCoin(r.coin) || 'no coin') +
                      (dur > 30000 && r.coin ? ' (' + fmtCoin(Math.round(r.coin * 3600000 / dur)) + '/hr)' : '')];
       if (moteRows.length)
-        lines.push('Motes (' + motes + '): ' + moteRows.map(([n, c]) => n + ' ×' + c).join(', '));
+        lines.push('Motes (' + motes + (motesHr ? ' · ' + motesHr + '/hr' : '') + '): ' + moteRows.map(([n, c]) => n + ' ×' + c).join(', '));
       if (r.rares && r.rares.size)
         lines.push('Rares down (' + r.rares.size + '): ' + [...r.rares.entries()]
           .map(([n, c]) => n + (c > 1 ? ' ×' + c : '')).join(', '));
@@ -3886,13 +4657,15 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       const moteRows = [...r.items.entries()].filter(([n]) => /mote/i.test(n))
         .sort((a, b) => b[1] - a[1]);
       const motes = moteRows.reduce((a, [, c]) => a + c, 0);
+      const motesHr = motes && dur > 30000 ? (motes * 3600000 / dur) : 0;
       const perHr = dur > 30000 && r.coin ? Math.round(r.coin * 3600000 / dur) : 0;
       const d = document.createElement('div');
       d.style.cssText = 'background:rgba(255,215,102,' + (live ? '.10' : '.05') + ');border:1px solid rgba(255,215,102,.3);border-radius:6px;padding:4px 8px;margin-bottom:4px';
       const h = document.createElement('div');
       h.style.cssText = 'display:flex;gap:10px;font-size:11px;flex-wrap:wrap;color:' + (live ? '#ffd766' : '#cfc9a8');
       h.innerHTML = '<b></b><span style="color:#7dffa0"></span>' +
-        (motes ? '<span class="rmotes" style="color:#7da7d9;cursor:help">✨ ' + motes + ' mote' + (motes === 1 ? '' : 's') + '</span>' : '') +
+        (motes ? '<span class="rmotes" style="color:#7da7d9;cursor:help">✨ ' + motes + ' mote' + (motes === 1 ? '' : 's') +
+                 (motesHr ? ' (' + motesHr.toFixed(1) + '/hr)' : '') + '</span>' : '') +
         '<span></span>' + (perHr ? '<span>' + fmtCoin(perHr) + ' /hr</span>' : '') +
         '<span class="rtoggle" style="margin-left:auto;cursor:pointer;color:#9ab"></span>';
       const sp = h.querySelectorAll('b,span:not(.rtoggle)');
@@ -4127,10 +4900,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     $('k-zonename').textContent = 'Zone: ' + (zone || 'unknown');
     if (activeTab === 'map') drawMap();
     // Quests tab in auto mode follows you as you zone
-    if (activeTab === 'quests' && !$('q-zone').value) renderQuests();
+    if (activeTab === 'quests' && !qView && !$('q-zone').value) renderQuests();
     wishZoneCheck(zone);
     zoneData = zone ? await window.overlay.getZoneData(zone) : null;
     rebuildNamedSet();
+    needsDirty = true;   // the zone-needs panel follows you between zones
     if (!zoneData && zone && autoFetch && settings && settings.autoZoneUpdate) {
       updateZoneNow();
       return;
@@ -4168,6 +4942,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (res && res.error) { setStatus('⚠ ' + res.error); return; }
     zoneData = res;
     rebuildNamedSet();
+    needsDirty = true;
     setStatus('');
     renderZone();
   }
@@ -4211,6 +4986,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           s.textContent = seen.count + '/' + lk.kills + ' (' + Math.round(seen.count / lk.kills * 100) + '%)';
           row.appendChild(s);
         }
+        row.appendChild(wishStar(d.item));
         row.addEventListener('click', () => openItem(d.page || d.item));
         el.appendChild(row);
       }
@@ -4277,41 +5053,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       div.querySelector('b').textContent = r.name;
       div.querySelector('.d').textContent = '— ' + r.detail;
       div.addEventListener('click', () => openItem(r.page || r.itemName || r.name));
+      if (r.kind !== 'mob') div.appendChild(wishStar(r.page || r.itemName || r.name));
       el.appendChild(div);
     }
-  }
-
-  // ---- upgrade tier math (from the wiki's Item Upgrade System page):
-  // stats gain a cumulative 10% per tier (weapon DMG 5%/tier), each tier
-  // guarantees at least +1; delay never changes; weight shrinks, floor 0.1.
-  // Per the wiki's Item Upgrade System page (re-verified 2026-09-28):
-  //   stats +10% of base per tier · weapon DMG +5%/tier · ACCURACY +2.5%/tier
-  //   all values ROUND DOWN ("42.9 AC becomes 42") · +1 minimum per tier
-  //   delay never changes · weight -10%/tier, floor 0.1.
-  // In game the bonus also grows with item EXPERIENCE between tiers, so a
-  // +3 item halfway to +4 reads higher than the flat +3 numbers here.
-  const SCALE_STATS = /\b(AC|HP|MANA|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON))(:\s*\+?)(\d+)/gi;
-  function scaledStats(block, T) {
-    if (!T) return block;
-    let out = block.replace(SCALE_STATS, (all, stat, sep, num) => {
-      const base = +num;
-      const v = Math.max(Math.floor(base * (1 + 0.10 * T)), base + T);
-      return stat + sep + v;
-    });
-    out = out.replace(/\b(DMG)(:\s*\+?)(\d+)/gi, (all, stat, sep, num) => {
-      const base = +num;
-      const v = Math.max(Math.floor(base * (1 + 0.05 * T)), base + T);
-      return stat + sep + v;
-    });
-    out = out.replace(/\b(ACCURACY)(:\s*\+?)(\d+)/gi, (all, stat, sep, num) => {
-      const v = Math.floor(+num * (1 + 0.025 * T));
-      return stat + sep + v;
-    });
-    out = out.replace(/\b(WT)(:\s*)([\d.]+)/gi, (all, stat, sep, num) => {
-      const v = Math.max(0.1, +(+num * (1 - 0.10 * T)).toFixed(1));
-      return stat + sep + v;
-    });
-    return out;
   }
 
   // open an item's lookup page from anywhere (loot tab, zone list, search)
@@ -4407,8 +5151,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         if (m.level) t.level = m.level;
         for (const s of m.spells || []) t.spells.add(s);
       }
-      const rs = respawnDB[(m.zone || '') + '|' + m.name];
-      if (rs) a.respawns.push({ tier: tier || 'D0 (base)', s: rs });
+      const rs = normRespawn(respawnDB[(m.zone || '') + '|' + m.name]);
+      if (rs && rs.src !== 'wiki') a.respawns.push({ tier: tier || 'D0 (base)', e: rs });
     }
     return [...agg.values()]
       .filter(a => a.kills > 0 || a.tiers.size)
@@ -4443,7 +5187,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       t += '|}\n';
     }
     for (const r of a.respawns) {
-      t += '* Respawn at ' + r.tier + ': ~' + fmtDur(r.s) + ' (measured from kill-to-kill cycles)\n';
+      const e = r.e;
+      const txt = e.min && e.max && e.max > e.min
+        ? fmtDur(e.min) + '–' + fmtDur(e.max) + ' window'
+        : '~' + fmtDur(e.s);
+      const how = e.src === 'manual' ? 'set by hand' : 'measured from ' + (e.n || 1) + ' kill-to-kill cycle' + ((e.n || 1) === 1 ? '' : 's');
+      t += '* Respawn at ' + r.tier + ': ' + txt + ' (' + how + ')\n';
     }
     return t.trim();
   }
@@ -4456,12 +5205,6 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // the wiki's own difficulty terminology ([[Difficulty Level]]: D0-D4)
   const TIER_LABELS = { 'Awakened': 'D1 (Awakened)', 'Adaptive': 'D2 (Adaptive)',
                         'Fused': 'D3 (Fused)', 'Refined': 'D4 (Refined)' };
-  function zoneHeading(z) {
-    const m = /^(.*) \(([^)]+)\)$/.exec(z);
-    if (m && TIER_LABELS[m[2]]) return m[1] + ' — Difficulty ' + TIER_LABELS[m[2]];
-    return z;
-  }
-
   function generateWikitext() {
     const mobs = aggregatedMobs();
     if (!mobs.length) return 'No drop data recorded yet — kill and loot some mobs first.';
@@ -4805,6 +5548,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (cleanupDirty && cleanupActive && !cleanupScanning) {
       cleanupDirty = false;
       pushCleanup();
+      maybeAutoScan();   // new unknowns from fresh loot/inventory look themselves up
+    }
+    if (needsDirty && needsOpen) {
+      needsDirty = false;
+      pushNeeds();
     }
   }, 500);
 
@@ -4853,6 +5601,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     $('alertflash').checked = settings.alertFlash !== false;
     $('alertsound').checked = settings.alertSound !== false;
     $('buffalerts').checked = settings.buffAlerts !== false;
+    $('loginremind').checked = settings.loginReminder !== false;
+    $('bisflag').checked = !!settings.bisFlag;
+    $('textscale').value = settings.textScale === 'large' ? 'large' : 'normal';
     const vol = settings.alertVolume !== undefined ? settings.alertVolume : 60;
     $('alertvol').value = vol;
     $('alertvol-val').textContent = vol + '%';
@@ -4870,6 +5621,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     renderQuestClasses();
     if (activeTab === 'quests') renderQuests();
     document.body.classList.toggle('show-notes', !!settings.showNotes);
+    document.body.classList.toggle('large', settings.textScale === 'large');
+    // the Wiki export button only matters with a wiki account configured
+    $('l-export').style.display = (settings.wikiUser && settings.wikiPass) ? '' : 'none';
+    renderSyncLast(settings.lastSync);   // persistent sync record survives restarts
     if (settings.lastZone && !currentZone) setZone(settings.lastZone);
     rescale();
   }
@@ -4906,6 +5661,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   window.overlay.onLockState((v) => setLocked(v));
 
   // ================= toolbar =================
+  $('help-btn').addEventListener('click', () => window.overlay.openDock('help'));
   $('btn-settings').addEventListener('click', async () => {
     const opening = !document.body.classList.contains('settings-open');
     document.body.classList.toggle('settings-open');
@@ -4987,6 +5743,13 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   $('alertflash').addEventListener('change', (e) => save({ alertFlash: e.target.checked }));
   $('alertsound').addEventListener('change', (e) => save({ alertSound: e.target.checked }));
   $('buffalerts').addEventListener('change', (e) => save({ buffAlerts: e.target.checked }));
+  $('loginremind').addEventListener('change', (e) => save({ loginReminder: e.target.checked }));
+  $('bisflag').addEventListener('change', (e) => { save({ bisFlag: e.target.checked }); cleanupDirty = true; needsDirty = true; });
+  $('textscale').addEventListener('change', (e) => {
+    save({ textScale: e.target.value });
+    document.body.classList.toggle('large', e.target.value === 'large');
+    if (needsOpen) pushNeeds();
+  });
   let volPreviewAt = 0;
   $('alertvol').addEventListener('input', (e) => {
     save({ alertVolume: +e.target.value });
@@ -5042,11 +5805,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   });
   window.overlay.onAppUpdate((r) => {
     showUpdateResult(r);
-    alertFX('⬆ SEQO v' + r.latest + ' is available — click ⬆ Update in the tab strip', 'repop');
+    alertFX('⬆ SEQO v' + r.latest + ' is available — click the green ⬆ in the title bar', 'repop');
     // persistent, clickable — a toast is easy to miss
     const b = $('upd-btn');
     b.style.display = '';
     b.textContent = '⬆ v' + r.latest;
+    b.title = 'SEQO v' + r.latest + ' is available — click to open the download page';
     b.onclick = () => window.overlay.openExternal(r.url || 'https://github.com/' + (settings.updateRepo || 'RealMaeel/seqo') + '/releases/latest');
   });
 
@@ -5155,12 +5919,50 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     await afterQuestUpdate(r, true);
   });
   window.overlay.onQuestDataUpdated((r) => afterQuestUpdate(r, true));
+  // sync status: a persistent "what happened last time" line, never a guess.
+  // Shows push/pull counts, named failures, and WHICH COMPUTER wrote last.
+  function renderSyncLast(summary) {
+    const el = $('sync-last');
+    if (!summary) { el.textContent = ''; return; }
+    const bits = [];
+    const moved = (summary.pushed || 0) + (summary.pulled || 0);
+    bits.push((summary.failed && summary.failed.length ? '⚠' : '✓') + ' Last sync ' + fmtAge(summary.at) +
+      ' on ' + (summary.host || 'this computer') + ' — ' +
+      (moved ? (summary.pushed ? '📤 ' + summary.pushed + ' pushed' : '') +
+               (summary.pushed && summary.pulled ? ' · ' : '') +
+               (summary.pulled ? '📥 ' + summary.pulled + ' pulled' : '')
+             : 'everything already in sync'));
+    if (summary.from && summary.from.host)
+      bits.push('📥 picked up changes from ' + summary.from.host +
+                (summary.from.at ? ' (written ' + fmtAge(summary.from.at) + ')' : ''));
+    else if (summary.pushed && !summary.pulled)
+      bits.push('📤 this computer now has the newest data');
+    if (summary.failed && summary.failed.length)
+      bits.push('⚠ failed: ' + summary.failed.join(' · '));
+    el.textContent = bits.join('\n');
+  }
+  const syncDoneText = (res) => {
+    const s = res.summary;
+    if (!s) return '✓ synced';
+    if (s.failed && s.failed.length) return '⚠ synced with ' + s.failed.length + ' failure' + (s.failed.length === 1 ? '' : 's');
+    if (s.pulled && s.from && s.from.host) return '✓ synced — picked up ' + s.pulled + ' from ' + s.from.host;
+    if (s.pushed) return '✓ synced — ' + s.pushed + ' pushed to the shared folder';
+    return '✓ synced — already up to date';
+  };
   $('btn-syncnow').addEventListener('click', async () => {
+    $('btn-syncnow').disabled = true;
+    $('sync-status').textContent = '⟳ syncing…';
     const res = await window.overlay.syncGameFiles();
-    $('sync-status').textContent = res.error ? '⚠ ' + res.error : (res.results || []).join(' · ');
+    $('btn-syncnow').disabled = false;
+    $('sync-status').textContent = res.error ? '⚠ ' + res.error : (res.results || []).join('\n');
+    if (res.summary) { renderSyncLast(res.summary); toast('🔄 ' + syncDoneText(res)); }
   });
-  window.overlay.onGamefilesSynced((results) => {
-    toast('🔄 Game files synced: ' + results.filter(r => !r.includes('in sync')).join(', '));
+  window.overlay.onGamefilesSynced((res) => {
+    const results = (res && res.results) || res || [];
+    if (res && res.summary) renderSyncLast(res.summary);
+    toast('🔄 ' + (res && res.summary ? syncDoneText(res) :
+      'Game files synced: ' + results.filter(r => !r.includes('in sync')).join(', ')));
+    $('sync-status').textContent = results.join('\n');
   });
   refreshSyncFiles();
 

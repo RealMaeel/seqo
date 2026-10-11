@@ -1,7 +1,7 @@
 {
   "name": "seqo",
   "productName": "SEQO",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "SEQO - Simple EQ Overlay for EverQuest Legends",
   "main": "main.js",
   "author": "Ed",
@@ -18,7 +18,10 @@
     "appId": "com.ed.seqo",
     "productName": "SEQO",
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "assets/icon.ico"
     },
     "nsis": {
@@ -44,6 +47,7 @@
       "buffs.js",
       "overlay.html",
       "dock.html",
+      "needs.html",
       "assets/**"
     ]
   }

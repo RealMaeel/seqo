@@ -39,6 +39,11 @@ const DEFAULT_SETTINGS = {
   buffWatch: 'Clarity = Your thoughts slow.\nSpirit of Wolf = You feel your feet slow.\nLevitate = You feel your feet touch the ground.',
   wikiUser: '',
   wikiPass: '',
+  bisFlag: false,          // BiS drops flagged in toasts/verdicts (opt-in, own class only)
+  textScale: 'normal',     // 'normal' | 'large' — fine-print size across overlay + docks
+  loginReminder: true,     // once-per-login "/outputfile ..." reminder toast
+  needsPanelOpen: false,   // zone-needs panel: restore open state across restarts
+  needsPanelMin: false,    // ... and its minimized state
   text: 'Notes: click to edit.'
 };
 
@@ -145,15 +150,74 @@ function createWindow() {
             'meter;breakdown;loot;lookup;item:Flowing Black Silk Sash;export').split(';');
           const wait = +(process.env.EQL_TEST_WAIT || 700);
           for (let i = 0; i < tabs.length; i++) {
-            if (tabs[i].startsWith('dockshot')) { // dev-only: open + screenshot the dock ('dockshot' or 'dockshot:item:Name')
+            if (tabs[i] === 'syncdemo') { // dev-only: sync status with a pull from "another computer"
+              settings.dataDir = '/tmp/eqshare';
+              settings.syncFiles = ['/tmp/eqfake/Maeel_neriak_LO1.ini'];
+              fs.mkdirSync('/tmp/eqshare/gamefiles', { recursive: true });
+              fs.writeFileSync('/tmp/eqshare/gamefiles/sync-marker.json',
+                JSON.stringify({ host: 'ED-DESKTOP', at: Date.now() - 20 * 60000 }));
+              fs.writeFileSync('/tmp/eqfake/Maeel_neriak_LO1.ini', 'local version');
+              await new Promise(r => setTimeout(r, 2100)); // mtime gap > the 2s tolerance
+              fs.writeFileSync('/tmp/eqshare/gamefiles/Maeel_neriak_LO1.ini', 'shared newer version');
+              const res = syncGameFiles();
+              console.log('SYNCVERIFY|' + JSON.stringify(res.summary) + '|' + (res.results || []).join(' ~ '));
+              if (win) win.webContents.send('gamefiles-synced', res);
+              await win.webContents.executeJavaScript(
+                'document.body.classList.add("settings-open");' +
+                '[...document.querySelectorAll("#settings details")].forEach((d,x)=>d.open=x===3);true');
+              await new Promise(r => setTimeout(r, wait));
+              await shot(String(i + 1).padStart(2, '0') + '-sync');
+              continue;
+            }
+            if (tabs[i].startsWith('needshot')) { // dev-only: open + screenshot the zone-needs panel ('needshot' or 'needshot:min')
+              openNeeds();
+              await new Promise(r => setTimeout(r, wait + 1200));
+              if (tabs[i] === 'needshot:min') {
+                settings.needsPanelMin = true;
+                if (needsWin && !needsWin.isDestroyed()) needsWin.webContents.send('needs-min', true);
+                snapDock();
+                await new Promise(r => setTimeout(r, 500));
+              }
+              if (needsWin && !needsWin.isDestroyed()) {
+                const img = await needsWin.webContents.capturePage();
+                fs.writeFileSync('/tmp/overlay-' + String(i + 1).padStart(2, '0') + '-needs.png', img.toPNG());
+              }
+              continue;
+            }
+            if (tabs[i].startsWith('dockshot')) { // dev-only: open + screenshot the dock ('dockshot', 'dockshot:item:Name', 'dockshot:help', 'dockshot:helptopic:N', 'dockshot:guide:Title[:Anchor]')
               const spec = tabs[i].slice(9);
               if (spec.startsWith('item:')) openDock('item', { name: spec.slice(5) });
+              else if (spec === 'help') openDock('help');
+              else if (spec.startsWith('helptopic:')) {
+                openDock('help');
+                await new Promise(r => setTimeout(r, 1000));
+                if (dockWin && !dockWin.isDestroyed())
+                  await dockWin.webContents.executeJavaScript('showHelpTopic(' + (+spec.slice(10) || 0) + ');true');
+              }
+              else if (spec.startsWith('guide:')) {
+                const [t, a] = spec.slice(6).split('|');
+                // the sandboxed test env has no network: seed a cached page
+                gameDB.guidePages = gameDB.guidePages || {};
+                if (!gameDB.guidePages[t]) gameDB.guidePages[t] = {
+                  pageTitle: t, revid: 1, updated: Date.now(),
+                  wikitext: '== Dwarf ==\n=== Requirements ===\n* Get maximum faction with [[Storm Guard]]\n' +
+                    '=== Recommended Method ===\n# Brew \'\'\'Tumpy Tonics\'\'\' from 800 [[Kiola Nut]]s and Flasks of Water.\n' +
+                    '# Hand them to Trantor Everhot in [[South Kaladim]] four at a time.\n' +
+                    '{| class="wikitable"\n! Item !! Total\n|-\n| Tumpy Tonic || 800\n|}\n'
+                };
+                openDock('guide', { title: t, anchor: a || undefined, label: t });
+              }
               else openDock('cleanup');
               await new Promise(r => setTimeout(r, wait + 1800));
               if (spec.startsWith('filter:') && dockWin && !dockWin.isDestroyed()) {
                 await dockWin.webContents.executeJavaScript(
                   'document.getElementById("filter").value=' + JSON.stringify(spec.slice(7)) +
                   ';document.getElementById("filter").dispatchEvent(new Event("input"));true');
+                await new Promise(r => setTimeout(r, 400));
+              }
+              if (spec.startsWith('chip:') && dockWin && !dockWin.isDestroyed()) {
+                await dockWin.webContents.executeJavaScript(
+                  'pileFilter=' + JSON.stringify(spec.slice(5)) + ';render();true');
                 await new Promise(r => setTimeout(r, 400));
               }
               if (dockWin && !dockWin.isDestroyed()) {
@@ -382,7 +446,30 @@ function syncGameFiles() {
       syncOnePair(local, path.join(gamefilesDir(), base), base, results);
     }
   }
-  return { results };
+  // sync status (v2.4): a persistent record of what just happened, plus a
+  // marker in the shared folder saying WHICH COMPUTER wrote last — so after
+  // switching machines you can see at a glance whether the other side's data
+  // actually arrived or you forgot to sync before leaving it.
+  const host = (() => { try { return require('os').hostname(); } catch { return 'this computer'; } })();
+  let otherHost = null, otherAt = 0;
+  const markerPath = path.join(gamefilesDir(), 'sync-marker.json');
+  try {
+    const m = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+    if (m && m.host && m.host !== host) { otherHost = m.host; otherAt = m.at || 0; }
+  } catch { /* first sync ever, or marker unreadable */ }
+  const pulled = results.filter(r => /← shared|pulled from shared/.test(r)).length;
+  const pushed = results.filter(r => /→ shared|seeded to shared/.test(r)).length;
+  const failed = results.filter(r => r.includes('⚠'));
+  const summary = {
+    at: Date.now(), host, pulled, pushed,
+    failed: failed.slice(0, 4),
+    inSync: results.filter(r => r.includes('in sync')).length,
+    from: pulled && otherHost ? { host: otherHost, at: otherAt } : null
+  };
+  settings.lastSync = summary;
+  saveSettings(settings);
+  try { fs.writeFileSync(markerPath, JSON.stringify({ host, at: Date.now() })); } catch { /* read-only share */ }
+  return { results, summary };
 }
 
 let gamefileWatchers = [];
@@ -396,7 +483,7 @@ function watchGameFiles() {
     fs.watchFile(shared, { interval: 5000 }, (curr, prev) => {
       if (curr.mtimeMs === prev.mtimeMs) return;
       const res = syncGameFiles();
-      if (win && res.results) win.webContents.send('gamefiles-synced', res.results);
+      if (win && res.results) win.webContents.send('gamefiles-synced', res);
     });
   }
 }
@@ -606,6 +693,16 @@ ipcMain.on('set-not-rare', (_e, { zone, mob, ignored }) => {
 });
 ipcMain.handle('get-not-rares', () => gameDB.notRares || {});
 
+// epic checklist manual tick-offs ('cls|item' -> true): turn-ins the
+// inventory file can't see. Synced with the game DB like everything else.
+ipcMain.on('set-epic-tick', (_e, { key, on }) => {
+  if (!key) return;
+  gameDB.epicTicks = gameDB.epicTicks || {};
+  if (on) gameDB.epicTicks[key] = true; else delete gameDB.epicTicks[key];
+  saveGameDBSoon();
+});
+ipcMain.handle('get-epic-ticks', () => gameDB.epicTicks || {});
+
 // free-form notes — plain text, synced with the rest of the game database
 ipcMain.on('set-notes', (_e, text) => {
   gameDB.notes = String(text || '').slice(0, 200000);
@@ -624,12 +721,28 @@ ipcMain.handle('get-notes', () => gameDB.notes || '');
 // 📌 detaches it into a free-floating window.
 let dockWin = null;
 let dockDetached = false;
+let needsWin = null;          // zone-needs strip: its own slim window
+const NEEDS_MIN_H = 32;       // minimized: one summary line
+
+function needsHeight() {
+  return settings.needsPanelMin ? NEEDS_MIN_H : Math.max(90, settings.needsHeight || 150);
+}
 
 function snapDock() {
-  if (!dockWin || dockWin.isDestroyed() || !win || dockDetached) return;
+  if (!win) return;
   const b = win.getBounds();
-  const h = Math.max(160, settings.dockHeight || 300);
-  dockWin.setBounds({ x: b.x, y: b.y + b.height, width: b.width, height: h });
+  let y = b.y + b.height;
+  // the zone-needs strip rides directly under the overlay…
+  if (needsWin && !needsWin.isDestroyed()) {
+    const h = needsHeight();
+    needsWin.setBounds({ x: b.x, y, width: b.width, height: h });
+    y += h;
+  }
+  // …and the dock stacks under whatever is above it
+  if (dockWin && !dockWin.isDestroyed() && !dockDetached) {
+    const h = Math.max(160, settings.dockHeight || 300);
+    dockWin.setBounds({ x: b.x, y, width: b.width, height: h });
+  }
 }
 
 function openDock(mode, payload) {
@@ -655,6 +768,7 @@ function openDock(mode, payload) {
     });
     dockWin.webContents.once('did-finish-load', () => {
       snapDock();
+      dockWin.webContents.send('ui-scale', settings.textScale || 'normal');
       dockWin.webContents.send('dock-mode', { mode, payload });
       if (win && mode === 'cleanup') win.webContents.send('cleanup-state', true);
     });
@@ -683,6 +797,63 @@ ipcMain.on('cleanup-data', (_e, payload) => {
 ipcMain.on('cleanup-cmd', (_e, cmd) => {
   if (win) win.webContents.send('cleanup-cmd', cmd);
 });
+
+// ---------------------------------------------------------------------------
+// Zone-needs panel: a slim, PERSISTENT, minimizable strip glued under the
+// overlay listing what you still need from the current zone. Its own window,
+// so the dock (Cleanup / item details) can be open at the same time — the
+// dock simply stacks below it. Open state and size survive restarts.
+// ---------------------------------------------------------------------------
+function openNeeds() {
+  if (needsWin && !needsWin.isDestroyed()) { snapDock(); needsWin.focus(); return; }
+  needsWin = new BrowserWindow({
+    width: 480, height: needsHeight(), minWidth: 320, minHeight: NEEDS_MIN_H,
+    frame: false, transparent: false, backgroundColor: '#14141c',
+    skipTaskbar: true, resizable: !settings.needsPanelMin, alwaysOnTop: true,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false }
+  });
+  needsWin.setAlwaysOnTop(true, 'screen-saver');
+  needsWin.loadFile('needs.html');
+  needsWin.on('closed', () => {
+    needsWin = null;
+    settings.needsPanelOpen = false;
+    saveSettings(settings);
+    if (win) win.webContents.send('needs-state', false);
+    snapDock();
+  });
+  needsWin.on('resized', () => {
+    if (!needsWin || needsWin.isDestroyed()) return;
+    if (!settings.needsPanelMin) {
+      settings.needsHeight = needsWin.getBounds().height;
+      saveSettings(settings);
+    }
+    snapDock();
+  });
+  needsWin.webContents.once('did-finish-load', () => {
+    snapDock();
+    needsWin.webContents.send('ui-scale', settings.textScale || 'normal');
+    needsWin.webContents.send('needs-min', !!settings.needsPanelMin);
+    if (win) win.webContents.send('needs-state', true);
+  });
+  settings.needsPanelOpen = true;
+  saveSettings(settings);
+}
+ipcMain.on('open-needs', () => openNeeds());
+ipcMain.on('close-needs', () => { if (needsWin && !needsWin.isDestroyed()) needsWin.close(); });
+ipcMain.on('needs-minimize', (_e, minimized) => {
+  settings.needsPanelMin = !!minimized;
+  saveSettings(settings);
+  if (needsWin && !needsWin.isDestroyed()) {
+    needsWin.setResizable(!settings.needsPanelMin);
+    needsWin.webContents.send('needs-min', settings.needsPanelMin);
+  }
+  snapDock();
+});
+// overlay → needs panel (rows) · needs panel → overlay (commands)
+ipcMain.on('needs-data', (_e, payload) => {
+  if (needsWin && !needsWin.isDestroyed()) needsWin.webContents.send('needs-data', payload);
+});
+ipcMain.on('needs-cmd', (_e, cmd) => { if (win) win.webContents.send('needs-cmd', cmd); });
 
 // ---------------------------------------------------------------------------
 // Exaltations browser: effect index (per exaltation type) + per-effect item
@@ -778,7 +949,8 @@ async function refreshCachedPages() {
     const titles = [...new Set([
       ...zoneEntries.map(z => z.pageTitle),
       ...itemEntries.map(i => i.pageTitle),
-      ...Object.values(gameDB.effects || {}).map(ef => ef.pageTitle)
+      ...Object.values(gameDB.effects || {}).map(ef => ef.pageTitle),
+      ...Object.values(gameDB.guidePages || {}).map(g => g && g.pageTitle)
     ].filter(Boolean))];
     if (!titles.length) return { checked: 0, updated: 0, details: [] };
 
@@ -811,6 +983,16 @@ async function refreshCachedPages() {
       try {
         gameDB.effects[ef.effect] = await updater.fetchEffectItems(ef.pageTitle);
         updated++; details.push('effect: ' + ef.effect);
+      } catch { /* keep the cached copy */ }
+    }
+    // cached 📖 guide pages follow the same revision compare
+    for (const [title, page] of Object.entries(gameDB.guidePages || {})) {
+      if (!page || !page.pageTitle) continue;
+      const cur = latest[page.pageTitle];
+      if (cur === undefined || (page.revid && page.revid === cur)) continue;
+      try {
+        const fresh = await fetchGuidePage(title);
+        if (fresh) { gameDB.guidePages[title] = fresh; updated++; details.push('guide: ' + page.pageTitle); }
       } catch { /* keep the cached copy */ }
     }
     saveGameDBSoon();
@@ -892,9 +1074,13 @@ ipcMain.on('learn-zonemap', (_e, { longName, shortName }) => {
 ipcMain.handle('get-zonemap', () => gameDB.zoneMap || {});
 
 // learned respawn intervals: measured gap between consecutive kills of a mob
+// value is either legacy plain seconds or the v2.4 entry object
+// { s, min, max, src: 'learned'|'manual'|..., n, samples[], manual }.
+// null deletes the entry (manual override reverted with nothing learned).
 ipcMain.on('learn-respawn', (_e, { zone, mob, seconds }) => {
   gameDB.mobRespawn = gameDB.mobRespawn || {};
-  gameDB.mobRespawn[zone + '|' + mob] = Math.round(seconds);
+  if (seconds === null || seconds === undefined) delete gameDB.mobRespawn[zone + '|' + mob];
+  else gameDB.mobRespawn[zone + '|' + mob] = typeof seconds === 'number' ? Math.round(seconds) : seconds;
   saveGameDBSoon();
 });
 ipcMain.handle('get-respawns', () => gameDB.mobRespawn || {});
@@ -974,13 +1160,8 @@ ipcMain.on('set-item-verdict', (_e, { item, verdict }) => {
 });
 ipcMain.handle('get-item-verdicts', () => gameDB.itemVerdicts || {});
 
-// vendor sell list: itemName(lower) -> { name, count, reason } (synced)
-ipcMain.on('set-selllist', (_e, list) => {
-  gameDB.sellList = list && Object.keys(list).length ? list : undefined;
-  if (!gameDB.sellList) delete gameDB.sellList;
-  saveGameDBSoon();
-});
-ipcMain.handle('get-selllist', () => gameDB.sellList || {});
+// (the old vendor sell list was retired in v2.3 — Cleanup's "Job done" pile
+// replaced it; its storage channels were removed in v2.4)
 
 // wish list: itemName(lower) -> { name, added } (synced)
 ipcMain.on('set-wishlist', (_e, list) => {
@@ -1220,6 +1401,96 @@ async function checkDataSources() {
     return { error: e.message || String(e) };
   }
 }
+
+// ---- dock "guide" mode: any wiki page (or one section) as readable text ----
+// Cached in the game DB, so after the first click it opens instantly and
+// works offline; a stale cache (>7 days) refreshes in the same call.
+function sliceWikiSection(text, anchor) {
+  if (!anchor) return null;
+  const want = String(anchor).replace(/_/g, ' ').trim().toLowerCase();
+  const lines = String(text).split(/\r?\n/);
+  let start = -1, level = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const h = /^(={2,5})\s*(.+?)\s*={2,5}\s*$/.exec(lines[i].trim());
+    if (!h) continue;
+    const name = h[2].replace(/\[\[|\]\]/g, '').replace(/.*\|/, '').trim().toLowerCase();
+    if (start < 0) { if (name === want) { start = i; level = h[1].length; } continue; }
+    if (h[1].length <= level) return lines.slice(start, i).join('\n');
+  }
+  return start >= 0 ? lines.slice(start).join('\n') : null;
+}
+
+function wikitextToText(src) {
+  let t = String(src);
+  for (let i = 0; i < 4; i++) t = t.replace(/\{\{[^{}]*\}\}/g, '');  // templates (simple nesting)
+  t = t.replace(/\[\[(?:File|Image|Category):[^\]]*\]\]/gi, '')
+       .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
+       .replace(/\[\[([^\]]+)\]\]/g, '$1')
+       .replace(/\[https?:\/\/\S+ ([^\]]+)\]/g, '$1')
+       .replace(/\[https?:\/\/\S+\]/g, '')
+       .replace(/'{2,}/g, '')
+       .replace(/<br\s*\/?>/gi, '\n')
+       .replace(/<ref[\s\S]*?<\/ref>/gi, '')
+       .replace(/<[^>]+>/g, '')
+       .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+  const out = [];
+  for (const raw of t.split('\n')) {
+    let line = raw.trimEnd();
+    const trimmed = line.trim();
+    const h = /^(={2,5})\s*(.+?)\s*=+\s*$/.exec(trimmed);
+    if (h) { out.push('', (h[1].length <= 2 ? '━ ' : '— ') + h[2] + (h[1].length <= 2 ? ' ━' : ' —'), ''); continue; }
+    if (/^\{\||^\|\}|^\|-/.test(trimmed)) continue;   // table plumbing
+    if (/^[|!]/.test(trimmed)) {                       // table cells → one line
+      out.push('  ' + trimmed.replace(/^[|!]\s*/, '').split(/\s*\|\|\s*|\s*!!\s*/).join(' · '));
+      continue;
+    }
+    line = line.replace(/^(\*+)\s*/, (m, s) => '  '.repeat(s.length - 1) + '• ')
+               .replace(/^(#+)\s*/, (m, s) => '  '.repeat(s.length - 1) + '· ');
+    out.push(line);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+async function fetchGuidePage(title) {
+  const url = 'https://eqlwiki.com/api.php?action=parse&prop=wikitext|revid&format=json&redirects=1&page=' +
+              encodeURIComponent(title);
+  const res = await fetch(url, { headers: { 'User-Agent': 'SEQO-overlay' } });
+  if (!res.ok) throw new Error('wiki answered HTTP ' + res.status);
+  const j = await res.json();
+  const wikitext = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
+  if (!wikitext) return null;
+  return { wikitext, pageTitle: (j.parse.title || title), revid: j.parse.revid, updated: Date.now() };
+}
+
+ipcMain.handle('get-guide-page', async (_e, { title, anchor, refresh } = {}) => {
+  if (!title) return { error: 'no page requested' };
+  gameDB.guidePages = gameDB.guidePages || {};
+  let page = gameDB.guidePages[title];
+  const stale = !page || refresh || Date.now() - (page.updated || 0) > 7 * 24 * 3600 * 1000;
+  if (stale) {
+    try {
+      const fresh = await fetchGuidePage(title);
+      if (fresh) {
+        page = fresh;
+        gameDB.guidePages[title] = page;
+        saveGameDBSoon();
+      } else if (!page) {
+        return { error: 'the wiki has no page named "' + title + '"' };
+      }
+    } catch (e) {
+      if (!page) return { error: e.message || String(e) };
+      // offline / fetch failed: the cached copy still serves
+    }
+  }
+  const section = anchor ? sliceWikiSection(page.wikitext, anchor) : null;
+  return {
+    title: page.pageTitle, anchor: section ? anchor : null,
+    text: wikitextToText(section || page.wikitext),
+    updated: page.updated,
+    url: 'https://eqlwiki.com/' + encodeURIComponent(page.pageTitle.replace(/ /g, '_')) +
+         (section ? '#' + encodeURIComponent(String(anchor).replace(/ /g, '_')) : '')
+  };
+});
 
 // ---- Alanna's Race Unlock Guide → per-faction grind hints -----------------
 // Guide layout: "== Race ==" sections, each with "=== Requirements ==="
@@ -1651,23 +1922,79 @@ function pickNewer(a, b) {
 // Inventory: TSV  Location \t Name \t ID \t Count \t Slots
 // plus a KeyRing section (KeyRing \t Name \t ID) with Equipment/Augmentation/
 // Activated rows. Bank/SharedBank slots ARE included by the game.
+// which storage bucket a location prefix belongs to. Real prefixes seen in
+// the game's file: "General ", "General 1-Slot" (note the space variants),
+// "Personal-Depot" (character storage), "Bank"/"Bank5-Slot", "SharedBank",
+// and worn gear (Equipment / Augmentation / "Any Slot" / slot names).
+// The game only writes the Personal-Depot section into /outputfile inventory
+// while the depot is accessible (at the banker) — an export run in the field
+// silently drops everything in storage, cratering counters and emptying the
+// Cleanup storage section. So: remember the last export that HAD the depot
+// and carry its contents forward whenever a newer export lacks the section;
+// a fresh depot-bearing export replaces the carried copy on the spot.
+function applyDepotCarry(inv) {
+  if (!inv || !inv.items) return inv;
+  const hasDepot = Object.values(inv.items).some(it => it.by && it.by.depot > 0);
+  if (hasDepot) {
+    const snap = {};
+    for (const [k, it] of Object.entries(inv.items))
+      if (it.by.depot > 0) snap[k] = { name: it.name, count: it.by.depot };
+    gameDB.lastDepot = { at: inv.mtime || Date.now(), items: snap };
+    saveGameDBSoon();
+    return inv;
+  }
+  const last = gameDB.lastDepot;
+  if (!last || !last.items) return inv;
+  for (const [k, s] of Object.entries(last.items)) {
+    const it = inv.items[k] ||
+      (inv.items[k] = { name: s.name, count: 0, locs: [], by: { bags: 0, depot: 0, bank: 0, shared: 0, stored: 0, worn: 0 } });
+    it.by = it.by || { bags: 0, depot: 0, bank: 0, shared: 0, stored: 0, worn: 0 };
+    it.count += s.count;
+    it.by.depot += s.count;
+    if (it.locs.length < 6 && !it.locs.includes('Personal-Depot (carried)'))
+      it.locs.push('Personal-Depot (carried)');
+  }
+  inv.depotCarried = { at: last.at };
+  return inv;
+}
+
+function invBucketOf(loc) {
+  if (/^(General|Held)/i.test(loc)) return 'bags';
+  if (/^Personal-?Depot/i.test(loc)) return 'depot';
+  if (/^SharedBank/i.test(loc)) return 'shared';
+  if (/^Bank/i.test(loc)) return 'bank';
+  if (/^Equipment/i.test(loc)) return 'stored';   // the storage's gear tab (trailing section)
+  return 'worn';
+}
+
 function parseInventoryFile(text) {
-  const items = {};   // lower name -> { name, count, locs: [] }
-  const keyring = []; // key ring entries (Equipment = obtained PoS rewards)
+  const items = {};   // lower name -> { name, count, locs: [], by: {bags,depot,bank,shared,stored,worn} }
+  const keyring = []; // trailing-section names (PoS reward detection keys on these)
   let inKeyRing = false;
+  const addItem = (name, loc, count) => {
+    const k = name.toLowerCase();
+    if (!items[k]) items[k] = { name, count: 0, locs: [], by: { bags: 0, depot: 0, bank: 0, shared: 0, stored: 0, worn: 0 } };
+    items[k].count += count;
+    items[k].by[invBucketOf(loc)] += count;
+    if (items[k].locs.length < 6 && !items[k].locs.includes(loc)) items[k].locs.push(loc);
+  };
   for (const raw of text.split(/\r?\n/)) {
     const cols = raw.replace(/\r$/, '').split('\t');
     if (!cols.length || !cols[0]) continue;
     if (cols[0] === 'Location' || cols[0] === 'KeyRing') { inKeyRing = cols[0] === 'KeyRing'; continue; }
     const name = (cols[1] || '').trim();
     if (!name || name === 'Empty') continue;
-    if (inKeyRing) { keyring.push(name); continue; }
-    const loc = cols[0];
-    const count = parseInt(cols[3], 10) || 1;
-    const k = name.toLowerCase();
-    if (!items[k]) items[k] = { name, count: 0, locs: [] };
-    items[k].count += count;
-    if (items[k].locs.length < 6) items[k].locs.push(loc);
+    if (inKeyRing) {
+      // the file's trailing sections are real belongings, not just markers:
+      // Equipment = the character storage's GEAR tab, Augmentation = the
+      // exaltation collection, Activated = claimed activatables. No count
+      // column down here — one each. Names also stay in keyring[] because
+      // the PoS tracker marks quests done off obtained rewards listed here.
+      keyring.push(name);
+      addItem(name, cols[0], 1);
+      continue;
+    }
+    addItem(name, cols[0], parseInt(cols[3], 10) || 1);
   }
   return { items, keyring };
 }
@@ -1719,7 +2046,7 @@ function refreshGameData(notify) {
       return { ...parsed, path: p, mtime: st.mtimeMs };
     } catch { return null; }
   };
-  gameData.inventory = readOne(found.inventory, parseInventoryFile);
+  gameData.inventory = applyDepotCarry(readOne(found.inventory, parseInventoryFile));
   gameData.achievements = readOne(found.achievements, parseAchievementsFile);
   gameData.factions = readOne(found.factions, parseFactionsFile);
   if (notify && win) {
@@ -1727,6 +2054,21 @@ function refreshGameData(notify) {
       inventory: !!gameData.inventory, achievements: !!gameData.achievements,
       factions: !!gameData.factions
     });
+  }
+}
+
+// A half-written export must never be parsed: the game writes these files
+// over a second or two and the Personal-Depot section lands near the END,
+// so an eager read sees bags and bank but no storage. Wait until the file's
+// size has held still for two checks before reading it.
+async function waitForStableFile(p, tries = 25) {
+  let last = -1;
+  for (let i = 0; i < tries; i++) {
+    let size = -2;
+    try { size = fs.statSync(p).size; } catch { /* file may appear shortly */ }
+    if (size >= 0 && size === last) return;
+    last = size;
+    await new Promise(r => setTimeout(r, 400));
   }
 }
 
@@ -1742,7 +2084,12 @@ function watchOutputFiles() {
       if (!lf.startsWith(found.prefix)) return;
       if (!/inventory|achievements|factions/.test(lf)) return;
       clearTimeout(outputDebounce);
-      outputDebounce = setTimeout(() => refreshGameData(true), 700);
+      outputDebounce = setTimeout(async () => {
+        const f = discoverOutputFiles();
+        for (const p of [f && f.inventory, f && f.achievements, f && f.factions].filter(Boolean))
+          await waitForStableFile(p);
+        refreshGameData(true);
+      }, 700);
     });
   } catch (e) { console.error('outputfile watch failed:', e.message); }
 }
@@ -1840,6 +2187,10 @@ ipcMain.on('update-settings', (_evt, partial) => {
   if (win && Object.prototype.hasOwnProperty.call(partial, 'keepAspectRatio')) {
     win.setAspectRatio(settings.keepAspectRatio ? BASE_W / BASE_H : 0);
   }
+  if (Object.prototype.hasOwnProperty.call(partial, 'textScale')) {
+    for (const w of [dockWin, needsWin])
+      if (w && !w.isDestroyed()) w.webContents.send('ui-scale', settings.textScale);
+  }
 });
 
 ipcMain.handle('app-version', () => app.getVersion());
@@ -1898,6 +2249,8 @@ app.whenReady().then(() => {
   }
   createWindow();
   createTray();
+  // the zone-needs strip is persistent: reopen it where the player left it
+  if (settings.needsPanelOpen) setTimeout(() => { try { openNeeds(); } catch {} }, 1500);
 
   const failed = [];
   if (!globalShortcut.register('Control+Alt+O', toggleLock)) failed.push('Ctrl+Alt+O');

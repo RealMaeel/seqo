@@ -35,13 +35,14 @@
   const RE_YOU_SLAIN = /^You have been slain by (.+?)!$/;
   // "You begin casting Spirit Tap." / "A dread skeleton begins casting Alacrity."
   const RE_CAST = /^(.+?) begins? casting (.+?)\.$/;
-  // All corpse-loot variants:
+  // All corpse- and container-loot variants:
   //   "--You have looted a Lizard Tail from a lizard justicar's corpse.--"   (kept)
   //   "--You have looted 2 Phosphorous Powder from a ghoul savant's corpse.--" (stack)
   //   "You looted a Bloodstained Key from Drelzna's corpse and sold it for 1 copper."
   //   "You looted a Necromancer Blood from a necromancer's corpse and stored it in your Dragon Hoard"
   //   "You looted a Stiletto of the Bloodclaw +4 from Drelzna's corpse to create ..."
-  const RE_LOOT = /^-{0,2}You (?:have )?looted (?:(\d+) )?(.+?) from (.+?)'s corpse\.?(?:\s+(?:and sold it for (.+?)\.|and stored it\b.*|to create\b.*))?-{0,2}$/;
+  //   "You looted a Carmine Trinket +4 from Reward Chest and sold it for free."  (container: no 's corpse)
+  const RE_LOOT = /^-{0,2}You (?:have )?looted (?:(\d+) )?(.+?) from (.+?)(?:'s corpse)?\.?(?:\s+(?:and sold it for (.+?)\.|and stored it\b.*|to create\b.*))?-{0,2}$/;
   // "--You have looted a Rusty Sword.--"  (no corpse name in line)
   const RE_LOOT_SIMPLE = /^-{0,2}You (?:have )?looted (?:(\d+) )?(.+?)\.-{0,2}$/;
   // "You receive 7 silver and 5 copper from the corpse."

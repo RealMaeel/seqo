@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SEQO — Zone needs</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #14141c; overflow: hidden;
+               font-family: 'Segoe UI', sans-serif; user-select: none; color: #ddd; }
+  body { display: flex; flex-direction: column; border: 1px solid rgba(255,215,102,.25); border-radius: 0 0 8px 8px; }
+  body.large { font-size: 115%; }
+
+  #topbar { flex: none; display: flex; align-items: center; gap: 6px; padding: 3px 8px;
+            background: rgba(255,255,255,.04); border-bottom: 1px solid rgba(255,255,255,.08); }
+  #title { color: #ffd766; font-weight: 600; font-size: 11.5px; flex: 1;
+           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tbtn { background: none; border: none; color: #aaa; font-size: 13px; cursor: pointer;
+          width: 22px; height: 20px; border-radius: 4px; flex: none; }
+  .tbtn:hover { background: rgba(255,255,255,.12); color: #fff; }
+
+  #list { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 6px 5px; }
+  #list::-webkit-scrollbar { width: 7px; }
+  #list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 4px; }
+
+  .grp { color: #889; font-size: 9.5px; letter-spacing: .4px; margin: 4px 2px 1px;
+         border-bottom: 1px solid rgba(255,255,255,.07); }
+  body.large .grp { font-size: 11px; }
+  .row { display: flex; align-items: baseline; gap: 6px; padding: 1px 3px; font-size: 10.5px;
+         border-radius: 4px; cursor: pointer; }
+  body.large .row { font-size: 12.5px; padding: 2px 3px; }
+  .row:hover { background: rgba(255,255,255,.06); }
+  .row .nm { color: #ffd766; flex: none; max-width: 46%; overflow: hidden;
+             text-overflow: ellipsis; white-space: nowrap;
+             text-decoration: underline dotted rgba(255,215,102,.35); text-underline-offset: 2px; }
+  .row .cnt { color: #7dffa0; font-variant-numeric: tabular-nums; flex: none; }
+  .row .mobs { color: #8fa9c7; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .star { flex: none; cursor: pointer; color: #ffd766; padding: 0 2px; }
+  .row.flash { animation: needflash 2.2s; }
+  @keyframes needflash { 0%, 40% { background: rgba(125,255,160,.28); } 100% { background: transparent; } }
+
+  #empty { color: #778; font-size: 10.5px; text-align: center; margin-top: 14px; padding: 0 10px; line-height: 1.5; }
+
+  /* minimized: a single summary line */
+  body.min #list, body.min #empty { display: none; }
+  body.min { border-radius: 0 0 8px 8px; }
+  body.min #topbar { border-bottom: none; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div id="topbar">
+    <span id="title">🎯 Zone needs</span>
+    <button class="tbtn" id="btn-min" title="Minimize to a one-line bar">—</button>
+    <button class="tbtn" id="btn-close" title="Close the needs panel (the Loot tab's 🎯 Needs button reopens it)">✕</button>
+  </div>
+  <div id="list"></div>
+  <div id="empty" style="display:none"></div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let minimized = false;
+  let last = { zone: '', rows: [] };
+
+  const GROUPS = [
+    { g: 'wish', label: '⭐ WISH LIST' },
+    { g: 'epic', label: '⚔ EPIC PREP' },
+    { g: 'unlock', label: '🔓 UNLOCK TURN-INS' }
+  ];
+
+  function render(flashItem) {
+    const rows = last.rows || [];
+    $('title').textContent = minimized
+      ? '🎯 ' + (rows.length ? rows.length + ' needed in ' + (last.zone || 'this zone') : 'nothing needed in ' + (last.zone || 'this zone'))
+      : '🎯 Needs — ' + (last.zone || 'no zone yet') + (rows.length ? ' (' + rows.length + ')' : '');
+    const list = $('list');
+    list.innerHTML = '';
+    $('empty').style.display = rows.length || minimized ? 'none' : 'block';
+    if (!rows.length) {
+      $('empty').textContent = last.zone
+        ? 'Nothing you still need drops in ' + last.zone + ' — or SEQO has no drop data here yet. It fills in as you hunt (and from the wiki’s zone page).'
+        : 'Zone needs appear once SEQO sees you enter a zone.';
+      return;
+    }
+    for (const grp of GROUPS) {
+      const inGrp = rows.filter(r => r.g === grp.g);
+      if (!inGrp.length) continue;
+      const h = document.createElement('div');
+      h.className = 'grp';
+      h.textContent = grp.label;
+      list.appendChild(h);
+      for (const r of inGrp) {
+        const d = document.createElement('div');
+        d.className = 'row' + (flashItem && flashItem.toLowerCase() === r.item.toLowerCase() ? ' flash' : '');
+        const nm = document.createElement('span');
+        nm.className = 'nm';
+        nm.textContent = r.item;
+        const cnt = document.createElement('span');
+        cnt.className = 'cnt';
+        if (r.need > 0) cnt.textContent = Math.min(r.have || 0, r.need) + '/' + r.need;
+        else if (r.g === 'unlock' && r.have) cnt.textContent = '×' + r.have;
+        const mobs = document.createElement('span');
+        mobs.className = 'mobs';
+        const mobTxt = (r.mobs || []).filter(Boolean);
+        mobs.textContent = r.faction
+          ? (mobTxt.length ? mobTxt.slice(0, 3).join(', ') + ' · ' : '') + r.faction
+          : mobTxt.length ? mobTxt.slice(0, 3).join(', ') + (mobTxt.length > 3 ? ' +' + (mobTxt.length - 3) : '')
+          : 'zone drop';
+        mobs.title = (mobTxt.join('\n') || 'listed as a zone-wide drop') + (r.reason ? '\n' + r.reason : '');
+        const star = document.createElement('span');
+        star.className = 'star';
+        star.textContent = r.g === 'wish' ? '★' : '';
+        if (r.g === 'wish') {
+          star.title = 'Un-star (stops watching this item)';
+          star.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.overlay.needsCmd({ kind: 'wish', name: r.item, on: false });
+          });
+        }
+        d.append(nm, cnt, mobs, star);
+        d.title = 'Click for item details' + (r.reason ? ' — ' + r.reason : '');
+        d.addEventListener('click', () => window.overlay.needsCmd({ kind: 'item', name: r.item }));
+        list.appendChild(d);
+      }
+    }
+  }
+
+  window.overlay.onNeedsData((p) => {
+    if (!p) return;
+    if (p.scale) document.body.classList.toggle('large', p.scale === 'large');
+    if (p.zone !== undefined) last = p;
+    render(p.flash);
+  });
+
+  window.overlay.onUiScale((v) => document.body.classList.toggle('large', v === 'large'));
+
+  window.overlay.onNeedsMin((v) => {
+    minimized = !!v;
+    document.body.classList.toggle('min', minimized);
+    render();
+  });
+
+  $('btn-min').addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.overlay.needsMinimize(!minimized);
+  });
+  $('btn-close').addEventListener('click', (e) => { e.stopPropagation(); window.overlay.closeNeeds(); });
+  $('topbar').addEventListener('click', () => { if (minimized) window.overlay.needsMinimize(false); });
+
+  // ask the overlay for a first fill
+  window.overlay.needsCmd({ kind: 'refresh' });
+</script>
+</body>
+</html>

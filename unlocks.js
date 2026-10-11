@@ -19,7 +19,7 @@
     {
       what: 'Race unlock grind routes',
       by: "Alanna's Race Unlock Guide",
-      url: "https://eqlwiki.com/Alanna's_Race_Unlock_Guide",
+      url: "https://eqlwiki.com/User:Alanna/Alanna%27s_Race_Unlock_Guide",
       note: 'courtesy of Alanna on eqlwiki.com — please support her work'
     },
     {
@@ -46,19 +46,37 @@
   // "Get maximum faction with <name>." achievement objectives and in the
   // Factions outputfile. hint = one-line route; items = farmable turn-ins
   // worth keeping when they drop (buyable supplies are not listed as loot).
+  // routes[]: labeled alternatives ("Option A / Option B") where the guide
+  // gives more than one way to grind the faction. Each route carries its OWN
+  // needs{} so the rep counters only count what that route actually eats.
+  // tag: 'evil' / 'good' marks race-restricted routes from the guide.
+  // Top-level hint/items/needs stay as the union, for the loot engine and for
+  // live guide data (which arrives in the old hint+needs shape).
   const FACTION_GRINDS = {
     // Barbarian
     'Rogues of the White Rose': {
       hint: 'Lion Meat Shipment ×200 (Einhorst McMannus, West Karana) → trade 200 Lion Delight to Iceberg in Everfrost. Alt: Gnoll Bounty — 1200 Gnoll Fangs to Lysbith McNaff (Halas).',
-      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 }
+      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 },
+      routes: [
+        { label: 'Lion Meat Shipment', hint: '×200: Einhorst McMannus (West Karana) → trade 200 Lion Delight to Iceberg in Everfrost.', needs: { 'Lion Delight': 200 } },
+        { label: 'Gnoll Bounty', hint: '1200 Gnoll Fangs to Lysbith McNaff (Halas).', needs: { 'Gnoll Fang': 1200 } }
+      ]
     },
     'Wolves of the North': {
       hint: 'Same runs as Rogues of the White Rose — Lion Meat Shipment / Gnoll Bounty raise all three Halas factions together.',
-      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 }
+      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 },
+      routes: [
+        { label: 'Lion Meat Shipment', hint: 'Same run as Rogues of the White Rose — raises all three Halas factions together.', needs: { 'Lion Delight': 200 } },
+        { label: 'Gnoll Bounty', hint: '1200 Gnoll Fangs to Lysbith McNaff (Halas).', needs: { 'Gnoll Fang': 1200 } }
+      ]
     },
     'Merchants of Halas': {
       hint: 'Rides along with the Lion Meat / Gnoll Fang turn-ins above.',
-      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 }
+      items: ['Gnoll Fang', 'Lion Meat', 'Lion Delight'], needs: { 'Lion Delight': 200, 'Gnoll Fang': 1200 },
+      routes: [
+        { label: 'Lion Meat Shipment', hint: 'Rides along with the turn-ins above.', needs: { 'Lion Delight': 200 } },
+        { label: 'Gnoll Bounty', hint: 'Rides along with the Gnoll Fang turn-ins above.', needs: { 'Gnoll Fang': 1200 } }
+      ]
     },
     // Dark Elf
     'Dark Bargainers': {
@@ -77,9 +95,20 @@
     // Erudite
     'Deepwater Knights': {
       hint: 'Kobold Molars from The Warrens/Stonebrunt to Tiam Khonsir; Peacekeeper Staff runs (Lumi Stergnon, Erudin → Emil Parsini, Toxxulia) ×400.',
-      items: ['Kobold Molar', 'Rolled Up Strip of Cloth'], needs: { 'Kobold Molar': 400 }
+      items: ['Kobold Molar', 'Rolled Up Strip of Cloth'], needs: { 'Kobold Molar': 400 },
+      routes: [
+        { label: 'Kobold Molars', hint: 'From The Warrens / Stonebrunt mobs, turned in to Tiam Khonsir.', needs: { 'Kobold Molar': 400 } },
+        { label: 'Peacekeeper Staff runs', hint: 'Lumi Stergnon (Erudin) → Emil Parsini (Toxxulia), ×400 rounds — bought supplies, no farming.' }
+      ]
     },
-    'High Council of Erudin': { hint: 'Kobold Molars + Peacekeeper Staff runs — same grind as Deepwater Knights.', items: ['Kobold Molar', 'Rolled Up Strip of Cloth'], needs: { 'Kobold Molar': 400 } },
+    'High Council of Erudin': {
+      hint: 'Kobold Molars + Peacekeeper Staff runs — same grind as Deepwater Knights.',
+      items: ['Kobold Molar', 'Rolled Up Strip of Cloth'], needs: { 'Kobold Molar': 400 },
+      routes: [
+        { label: 'Kobold Molars', hint: 'Same grind as Deepwater Knights.', needs: { 'Kobold Molar': 400 } },
+        { label: 'Peacekeeper Staff runs', hint: 'Same rounds as Deepwater Knights — both factions rise together.' }
+      ]
+    },
     'Heretics': { hint: 'Kill guards/good NPCs in Paineel routes per Alanna’s guide (killing Heretic enemies LOWERS this — check the guide before starting).', items: [] },
     // Froglok
     'Protectors of Gukta': {
@@ -98,7 +127,11 @@
     // Halfling
     'Guardians of the Vale': {
       hint: 'Buy ~400 Bandages for Joogl Honeybugger (Misty Thicket); Cleric Supplies: Black Wolf Skins + Ruined Wolf Pelts + foraged Berries to Beek Guinders (Rivervale).',
-      items: ['Black Wolf Skin', 'Ruined Wolf Pelt', 'Berries'], needs: { 'Bandages': 400 }
+      items: ['Black Wolf Skin', 'Ruined Wolf Pelt', 'Berries'], needs: { 'Bandages': 400 },
+      routes: [
+        { label: 'Bandages', hint: 'Buy ~400 Bandages and hand them to Joogl Honeybugger (Misty Thicket).', needs: { 'Bandages': 400 } },
+        { label: 'Cleric Supplies', hint: 'Black Wolf Skins + Ruined Wolf Pelts + foraged Berries to Beek Guinders (Rivervale). Alanna’s guide no longer recommends this one.' }
+      ]
     },
     'Merchants of Rivervale': { hint: 'Bandages to Joogl Honeybugger / Cleric Supplies to Beek Guinders — same runs.', items: ['Black Wolf Skin', 'Ruined Wolf Pelt'], needs: { 'Bandages': 400 } },
     'Priests of Mischief': { hint: 'Bandages to Joogl Honeybugger / Cleric Supplies to Beek Guinders — same runs.', items: ['Black Wolf Skin', 'Ruined Wolf Pelt'], needs: { 'Bandages': 400 } },
@@ -112,21 +145,40 @@
     // Human (Freeport)
     'Coalition of Tradesfolk': {
       hint: 'Tumpy Tonics ×110 to Groflah Steadirt (East Freeport docks, night spawn); Message Intercept: Bottle of Milk to Mojax Hikspin → kill Duggin Scumber, note to Sir Lucan ×42.',
-      items: ['Tumpy Tonic', 'Kiola Nut'], needs: { 'Tumpy Tonic': 110 }
+      items: ['Tumpy Tonic', 'Kiola Nut'], needs: { 'Tumpy Tonic': 110 },
+      routes: [
+        { label: 'Tumpy Tonics', hint: '×110 to Groflah Steadirt (East Freeport docks — he’s a night spawn).', needs: { 'Tumpy Tonic': 110 } },
+        { label: 'Message Intercept', hint: 'Bottle of Milk to Mojax Hikspin → kill Duggin Scumber, note to Sir Lucan, ×42 rounds.' }
+      ]
     },
     'Knights of Truth': { hint: 'Tumpy Tonics to Groflah Steadirt / Message Intercept runs — same grind.', items: ['Tumpy Tonic', 'Kiola Nut'], needs: { 'Tumpy Tonic': 110 } },
     'Freeport Militia': { hint: 'Tumpy Tonics to Groflah Steadirt / Message Intercept runs — same grind.', items: ['Tumpy Tonic', 'Kiola Nut'], needs: { 'Tumpy Tonic': 110 } },
     // Human (Qeynos)
     'Merchants of Qeynos': {
       hint: 'Buy ~400 Brandy for Captain Rohand; 1600 Honey Mead ×4 at a time to Trumpy Irontoe (South Qeynos).',
-      items: [], needs: { 'Brandy': 400, 'Honey Mead': 1600 }
+      items: [], needs: { 'Brandy': 400, 'Honey Mead': 1600 },
+      routes: [
+        { label: 'Brandy', hint: 'Buy ~400 Brandy for Captain Rohand.', needs: { 'Brandy': 400 } },
+        { label: 'Honey Mead', hint: '1600 Honey Mead, handed over ×4 at a time to Trumpy Irontoe (South Qeynos). Mind: this trades guard/merchant faction against the corrupt guards.', needs: { 'Honey Mead': 1600 } }
+      ]
     },
     'Guards of Qeynos': { hint: 'Brandy to Captain Rohand / Honey Mead to Trumpy Irontoe — same runs.', items: [], needs: { 'Brandy': 400, 'Honey Mead': 1600 } },
-    'Corrupt Qeynos Guard': { hint: 'Brandy to Captain Rohand / Honey Mead to Trumpy Irontoe — same runs.', items: [], needs: { 'Brandy': 400, 'Honey Mead': 1600 } },
+    'Corrupt Qeynos Guard': {
+      hint: 'Brandy to Captain Rohand / Honey Mead to Trumpy Irontoe — same runs.',
+      items: [], needs: { 'Brandy': 400, 'Honey Mead': 1600 },
+      routes: [
+        { label: 'Honey Mead', hint: 'Honey Mead to Trumpy Irontoe raises the corrupt guards (while lowering regular guard/merchant standing).', needs: { 'Honey Mead': 1600 } },
+        { label: 'Evil-race routes', tag: 'evil', hint: 'Guard Shilster’s Stout / The Crate (Evil) / Slansin — the guide’s routes for evil races, which can’t run the good-city errands.' }
+      ]
+    },
     // Iksar
     'New Sebilisian Expedition': {
       hint: 'Forge Metal Bits (2 Small Pieces of Ore + Water Flask) ×4 to Crusader Iktra (North Ro) ×160; or Small Pieces of High Quality Ore (brick + chisel) ×180.',
-      items: ['Small Piece of Ore', 'Small Brick of High Quality Ore', 'Metal Bits', 'Small Piece of High Quality Ore'], needs: { 'Metal Bits': 640, 'Small Piece of High Quality Ore': 180 }
+      items: ['Small Piece of Ore', 'Small Brick of High Quality Ore', 'Metal Bits', 'Small Piece of High Quality Ore'], needs: { 'Metal Bits': 640, 'Small Piece of High Quality Ore': 180 },
+      routes: [
+        { label: 'Metal Bits', hint: 'Forge Metal Bits (2 Small Pieces of Ore + Water Flask), hand in ×4 to Crusader Iktra (North Ro), ~160 rounds.', needs: { 'Metal Bits': 640 } },
+        { label: 'High Quality Ore', hint: 'Small Pieces of High Quality Ore (brick + chisel), ×180.', needs: { 'Small Piece of High Quality Ore': 180 } }
+      ]
     },
     // Ogre
     'Oggok Guards': {
@@ -138,7 +190,11 @@
     // Troll
     'Da Bashers': {
       hint: 'Farm ~400 Deathfist Slashed Belts (Commonlands orcs) for Bregna in Grobb; or Grub Locker runs: The Gobbler (Neriak FQ) → Nerbilik (Ocean of Tears) ×400.',
-      items: ['Deathfist Slashed Belt', 'Grub Locker'], needs: { 'Deathfist Slashed Belt': 400, 'Grub Locker': 400 }
+      items: ['Deathfist Slashed Belt', 'Grub Locker'], needs: { 'Deathfist Slashed Belt': 400, 'Grub Locker': 400 },
+      routes: [
+        { label: 'Deathfist Belts', hint: 'Farm ~400 Deathfist Slashed Belts from Commonlands orcs for Bregna in Grobb.', needs: { 'Deathfist Slashed Belt': 400 } },
+        { label: 'Grub Locker runs', hint: 'The Gobbler (Neriak Foreign Quarter) → Nerbilik (Ocean of Tears), ×400.', needs: { 'Grub Locker': 400 } }
+      ]
     },
     'Grobb Merchants': { hint: 'Deathfist Slashed Belts to Bregna / Grub Locker runs — same grind.', items: ['Deathfist Slashed Belt', 'Grub Locker'], needs: { 'Deathfist Slashed Belt': 400, 'Grub Locker': 400 } },
     'Dark Ones': { hint: 'Deathfist Slashed Belts to Bregna / Grub Locker runs — same grind.', items: ['Deathfist Slashed Belt', 'Grub Locker'], needs: { 'Deathfist Slashed Belt': 400, 'Grub Locker': 400 } },

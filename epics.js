@@ -215,8 +215,8 @@
         { n: 'Decayed Helm', src: 'A Lizard Crusader / ritualist, Temple of Cazic-Thule' },
         { n: 'Decayed Visor', src: 'A Lizard Crusader / ritualist, Temple of Cazic-Thule' },
         { n: 'Damaged Militia Helm', q: 2, src: 'Freeport guards' },
-        { n: 'Enchanted Platinum Bar', q: 2, src: 'bought + enchanted' },
-        { n: 'Melatite', q: 2, src: 'bought' },
+        { n: 'Enchanted Platinum Bar', q: 3, src: 'bought + enchanted — 2 for the Breastplate, 1 for the Decrepit Sheath' },
+        { n: 'Melatite', q: 2, src: 'Lettered CWG Model clockworks, Solusek\'s Eye — both for the Greaves' },
         { n: 'Ghoulbane', src: 'The froglok shin lord, Upper Guk' },
         { n: 'Soul Leech, Dark Sword of Blood', src: 'Cazic Thule (raid), Plane of Fear' },
         { n: 'Blade of Abrogation', src: 'Plane of Sky' },
@@ -264,9 +264,31 @@
     note: "epic prep checklist courtesy of Manlaan on eqlwiki.com — please support the wiki's editors"
   };
 
+  // Sub-quest turn-in recipes: which pre-farm items are CONSUMED to make which
+  // intermediate reward, so owning the reward silences its ingredients.
+  // Verified against the wiki's Darkforge Armor Quests + Shadow Knight Epic
+  // Quest pages (2026-10-11). parts = { exact item name: qty consumed }.
+  // Chains are allowed: a product may itself be a part of a later product,
+  // and owning the finished epic covers everything for that class.
+  const FEEDS = {
+    'Shadow Knight': [
+      { product: 'Darkforge Breastplate',
+        parts: { 'Decayed Chainmail': 1, 'Decayed Breastplate': 1, 'Enchanted Platinum Bar': 2 } },
+      { product: 'Darkforge Greaves',
+        parts: { 'Decayed Left Legplate': 1, 'Decayed Right Legplate': 1, 'Melatite': 2 } },
+      { product: 'Darkforge Helm',
+        parts: { 'Decayed Helm': 1, 'Decayed Visor': 1, 'Damaged Militia Helm': 2 } },
+      { product: 'Decrepit Sheath',
+        parts: { 'Drake Spine': 1, 'Decrepit Hide': 1, 'Enchanted Platinum Bar': 1 } },
+      { product: 'Corrupted Ghoulbane',
+        parts: { 'Ghoulbane': 1, 'Soul Leech, Dark Sword of Blood': 1,
+                 'Blade of Abrogation': 1, 'Decrepit Sheath': 1 } }
+    ]
+  };
+
   // for the data-freshness check: when this file was last verified, and the
   // wiki pages it came from (MediaWiki titles for the revisions API)
   const META = { captured: '2026-09-22', sources: ['User:Manlaan/Epic_Items_To_Keep'] };
 
-  return { EPICS, CREDIT, META };
+  return { EPICS, CREDIT, FEEDS, META };
 });
