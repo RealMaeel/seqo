@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   lastZone: '',
   autoZoneUpdate: false,
   autoClearLog: false,
+  autoRun: false,          // zoning starts a run automatically (End run stays manual)
   archiveOnClear: true,
   alertFlash: true,
   alertSound: true,

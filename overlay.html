@@ -548,6 +548,10 @@
               </span>
               <span id="b-title">Your damage by source</span>
               <span id="b-swings" style="font-size:11px;color:#999;font-weight:400"></span>
+              <span style="flex:none;display:flex;gap:3px;align-items:center;margin-left:auto" data-interactive>
+                <button class="kbtn" id="b-copy" style="font-size:10px;padding:1px 6px" title="Copy a one-line WHOLE-SESSION group DPS summary for in-game chat (uses the meter's top-N setting)">&#128203; chat</button>
+                <button class="kbtn" id="b-copyfull" style="font-size:10px;padding:1px 6px" title="Copy the full whole-session group breakdown for Discord">&#128203; full</button>
+              </span>
             </div>
             <div style="font-size:9.5px;color:#777;margin:-3px 0 4px">badges are buttons — click to cycle cast &#8594; proc &#8594; ability</div>
             <div id="b-rows"></div>
@@ -728,6 +732,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         </div>
         <div class="setrow"><span>Auto-clear log on close<span class="sub">empties the log file whenever SEQO exits</span></span><input type="checkbox" id="autoclear"></div>
         <div class="setrow"><span>Archive before clearing<span class="sub">keeps a dated copy next to the log</span></span><input type="checkbox" id="archiveclear"></div>
+        <div class="setrow"><span>Auto-start runs on zoning<span class="sub">entering a zone starts a run if none is going — ⏹ End run stays manual</span></span><input type="checkbox" id="autorun"></div>
         <label>Marked pets</label>
         <div id="petchips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"></div>
         <div class="hint" style="margin-top:2px">Names SEQO counts as your pets on the meter — remove a mistake with &#10005;.</div>
@@ -901,7 +906,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   let sessionCoin = 0;
   let recentDrops = [];           // [{item, mob}]
   // session-wide aggregation across all completed fights
-  const session = { fights: 0, swings: 0, total: 0, durS: 0, sources: new Map(), pets: new Map() };
+  const session = { fights: 0, swings: 0, total: 0, durS: 0, sources: new Map(), pets: new Map(),
+                    players: new Map() };  // everyone else: name -> { total, sources: Map }
   const petNames = new Set();   // summoned pets + the one active charm; shared with the tracker
   let activeCharm = null;       // only ONE charm at a time; generic names must not linger
   let lastYouCast = null;       // {spell, when} - to learn which spells are charms
@@ -1116,8 +1122,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         setZone(ev.zone, { autoFetch: true });
         save({ lastZone: cleanZoneName(ev.zone) });
         if (currentZoneVariant) toast('Zone tier: ' + currentZoneVariant + ' — data recorded separately');
-        // entering an instanced copy without a run going: nudge once
-        if (ev.inst && !lootRun && Date.now() - lastRunNudge > 180000 && Date.now() - ev.when < 120000) {
+        // auto-start runs on zoning (optional): never stops one by itself —
+        // ⏹ End run stays yours. Only fires on a real, recent zone change.
+        if (settings && settings.autoRun && !lootRun && ev.zone && Date.now() - ev.when < 120000) {
+          toggleRun();
+        } else if (ev.inst && !lootRun && Date.now() - lastRunNudge > 180000 && Date.now() - ev.when < 120000) {
+          // entering an instanced copy without a run going: nudge once
           lastRunNudge = Date.now();
           toast('▶ Instance entered — Start run on the Loot tab to track loot, coin & rare kills');
         }
@@ -1291,8 +1301,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   let lastZoneChangeAt = 0;     // kills can't teach gaps that span a zone line
   let currentZoneInst = false;  // instanced copies never teach the base zone
 
-  function resolveRespawn(mob) {
-    const e = normRespawn(respawnDB[lootZone() + '|' + mob]);
+  function resolveRespawn(mob, zone) {
+    const e = normRespawn(respawnDB[(zone || lootZone()) + '|' + mob]);
     if (e) return e;
     if (zoneData && zoneData.respawnSeconds)
       return { s: zoneData.respawnSeconds, src: 'wiki', n: 0 };
@@ -1332,18 +1342,19 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     return e;
   }
 
-  function setManualRespawn(mob, text) {
-    const dbKey = lootZone() + '|' + mob;
+  function setManualRespawn(mob, text, zone) {
+    const zkey = zone || lootZone();
+    const dbKey = zkey + '|' + mob;
     const cur = normRespawn(respawnDB[dbKey]);
     if (!text) { // revert to auto: keep learned samples if any, else forget
       if (cur && cur.samples && cur.samples.length) {
         const next = { ...cur, src: 'learned' };
         delete next.manual;
         respawnDB[dbKey] = next;
-        window.overlay.learnRespawn(lootZone(), mob, next);
+        window.overlay.learnRespawn(zkey, mob, next);
       } else {
         delete respawnDB[dbKey];
-        window.overlay.learnRespawn(lootZone(), mob, null);
+        window.overlay.learnRespawn(zkey, mob, null);
       }
       return true;
     }
@@ -1361,7 +1372,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (!e) return false;
     if (cur && cur.samples) e.samples = cur.samples; // keep history for a later revert
     respawnDB[dbKey] = e;
-    window.overlay.learnRespawn(lootZone(), mob, e);
+    window.overlay.learnRespawn(zkey, mob, e);
     return true;
   }
 
@@ -1828,8 +1839,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   function renderTimers() {
     const rows = $('t-rows');
+    // current-zone timers, PLUS pinned camps from anywhere — otherwise a camp
+    // you zoned away from couldn't be unpinned until you went back
     const list = [...timers.values()]
-      .filter(t => t.zone === currentZone)
+      .filter(t => t.zone === currentZone || t.pinned)
       .sort((a, b) => (b.pinned - a.pinned) || (b.lastDeath - a.lastDeath))
       .slice(0, 20);
     $('t-empty').style.display = list.length ? 'none' : 'flex';
@@ -1847,7 +1860,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       .map(s => '<option value="' + s.replace(/"/g, '&quot;') + '">').join('');
 
     for (const t of list) {
-      if (!t.resp) t.resp = resolveRespawn(t.mob); // zone data may have loaded late
+      if (!t.resp) t.resp = resolveRespawn(t.mob, t.zone); // zone data may have loaded late
       const c = t.lastDeath ? fmtCountdown(t, now) : { txt: 'waiting for kill', due: false };
       const div = document.createElement('div');
       div.className = 'l-mob';
@@ -1856,7 +1869,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       star.textContent = t.pinned ? '★ ' : '☆ ';
       star.style.color = t.pinned ? '#ffd766' : '#666';
       const nm = document.createElement('span');
-      nm.textContent = t.mob;
+      nm.textContent = t.mob + (t.zone !== currentZone ? '  (' + t.zone + ')' : '');
       nm.style.flex = '1';
       nm.style.overflow = 'hidden'; nm.style.textOverflow = 'ellipsis'; nm.style.whiteSpace = 'nowrap';
       const cd = document.createElement('span');
@@ -1922,8 +1935,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         inp.style.cssText = 'width:110px;background:#26262f;color:#eee;border:1px solid #555;border-radius:4px;padding:1px 5px;font-size:10.5px';
         const apply = () => {
           const v = inp.value.trim();
-          if (setManualRespawn(t.mob, v)) {
-            t.resp = resolveRespawn(t.mob);
+          if (setManualRespawn(t.mob, v, t.zone)) {
+            t.resp = resolveRespawn(t.mob, t.zone);
             t.notified = false; t.windowNotified = false;
             editTimerFor = null;
             toast(v ? '✎ ' + t.mob + ' timer set to ' + v : '↩ ' + t.mob + ' back to automatic timing');
@@ -2979,7 +2992,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       const fi = factionInfo(fname);
       if (fi && fi.toMax === 0) continue;         // already maxed — no need
       const needName = Object.keys(data.needs || {}).find(n => normItemName(n) === key);
-      return { faction: fname, have: invCount(key), total: needName ? data.needs[needName] : 0 };
+      const total = needName ? data.needs[needName] : 0;
+      return { faction: fname, have: invCount(key), total,
+               // partial faction credit: turn-ins left at the CURRENT standing
+               left: total && fi && fi.toMax != null ? Math.ceil(total * fi.toMax / 2000) : null };
     }
     return null;
   }
@@ -3386,13 +3402,19 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
               const fi = factionInfo(fname);
               for (const [item, total] of entries) {
                 const have = invCount(item);
+                // partial faction credit counts: at your CURRENT standing the
+                // remaining turn-ins are a fraction of the full-grind total
+                const left = fi && fi.toMax != null ? Math.ceil(total * fi.toMax / 2000) : null;
+                const enough = left != null ? have >= left : have >= total;
                 const sp = document.createElement('span');
-                sp.style.cssText = 'margin-right:12px;color:' + (have >= total ? '#7dffa0' : '#9ab');
-                sp.textContent = '📦 ' + item + ' ' + have + ' / ' + total;
-                sp.title = (fi && fi.toMax != null
-                  ? 'Full grind takes ' + total + '. At your current standing you still need about ' +
-                    Math.ceil(total * fi.toMax / 2000) + ' more — you hold ' + have + '.'
-                  : 'Total for the full grind per Alanna’s guide. The count comes from your inventory file plus live loot.');
+                sp.style.cssText = 'margin-right:12px;color:' + (enough ? '#7dffa0' : '#9ab');
+                sp.textContent = '📦 ' + item + ' ' + have + ' / ' + total +
+                  (left == null ? ''
+                    : left <= 0 ? ' · faction MAXED'
+                    : ' · ~' + left + ' more at your standing' + (have >= left ? ' — you hold enough ✓' : ''));
+                sp.title = (left != null
+                  ? 'Full grind from scratch takes ' + total + '. Your current faction standing already covers part of it, so about ' + Math.max(0, left) + ' more turn-ins finish it. You hold ' + have + '.'
+                  : 'Total for the full grind per Alanna’s guide (no faction file yet — run /outputfile faction for the remaining-count). The held count comes from your inventory file plus live loot.');
                 cw.appendChild(sp);
               }
               box.appendChild(cw);
@@ -3831,7 +3853,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       const g = grindItemNeed(key);                         // 🔓 unlock mats
       if (g && (!g.total || g.have < g.total))
         rows.push({ g: 'unlock', item, have: g.have, need: g.total || 0,
-                    faction: g.faction, mobs: [...mobs] });
+                    left: g.left, faction: g.faction, mobs: [...mobs] });
     }
     const order = { wish: 0, epic: 1, unlock: 2 };
     rows.sort((a, b) => (order[a.g] - order[b.g]) || a.item.localeCompare(b.item));
@@ -4136,6 +4158,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       return;
     }
     if (tab.startsWith('qscroll:')) { $('q-list').scrollTop = +tab.slice(8) || 0; return; } // dev-only
+    if (tab.startsWith('sessx:')) { sessExpanded.add(tab.slice(6)); setTab('breakdown'); renderBreakdown(); return; } // dev-only
+    if (tab === 'sesscopy') { console.log('SESSCHAT|' + copySession(false)); console.log('SESSFULL|' + copySession(true)); return; } // dev-only
     if (tab === 'copydemo') { console.log('COPYCHAT|' + copyMeter(false)); console.log('COPYFULL|' + copyMeter(true)); setTab('meter'); return; }
     if (tab === 'xpdemo') { // dev-only: XP strip with a session's worth of gains
       handleLogLines([
@@ -4532,7 +4556,106 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       }
       rowsEl.appendChild(div);
     }
+
+    // Σ Session also shows the WHOLE GROUP: everyone's session damage across
+    // every fight, each row expandable to their damage by source
+    if (bMode === 'session' && session.players.size) {
+      const others = [...session.players.entries()]
+        .filter(([name]) => !petNames.has(name))     // pets already shown above
+        .sort((a, b) => b[1].total - a[1].total);
+      if (others.length) {
+        const dv = document.createElement('div');
+        dv.className = 'l-divider';
+        dv.style.marginTop = '6px';
+        dv.textContent = '👥 Group — whole session (click a player for their breakdown)';
+        rowsEl.appendChild(dv);
+        const top = others[0][1].total || 1;
+        for (const [name, p] of others.slice(0, 15)) {
+          const div = document.createElement('div');
+          div.className = 'mrow';
+          div.style.cursor = 'pointer';
+          div.innerHTML = '<div class="bar" style="width:' + Math.max(2, p.total / top * 100) + '%"></div>' +
+            '<div class="lbl"><span class="nm"></span><span class="nums"></span></div>';
+          div.querySelector('.nm').textContent = (sessExpanded.has(name) ? '▾ ' : '▸ ') + name;
+          div.querySelector('.nums').textContent = fmt(p.total) +
+            (session.durS ? ' (' + fmt(p.total / session.durS) + ')' : '');
+          div.title = name + '’s damage across every fight this session — click for the by-source breakdown';
+          div.addEventListener('click', () => {
+            if (sessExpanded.has(name)) sessExpanded.delete(name); else sessExpanded.add(name);
+            renderBreakdown();
+          });
+          rowsEl.appendChild(div);
+          if (sessExpanded.has(name)) {
+            const srcs = [...p.sources.entries()]
+              .map(([source, e]) => ({ source, ...e, avg: e.total / (e.count || 1) }))
+              .sort((a, b) => b.total - a.total);
+            const sub = document.createElement('div');
+            sub.className = 'msub';
+            sub.setAttribute('data-interactive', '');
+            if (!srcs.length) sub.textContent = 'no attributed damage recorded';
+            const grand = srcs.reduce((a, x) => a + x.total, 0) || 1;
+            for (const sr of srcs.slice(0, 12)) {
+              const row = document.createElement('div');
+              row.className = 'srow';
+              row.innerHTML = '<span class="sn"></span><span class="sv"></span>';
+              row.querySelector('.sn').textContent = sr.source;
+              row.querySelector('.sv').textContent = fmt(sr.total) + ' · ' + Math.round(sr.total / grand * 100) + '%' +
+                ' · ×' + sr.count + ' · avg ' + fmt(sr.avg) + (sr.crits ? ' · ' + sr.crits + ' crit' : '');
+              sub.appendChild(row);
+            }
+            rowsEl.appendChild(sub);
+          }
+        }
+      }
+    }
   }
+  const sessExpanded = new Set(); // Σ Session: players whose breakdown is open
+
+  // ---- whole-session group DPS copy: same style as the fight copy buttons ----
+  function sessionRowsForCopy() {
+    const merged = settings && settings.mergePets !== false;
+    const petTotal = [...session.pets.values()].reduce((a, b) => a + b, 0);
+    const agg = (srcMap) => {
+      let crits = 0, max = 0;
+      for (const e of srcMap.values()) { crits += e.crits || 0; max = Math.max(max, e.max || 0); }
+      return { crits, max };
+    };
+    const youAgg = agg(session.sources);
+    const rows = [{ name: charName || 'You', total: session.total + (merged ? petTotal : 0),
+                    crits: youAgg.crits, max: youAgg.max }];
+    if (!merged) for (const [pname, ptotal] of session.pets)
+      rows.push({ name: pname + ' (pet)', total: ptotal, crits: 0, max: 0 });
+    for (const [name, p] of session.players) {
+      if (petNames.has(name)) continue;
+      const a = agg(p.sources);
+      rows.push({ name, total: p.total, crits: a.crits, max: a.max });
+    }
+    return rows.sort((a, b) => b.total - a.total);
+  }
+
+  function copySession(full) {
+    if (!session.fights) { toast('Nothing to copy — no fights this session yet'); return; }
+    const n = Math.max(1, Math.min(10, +((settings && settings.copyTopN) || 5)));
+    const rows = sessionRowsForCopy();
+    const top = rows.slice(0, n);
+    const durS = session.durS || 1;
+    let text;
+    if (!full) {
+      text = 'Session (' + session.fights + ' fights, ' + fmtDur(session.durS) + ') — ' +
+        top.map(r => r.name + ' ' + fmt(r.total) + ' @' + fmt(r.total / durS)).join(' | ');
+    } else {
+      const lines = ['SEQO — whole session · ' + session.fights + ' fights · ' + fmtDur(session.durS) + ' in combat'];
+      for (const [i, r] of top.entries())
+        lines.push((i + 1) + '. ' + r.name + ' — ' + fmt(r.total) + ' dmg · ' + fmt(r.total / durS) + ' dps' +
+                   (r.max ? ' · max ' + fmt(r.max) : '') + (r.crits ? ' · ' + r.crits + ' crits' : ''));
+      text = lines.join('\n');
+    }
+    window.overlay.copyText(text);
+    toast('📋 Copied session ' + (full ? 'breakdown' : 'chat line') + ' (top ' + top.length + ')');
+    return text;
+  }
+  $('b-copy').addEventListener('click', () => copySession(false));
+  $('b-copyfull').addEventListener('click', () => copySession(true));
 
   // Meter and Spells are ONE tab now: ⚔ Fight is the live meter, Σ Session is
   // the whole-session damage-by-source view (the old Spells tab). Per-fight
@@ -5534,6 +5657,21 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       e.max = Math.max(e.max, r.max);
       if (r.procRate !== undefined) e.nocast = true;
     }
+    // everyone ELSE's session damage too — totals plus their by-source rows,
+    // so the Σ Session view can show the whole group, not just you
+    // (onFightEnd fires with the ended fight still readable as tracker.last)
+    for (const r of s.rows || []) {
+      if (r.name === 'You') continue;
+      let p = session.players.get(r.name);
+      if (!p) session.players.set(r.name, p = { total: 0, sources: new Map() });
+      p.total += r.total;
+      for (const src of tracker.attackerSources(r.name)) {
+        let e = p.sources.get(src.source);
+        if (!e) p.sources.set(src.source, e = { total: 0, count: 0, crits: 0, max: 0 });
+        e.total += src.total; e.count += src.count; e.crits += src.crits;
+        e.max = Math.max(e.max, src.max);
+      }
+    }
   };
 
   // source classification: user override wins, else auto (no-cast = proc)
@@ -5609,6 +5747,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     $('autozone').checked = !!settings.autoZoneUpdate;
     $('autoclear').checked = !!settings.autoClearLog;
     $('archiveclear').checked = settings.archiveOnClear !== false;
+    $('autorun').checked = !!settings.autoRun;
     $('alertflash').checked = settings.alertFlash !== false;
     $('alertsound').checked = settings.alertSound !== false;
     $('buffalerts').checked = settings.buffAlerts !== false;
@@ -5750,6 +5889,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   $('mergepets').addEventListener('change', (e) => { save({ mergePets: e.target.checked }); meterDirty = true; });
   $('autozone').addEventListener('change', (e) => save({ autoZoneUpdate: e.target.checked }));
   $('autoclear').addEventListener('change', (e) => save({ autoClearLog: e.target.checked }));
+  $('autorun').addEventListener('change', (e) => save({ autoRun: e.target.checked }));
   $('archiveclear').addEventListener('change', (e) => save({ archiveOnClear: e.target.checked }));
   $('alertflash').addEventListener('change', (e) => save({ alertFlash: e.target.checked }));
   $('alertsound').addEventListener('change', (e) => save({ alertSound: e.target.checked }));

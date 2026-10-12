@@ -100,8 +100,12 @@
         nm.textContent = r.item;
         const cnt = document.createElement('span');
         cnt.className = 'cnt';
-        if (r.need > 0) cnt.textContent = Math.min(r.have || 0, r.need) + '/' + r.need;
-        else if (r.g === 'unlock' && r.have) cnt.textContent = '×' + r.have;
+        if (r.need > 0) {
+          cnt.textContent = Math.min(r.have || 0, r.need) + '/' + r.need +
+            (r.left != null && r.left > 0 ? ' · ~' + r.left + ' to max' : '');
+          if (r.left != null)
+            cnt.title = 'Full grind: ' + r.need + '. Your current faction standing already covers part of it — about ' + r.left + ' more turn-ins max it out.';
+        } else if (r.g === 'unlock' && r.have) cnt.textContent = '×' + r.have;
         const mobs = document.createElement('span');
         mobs.className = 'mobs';
         const mobTxt = (r.mobs || []).filter(Boolean);
