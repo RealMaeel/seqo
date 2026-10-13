@@ -96,6 +96,9 @@
   }
   .tab.active { color: #ffd766; border-color: rgba(255,215,102,.5); background: rgba(255,215,102,.1); }
   .tab[data-tab] { flex: 0 1 auto; min-width: 26px; overflow: hidden; text-overflow: ellipsis; }
+  /* nine tabs now: inactive ones shrink to their icon (hover for the name),
+     the active tab keeps its label — everything fits without ellipsis soup */
+  .tab[data-tab]:not(.active) .tl { display: none; }
   /* title-bar action buttons: AFK + update dot live up here now */
   #afk-btn.on, #afk-btn2.on {
     color: #ff9d9d !important;
@@ -153,6 +156,7 @@
   #c-live { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #7dffa0; display: none; }
   #view-meter.live #c-live { display: inline; animation: pulse 1.2s infinite; }
   @keyframes pulse { 50% { opacity: .35; } }
+  @keyframes needflash { 0%, 40% { background: rgba(125,255,160,.28); } 100% { background: transparent; } }
 
   #c-you { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 5px 0 7px; }
   .stat { text-align: center; }
@@ -499,17 +503,17 @@
         <div id="panelbg"></div>
         <div id="inner">
           <div id="tabs" data-interactive>
-            <div class="tab active" data-tab="meter">&#9876; Meter</div>
-            <div class="tab" data-tab="loot">&#128176; Loot</div>
-            <div class="tab" data-tab="lookup">&#128270; Lookup</div>
-            <div class="tab" data-tab="map">&#128506; Map</div>
-            <div class="tab" data-tab="timers">&#9202; Timers</div>
-            <div class="tab" data-tab="quests">&#128220; Quests</div>
-            <div class="tab" data-tab="notes" title="Free-form notes — saved forever, synced between your computers">&#128221; Notes</div>
+            <div class="tab active" data-tab="meter" title="Live DPS meter &amp; session breakdowns">&#9876;<span class="tl"> Meter</span></div>
+            <div class="tab" data-tab="loot" title="Loot log, runs &amp; drop rates">&#128176;<span class="tl"> Loot</span></div>
+            <div class="tab" data-tab="needs" title="Everything you still need that drops in this zone — starred gear, epic pieces, unlock turn-ins, spell quest items">&#127919;<span class="tl"> Needs</span></div>
+            <div class="tab" data-tab="quests" title="Quest trackers: Plane of Sky, unlocks, Slayer, spell quests, epics, exalts">&#128220;<span class="tl"> Quests</span></div>
+            <div class="tab" data-tab="class" title="Your trio: best-in-slot gear advisor and buff lineup">&#128737;<span class="tl"> Class</span></div>
+            <div class="tab" data-tab="timers" title="Camp &amp; repop timers">&#9202;<span class="tl"> Timers</span></div>
+            <div class="tab" data-tab="map" title="World travel map">&#128506;<span class="tl"> Map</span></div>
+            <div class="tab" data-tab="lookup" title="Item, mob &amp; drop lookup">&#128270;<span class="tl"> Lookup</span></div>
+            <div class="tab" data-tab="notes" title="Free-form notes — saved forever, synced between your computers">&#128221;<span class="tl"> Notes</span></div>
           </div>
 
-          <!-- login reminder: fresh session → refresh the /outputfile exports -->
-          <div id="loginbar" data-interactive style="display:none"></div>
 
           <!-- METER -->
           <div class="view active" id="view-meter">
@@ -566,7 +570,6 @@
               <span id="l-coin"></span>
               <button class="kbtn" id="l-cleanup" title="Open the Cleanup window: every bag &amp; bank item judged keep-or-toss, live">&#129529; Cleanup</button>
               <button class="kbtn" id="l-needs" title="Open the zone-needs panel: a small strip under the overlay listing what you still need from this zone — starred gear, epic pieces, unlock turn-ins with live counters">&#127919; Needs</button>
-              <button class="kbtn gold" id="l-export" title="Generate wikitext of your observed drop rates">Wiki export &#10697;</button>
             </div>
             <div id="l-scroll" data-interactive>
               <div id="l-run-box"></div>
@@ -575,6 +578,21 @@
               <div id="l-mobs"></div>
               <div class="emptymsg" id="l-empty" style="padding:10px 0">No loot recorded yet.<br>Kills and drops are tracked automatically.</div>
             </div>
+          </div>
+
+          <!-- NEEDS (zone needs as a full tab; the pop-out panel mirrors this list) -->
+          <div class="view" id="view-needs" data-interactive>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+              <span id="n-zone" style="color:#ffd766;font-weight:600;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">&#127919; Zone needs</span>
+              <button class="kbtn" id="n-popout" title="Open the compact pop-out panel that docks under the overlay — same list, visible while you play">&#10697; Pop-out</button>
+            </div>
+            <div id="n-rows" style="flex:1;min-height:0;overflow-y:auto;padding-right:4px"></div>
+            <div class="emptymsg" id="n-empty" style="display:none"></div>
+          </div>
+
+          <!-- CLASS (trio: gear advisor + buff lineup) -->
+          <div class="view" id="view-class" data-interactive>
+            <div id="cl-root" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
           </div>
 
           <!-- LOOKUP -->
@@ -624,8 +642,9 @@
             <div id="q-views" style="display:flex;gap:3px;margin-bottom:4px;flex-wrap:wrap">
               <span class="qview-chip active" data-qview="">&#128220; Quests</span>
               <span class="qview-chip" data-qview="__unlocks">&#128275; Unlocks</span>
+              <span class="qview-chip" data-qview="__slayer" title="Slayer achievements from your achievements export — progress, nearest goals, and where to hunt">&#128128; Slayer</span>
+              <span class="qview-chip" data-qview="__spellq" title="Optional class spell quests — pick the ones you're chasing, pieces feed the zone-needs list">&#129497; Spells</span>
               <span class="qview-chip" data-qview="__epics">&#9876; Epics</span>
-              <span class="qview-chip" data-qview="__bis">&#127942; BiS</span>
               <span class="qview-chip" data-qview="__exalts">&#10024; Exalts</span>
             </div>
             <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
@@ -692,6 +711,17 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
             <button id="bb-run" class="bbbtn" title="Track loot, coin, motes and rare kills between Start and End — instance clears, camps, farm sessions. Same run as the Loot tab.">&#9654; Start run</button>
             <span id="bb-xp"></span>
             <span id="bb-reset" title="Reset the session XP/AA pace — kills, percent and per-hour start over. Your level position, level and AA total stay.">&#8634; reset</span>
+          </div>
+
+          <!-- fresh-login popup: the /outputfile commands, copy-paste ready -->
+          <div id="login-modal" data-interactive style="position:absolute;left:50%;top:38px;transform:translateX(-50%);width:min(430px,92%);background:rgba(14,14,20,.98);border:1px solid rgba(255,215,102,.45);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.6);display:none;flex-direction:column;padding:12px;z-index:47">
+            <div style="color:#ffd766;font-weight:600;font-size:13px">&#128194; Fresh login — update your tracking files</div>
+            <div style="color:#99a;font-size:10.5px;margin:3px 0 9px">Copy each line and paste it into the game's chat. SEQO spots the new file within a second and ticks it off here by itself.</div>
+            <div id="login-rows" style="display:flex;flex-direction:column;gap:6px"></div>
+            <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
+              <span style="flex:1;color:#667;font-size:9.5px">comes back next login — turn it off in &#9881; Alerts &amp; Sounds</span>
+              <button class="kbtn" id="login-close">Dismiss</button>
+            </div>
           </div>
 
           <!-- wiki export modal -->
@@ -775,7 +805,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         <label>Alert volume <span class="val" id="alertvol-val"></span></label>
         <input type="range" id="alertvol" min="0" max="100" step="5">
         <div class="setrow"><span>Buff fade alerts<span class="sub">when your watched buffs wear off</span></span><input type="checkbox" id="buffalerts"></div>
-        <div class="setrow"><span>Login file reminder<span class="sub">one toast per login until your /outputfile exports are fresh</span></span><input type="checkbox" id="loginremind"></div>
+        <div class="setrow"><span>Login file popup<span class="sub">on a fresh login: a popup with the /outputfile commands to copy, ticking off as the files land</span></span><input type="checkbox" id="loginremind"></div>
         <div class="setrow"><span>Flag best-in-slot drops<span class="sub">off: BiS stays a view you browse. On: BiS drops for YOUR class toast and get KEEP verdicts</span></span><input type="checkbox" id="bisflag"></div>
         <div class="row" style="margin-top:4px">
           <button id="btn-testalerts" style="flex:1">Test all alerts &#128276;</button>
@@ -849,6 +879,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         <input type="text" id="wiki-user" placeholder="YourName@botname" spellcheck="false" style="margin-bottom:4px">
         <input type="password" id="wiki-pass" placeholder="bot password">
         <div class="hint" style="margin-top:4px">Create a <b>bot password</b> at eqlwiki.com/Special:BotPasswords. Never your real password. Stored locally only.</div>
+        <div class="row" style="margin-top:6px">
+          <button class="kbtn gold" id="l-export" title="Generate wikitext of your observed drop rates, ready to paste into your wiki sandbox page">Wiki export &#10697;</button>
+        </div>
       </details>
 
       <details>
@@ -879,12 +912,28 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 <script src="zones.js"></script>
 <script src="worldmap.js"></script>
 <script src="buffs.js"></script>
+<script src="slayer.js"></script>
+<script src="spellquests.js"></script>
 <script>
   const BASE_W = 480, BASE_H = 320, TOOLBAR_H = 30;
   let settings = null;
   let locked = false;
 
   const $ = (id) => document.getElementById(id);
+
+  // Live events re-render the active view, and rebuilding a list snaps its
+  // scroll to the top — mid-read, mid-scroll. Every renderer calls this on its
+  // scroll container FIRST: the position is put back right after the rebuild.
+  // A renderer that means to jump (e.g. Slayer's chain click) sets
+  // scrollOverride AFTER its own scrollIntoView.
+  let scrollOverride = false;
+  function keepScroll(el) {
+    if (!el) return;
+    const st = el.scrollTop;
+    if (!st) return;
+    scrollOverride = false;
+    queueMicrotask(() => { if (!scrollOverride) el.scrollTop = st; });
+  }
   const fmt = (n) => n >= 100000 ? (n / 1000).toFixed(0) + 'k'
                    : n >= 10000 ? (n / 1000).toFixed(1) + 'k'
                    : Math.round(n).toLocaleString();
@@ -972,9 +1021,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       }
       const ev = EQLParser.parseLine(l);
       if (!ev) {
-        // unparsed flavor line: remember it briefly for fade attribution
+        // unparsed flavor line: remember it briefly for fade attribution,
+        // and check it against the game's exact cast-on-you lines (a lasting
+        // effect landing on you -> the live buff tracker)
         const msg = l.slice(l.indexOf('] ') + 2);
-        if (msg) noteFlavor(msg, Date.now());
+        if (msg) { noteBuffLand(msg); noteFlavor(msg, Date.now()); }
         continue;
       }
       if (ev.type === 'cast') {
@@ -1039,7 +1090,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           lootedLive.set(lk, (lootedLive.get(lk) || 0) + (ev.count || 1));
           if (activeTab === 'quests' && qView) renderQuests();
         }
-        if (needsOpen) pushNeeds(ev.item); else needsDirty = true; // live counters + row flash
+        needsDirty = true; pendingNeedsFlash = ev.item; // live counters + row flash (coalesced in the 500ms loop)
         if (ev.mob) lastCorpse = { mob: ev.mob, when: ev.when };
         recentDrops.unshift({ item: ev.item, mob: mob || '(unknown)', verdict });
         recentDrops = recentDrops.slice(0, 8);
@@ -1145,10 +1196,23 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           meterDirty = true;
         }
       } else if (ev.type === 'bufffade') {
-        const info = fadeInfo(ev.effect);
-        if (!info) buffAlert('Faded: ' + ev.effect, ev.effect);
-        else if (info.kind === 'debuff') buffAlert('Debuff gone: ' + info.label, ev.effect);
-        else buffAlert('Buff fade: ' + info.label, ev.effect);
+        // exact resolution first: the game's own string table maps this fade
+        // line to the spell(s) that produce it
+        const exact = spellFadeNames(ev.effect, ev.verb || 'fades');
+        if (exact && exact.length) {
+          // if one of the candidates is tracked as active on you, it's THAT one
+          const active = exact.find(n => activeBuffs.has(n.toLowerCase()));
+          const b = active && activeBuffs.get(active.toLowerCase());
+          if (active) { activeBuffs.delete(active.toLowerCase()); classDirty = true; }
+          const label = active || (exact.length <= 3 ? exact.join(' / ') : exact[0] + ' (+' + (exact.length - 1) + ' alike)');
+          if (b && b.ben === false) buffAlert('Debuff gone: ' + label, ev.effect);
+          else buffAlert('Buff fade: ' + label, ev.effect);
+        } else {
+          const info = fadeInfo(ev.effect);
+          if (!info) buffAlert('Faded: ' + ev.effect, ev.effect);
+          else if (info.kind === 'debuff') buffAlert('Debuff gone: ' + info.label, ev.effect);
+          else buffAlert('Buff fade: ' + info.label, ev.effect);
+        }
       } else if (ev.type === 'invisfade') {
         invisAlert('👻 Invisibility is FADING — move to safety!');
       } else if (ev.type === 'invisdrop') {
@@ -1197,13 +1261,23 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         // YOUR OWN /who row is authoritative about where you are — the only
         // zone signal when a zone logs no entry line (the planes) or the log
         // was cleared mid-session
-        if (ev.player && charName && ev.player.toLowerCase() === charName.toLowerCase() &&
-            cleanZoneName(ev.longName) !== currentZone) {
-          lastZoneChangeAt = ev.when;
-          currentZoneInst = !!ev.inst;
-          setZone(ev.longName, { autoFetch: true });
-          save({ lastZone: cleanZoneName(ev.longName) });
-          toast('📍 Zone set from /who: ' + cleanZoneName(ev.longName));
+        if (ev.player && charName && ev.player.toLowerCase() === charName.toLowerCase()) {
+          // your own /who row also carries your LEVEL and TRIO — remember both
+          // (the Class tab auto-detects your makeup from this)
+          if (ev.trio && ev.trio.length === 3 && JSON.stringify(ev.trio) !== JSON.stringify(settings && settings.myTrio)) {
+            save({ myTrio: ev.trio });
+            if (settings) settings.myTrio = ev.trio;
+            classDirty = true;
+            toast('🛡 Trio detected from /who: ' + ev.trio.join('/'));
+          }
+          if (ev.level && settings && ev.level !== settings.myLevel) { save({ myLevel: ev.level }); settings.myLevel = ev.level; }
+          if (cleanZoneName(ev.longName) !== currentZone) {
+            lastZoneChangeAt = ev.when;
+            currentZoneInst = !!ev.inst;
+            setZone(ev.longName, { autoFetch: true });
+            save({ lastZone: cleanZoneName(ev.longName) });
+            toast('📍 Zone set from /who: ' + cleanZoneName(ev.longName));
+          }
         }
         // fresh zone knowledge may change where "you are here" glows
         if (activeTab === 'map') drawMap();
@@ -1580,6 +1654,120 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     return null;
   }
 
+  // ================= 🧪 spell engine (the game's own spell files) ============
+  // Main parses spells_us.txt / spells_us_str.txt / SpellStackingGroups.txt
+  // from the install folder (cached per patch) and hands over compact maps:
+  // exact cast-on-you lines, exact fade lines, stacking groups, the planner
+  // pool of player buffs, and descriptions.
+  let spellDB = null;
+  let spellDbError = '';
+  const spellByName = new Map();    // lower name -> [player-castable records]
+  const activeBuffs = new Map();    // lower name -> {name,id,at,durS,est,ben}
+  let classDirty = false;
+
+  function spellDbInit() {
+    window.overlay.getSpellDB().then((db) => {
+      if (!db || db.error) { spellDbError = (db && db.error) || 'spell data unavailable'; return; }
+      spellDB = db;
+      spellDbError = '';
+      spellByName.clear();
+      for (const sp of Object.values(db.spells)) {
+        if (!sp.cls) continue;
+        const k = sp.n.toLowerCase();
+        if (!spellByName.has(k)) spellByName.set(k, []);
+        spellByName.get(k).push(sp);
+      }
+      classDirty = true;
+      if (activeTab === 'class') renderClassTab();
+    }).catch(() => { spellDbError = 'spell data unavailable'; });
+  }
+  setTimeout(spellDbInit, 2500); // off the startup path; cached loads are instant
+
+  // classic duration formulas (ticks of 6s), capped at base
+  function durTicks(formula, base, level) {
+    let t;
+    switch (+formula) {
+      case 0: return 0;
+      case 1: t = Math.ceil(level / 2); break;
+      case 2: t = Math.ceil(level / 2) + 5; break;
+      case 3: t = level * 30; break;
+      case 4: t = 50; break;
+      case 5: t = 2; break;
+      case 6: t = Math.ceil(level / 2) + 2; break;
+      case 7: t = level; break;
+      case 8: t = level + 10; break;
+      case 9: t = level * 2 + 10; break;
+      case 10: t = level * 3 + 10; break;
+      case 11: case 12: case 15: t = base; break;
+      case 50: return -1; // permanent until cancelled
+      default: t = base;
+    }
+    return base ? Math.min(t, base) : t;
+  }
+  const myLevel = () => (settings && settings.myLevel) || (typeof xp !== 'undefined' && xp.level) || 50;
+  function buffDurS(sp, level) {
+    const t = durTicks(sp.durF, sp.durB, level || 50);
+    return t < 0 ? null : t * 6; // null = permanent-until-cancelled
+  }
+
+  // a cast-on-you line matched exactly: a lasting effect just landed on you
+  function noteBuffLand(msg) {
+    if (!spellDB) return false;
+    const ids = spellDB.landMap[msg];
+    if (!ids || !ids.length) return false;
+    let sp = null;
+    for (const id of ids) { // prefer the player-castable record
+      const r = spellDB.spells[id];
+      if (r && (!sp || (r.cls && !sp.cls))) sp = r;
+    }
+    if (!sp) return false;
+    // my own cast within the last 8s = exact duration at my level
+    const mine = lastYouCast && Date.now() - lastYouCast.when < 8000 &&
+                 lastYouCast.spell.toLowerCase() === sp.n.toLowerCase();
+    activeBuffs.set(sp.n.toLowerCase(), {
+      name: sp.n, id: sp.id, at: Date.now(),
+      durS: buffDurS(sp, myLevel()), est: !mine, ben: !!sp.ben
+    });
+    classDirty = true;
+    return true;
+  }
+
+  // the exact fade line, straight from the game's string table
+  function spellFadeNames(effect, verb) {
+    if (!spellDB) return null;
+    for (const c of ['The ' + effect + ' ' + verb + '.', 'Your ' + effect + ' ' + verb + '.',
+                     'The ' + effect + ' fades.', 'Your ' + effect + ' fades.'])
+      if (spellDB.fadeMap[c]) return spellDB.fadeMap[c];
+    return null;
+  }
+
+  // why a cast "did not take hold": the game's own stacking groups
+  function stackBlockInfo(spellName) {
+    if (!spellDB) return null;
+    const want = spellName.toLowerCase();
+    for (const rec of spellByName.get(want) || []) {
+      const st = spellDB.stacking[rec.id];
+      if (!st) continue;
+      for (const b of activeBuffs.values()) {
+        if (b.name.toLowerCase() === want) continue;
+        const bs = spellDB.stacking[b.id];
+        if (bs && bs.g === st.g) return { blocker: b.name, mine: st.r, theirs: bs.r };
+      }
+    }
+    return null;
+  }
+
+  // sweep: drop tracked buffs well past their run time (missed fade line)
+  setInterval(() => {
+    const now = Date.now();
+    let changed = false;
+    for (const [k, b] of activeBuffs) {
+      if (b.durS != null && now - b.at > (b.durS + 600) * 1000) { activeBuffs.delete(k); changed = true; }
+    }
+    if (changed) classDirty = true;
+    if (classDirty && activeTab === 'class') { classDirty = false; renderClassTab(); }
+  }, 2000);
+
   // ---- manual spell timers: "Mesmerization = 42" -> countdown on cast ----
   // Every cast gets its OWN timer instance (mez on 3 mobs = 3 chips).
   // A "worn off of X" removes one instance; the rest keep counting.
@@ -1641,6 +1829,15 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   }
 
   function onCastFail(spell) {
+    // "did not take hold": the game's stacking table usually knows WHY
+    if (spell) {
+      const sb = stackBlockInfo(spell);
+      if (sb) {
+        toast('🚫 ' + spell + ' didn\'t take hold — blocked by ' + sb.blocker +
+          (sb.mine > sb.theirs ? ' (yours is STRONGER — click the old buff off, then recast)'
+                               : ' (what\'s on you is as strong or stronger — recasting gains nothing)'));
+      }
+    }
     // the cast never landed: kill the NEWEST young timer for it
     // (one fail = one cast; older instances are still live on their mobs)
     for (let i = activeSpellTimers.length - 1; i >= 0; i--) {
@@ -1837,7 +2034,14 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     return { txt: 'died ' + fmtDur(alive) + ' ago — timing…', due: false };
   }
 
+  // the 1s tick only refreshes countdown TEXT via these closures — the row
+  // structure is rebuilt by renderTimers() on real changes (kills, pins, zone)
+  let timerTickUpds = [];
+  function tickTimerTexts() { for (const u of timerTickUpds) u(); }
+
   function renderTimers() {
+    keepScroll($('t-rows'));
+    timerTickUpds = [];
     const rows = $('t-rows');
     // current-zone timers, PLUS pinned camps from anywhere — otherwise a camp
     // you zoned away from couldn't be unpinned until you went back
@@ -1881,6 +2085,14 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         : (t.resp.n || 0) >= 3 ? 'Learned from ' + t.resp.n + ' of your own kill cycles'
         : 'Tentative — learned from only ' + (t.resp.n || 1) + ' cycle' + ((t.resp.n || 1) === 1 ? '' : 's') + ' so far';
       if (c.due) { cd.style.color = '#7dffa0'; cd.style.fontWeight = '700'; }
+      timerTickUpds.push(() => { // per-second text refresh, no DOM rebuild
+        if (!t.resp) t.resp = resolveRespawn(t.mob, t.zone); // zone data may load late
+        if (!t.lastDeath) return;
+        const cc = fmtCountdown(t, Date.now());
+        cd.textContent = cc.txt + respMark(t.resp);
+        cd.style.color = cc.due ? '#7dffa0' : '';
+        cd.style.fontWeight = cc.due ? '700' : '';
+      });
       // ✎ manual override: fixed ("6:40", "25m") or window ("15-30" = minutes)
       const pen = document.createElement('span');
       pen.textContent = '✎';
@@ -2019,7 +2231,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         alertFX('⏲ ' + t.mob + ' repop due!', 'repop');
       }
     }
-    if (activeTab === 'timers' && !editTimerFor) renderTimers(); // ✎ editor keeps focus
+    if (activeTab === 'timers' && !editTimerFor) tickTimerTexts(); // text-only refresh; rows rebuild on real changes
     if (activeTab === 'loot' && lootRun) renderRunBox(); // live run clock
     if (lootRun) updateRunButtons();                     // bottom-bar clock ticks everywhere
     renderCampBar();
@@ -2091,12 +2303,16 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   }
 
   // which sub-view the Quests tab shows: '' = zone quests, or one of the
-  // chip views ('__unlocks' / '__epics' / '__bis' / '__exalts')
+  // chip views ('__unlocks' / '__slayer' / '__spellq' / '__epics' / '__exalts')
   let qView = '';
   function setQuestView(v) {
     qView = v || '';
     document.querySelectorAll('#q-views .qview-chip')
       .forEach(c => c.classList.toggle('active', c.dataset.qview === qView));
+    // remember which export-fed views this person actually uses, so the login
+    // reminder only asks for the files that feed THEIR features
+    if (qView === '__unlocks' && settings && !settings.usedUnlocks) save({ usedUnlocks: true });
+    if (qView === '__slayer' && settings && !settings.usedSlayer) save({ usedSlayer: true });
   }
   document.querySelectorAll('#q-views .qview-chip').forEach(c =>
     c.addEventListener('click', () => { setQuestView(c.dataset.qview); renderQuests(); }));
@@ -2108,9 +2324,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   const isPosZone = (z) => /plane of sky/i.test(z || '');
 
   function renderQuests() {
+    keepScroll($('q-list'));
     const zone = questZone();
     renderSyncLine();
-    const special = zone === '__unlocks' || zone === '__epics' || zone === '__bis' || zone === '__exalts';
+    const special = zone === '__unlocks' || zone === '__slayer' || zone === '__spellq' || zone === '__epics' || zone === '__exalts';
     const pos = !special && isPosZone(zone);
     // PoS-only controls hide for wiki-listed zones and the special views
     $('q-import').style.display = 'none'; // superseded by zero-click sync
@@ -2118,7 +2335,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     // the how-to only matters until game data is flowing — then free the space
     const synced = gameFiles && (gameFiles.inventory || gameFiles.achievements);
     $('q-help').style.display = pos && !synced ? '' : 'none';
-    $('q-classes').style.display = (special && (zone === '__bis' || zone === '__exalts')) ? 'none' : 'flex';
+    $('q-classes').style.display = (special && (zone === '__exalts' || zone === '__slayer' || zone === '__spellq')) ? 'none' : 'flex';
     $('q-posrow').style.display = special ? 'none' : 'flex';
     $('q-isle').style.display = pos ? '' : 'none';
     $('q-runehint').style.display = pos ? '' : 'none';
@@ -2127,9 +2344,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       $('q-progress').textContent = '';
       setQuestEmpty('');
       if (zone === '__unlocks') return renderUnlocks();
+      if (zone === '__slayer') return renderSlayer();
+      if (zone === '__spellq') return renderSpellQuests();
       if (zone === '__epics') return renderEpics();
-      if (zone === '__exalts') return renderExalts();
-      return renderBis();
+      return renderExalts();
+      // (the old 🏆 BiS view is gone — the ⚔ Class tab's Gear advisor replaced
+      // it; the "Flag best-in-slot drops" alert option still works unchanged)
     }
     if (!pos) { renderWikiQuests(zone); return; }
 
@@ -2473,13 +2693,34 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (cleanupScanning) return;
     cleanupScanning = true;
     const unknowns = buildCleanupRows().filter(r => r.pile === 'unk' && r.reason === '');
+    // bulk pre-check (one request per 50 names): items whose page provably
+    // doesn't exist get cached notFound WITHOUT a lookup each. The slow 30-day
+    // re-check still runs the full search-fallback path, so a renamed page
+    // self-heals later. Single manual lookups are untouched.
+    let exist = null;
+    if (unknowns.length > 5) {
+      window.overlay.cleanupPush({ status: '🔎 wiki: checking which of ' + unknowns.length + ' items have pages…', scanning: true });
+      try {
+        const r = await window.overlay.checkPagesExist(unknowns.map(u => u.name.replace(/\s*\+\d+$/, '')));
+        if (r && !r.error) exist = r;
+      } catch { /* fall back to per-item lookups */ }
+    }
     let done = 0;
     for (const r of unknowns) {
       if (!cleanupActive) break; // window closed — stop fetching
-      window.overlay.cleanupPush({ status: '🔎 wiki: ' + (done + 1) + ' / ' + unknowns.length + ' — ' + r.name, scanning: true });
+      const baseName = r.name.replace(/\s*\+\d+$/, '');
       const key = normItemName(r.name);
+      if (exist && exist[baseName] === false) { // provably no page: cache the answer, zero requests
+        const entry = { quests: [], notFound: true, checkedAt: Date.now(), chainChecked: true };
+        itemKnowledge[key] = entry;
+        window.overlay.setItemKnowledge(key, entry);
+        done++;
+        if (done % 10 === 0 || done === unknowns.length) pushCleanup({ scanning: true });
+        continue;
+      }
+      window.overlay.cleanupPush({ status: '🔎 wiki: ' + (done + 1) + ' / ' + unknowns.length + ' — ' + r.name, scanning: true });
       try {
-        const data = await window.overlay.updateItemData(r.name.replace(/\s*\+\d+$/, ''));
+        const data = await window.overlay.updateItemData(baseName);
         // "no page" is an ANSWER (cache it forever) — a network failure is
         // not: cache nothing and stop the pass, the wiki is unreachable
         if (data && data.error && !/no wiki page found/i.test(data.error)) {
@@ -3075,6 +3316,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   // login detection: the game's welcome line, or 30+ minutes of log silence
   let lastLineAt = 0, loginAt = 0, loginReminded = false;
+  let reminderAt = 0; // the freshness baseline the login popup measures against
   function noteLogTime(l) {
     if (l.charCodeAt(0) !== 91) return; // not "[..." — not a timestamped line
     const ts = Date.parse(l.slice(1, l.indexOf(']')));
@@ -3082,44 +3324,82 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const isWelcome = l.includes('] Welcome to EverQuest');
     if ((lastLineAt && ts - lastLineAt > 30 * 60000) || isWelcome) {
       loginAt = ts;
+      reminderAt = ts;
       loginReminded = false;
       setTimeout(maybeLoginReminder, 1200);
     }
     if (ts > lastLineAt) lastLineAt = ts;
   }
 
+  // SEQO started AFTER the game did (no login line will ever scroll past):
+  // treat launch as the session start — exports older than an hour are stale
+  // enough to ask for. Runs once, after the game files have had time to load.
+  setTimeout(() => {
+    if (!reminderAt && !loginReminded && !window.__EQLTEST) {
+      reminderAt = Date.now() - 60 * 60000;
+      maybeLoginReminder();
+    }
+  }, 6000);
+
+  // which exports feed features this person actually uses — the login bar
+  // only nags about those (the per-view outfileBar stays view-scoped anyway)
+  function outfileWanted(kind) {
+    if (kind === 'inventory') return true; // cleanup/needs/epics all read it
+    if (kind === 'achievements') return !!((settings && settings.usedSlayer) || qSelClasses().length);
+    if (kind === 'factions') return !!(settings && (settings.usedUnlocks || settings.usedSlayer));
+    return true;
+  }
+
+  // fresh-login popup: each wanted /outputfile command, copy-paste ready,
+  // ticking itself off live as the new files land next to your log
+  function loginModalRows() {
+    const rows = $('login-rows');
+    rows.innerHTML = '';
+    let open = 0;
+    for (const [kind, cmd] of OUTFILES) {
+      if (!outfileWanted(kind)) continue;
+      const fresh = reminderAt && outfileMtime(kind) >= reminderAt;
+      if (!fresh) open++;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;align-items:center';
+      const st = document.createElement('span');
+      st.textContent = fresh ? '✅' : '⬜';
+      st.style.flex = 'none';
+      const code = document.createElement('span');
+      code.textContent = cmd;
+      code.style.cssText = 'flex:1;font-family:Consolas,monospace;font-size:12.5px;color:#cfe3cf;background:rgba(255,255,255,.06);border-radius:5px;padding:4px 9px;user-select:text' +
+        (fresh ? ';opacity:.45;text-decoration:line-through' : '');
+      const age = document.createElement('span');
+      age.style.cssText = 'flex:none;color:#778;font-size:9.5px';
+      const mt = outfileMtime(kind);
+      age.textContent = fresh ? 'fresh ✓' : mt ? 'from ' + fmtAge(mt) : 'never seen';
+      const btn = document.createElement('button');
+      btn.className = 'kbtn gold';
+      btn.textContent = '📋 Copy';
+      btn.style.fontSize = '10.5px';
+      btn.title = 'Copy, then paste into the game\'s chat';
+      btn.addEventListener('click', () => { window.overlay.copyText(cmd); toast('📋 Copied ' + cmd + ' — paste it in game'); });
+      if (fresh) btn.style.visibility = 'hidden';
+      row.append(st, code, age, btn);
+      rows.appendChild(row);
+    }
+    return open;
+  }
+
   function maybeLoginReminder() {
-    if (!settings || settings.loginReminder === false || loginReminded || !loginAt) return;
-    const stale = OUTFILES.filter(([k]) => outfileMtime(k) < loginAt);
+    if (!settings || settings.loginReminder === false || loginReminded || !reminderAt) return;
+    const stale = OUTFILES.filter(([k]) => outfileWanted(k) && outfileMtime(k) < reminderAt);
     if (!stale.length) return;
     loginReminded = true;
-    const bar = $('loginbar');
-    bar.innerHTML = '';
-    const lead = document.createElement('span');
-    lead.textContent = '📂 Fresh session — update your tracking files:';
-    bar.appendChild(lead);
-    for (const [, cmd] of stale) {
-      const b = document.createElement('span');
-      b.className = 'ofchip';
-      b.textContent = '📋 ' + cmd;
-      b.title = 'Click to copy, then paste into the game’s chat';
-      b.addEventListener('click', () => { window.overlay.copyText(cmd); toast('📋 Copied ' + cmd + ' — paste it in game'); });
-      bar.appendChild(b);
-    }
-    const x = document.createElement('span');
-    x.textContent = '✕';
-    x.style.cssText = 'cursor:pointer;margin-left:auto;color:#888;padding:0 4px';
-    x.title = 'Dismiss (it comes back next login; turn it off for good in ⚙ Alerts & Sounds)';
-    x.addEventListener('click', () => { bar.style.display = 'none'; });
-    bar.appendChild(x);
-    bar.style.display = 'flex';
+    loginModalRows();
+    $('login-modal').style.display = 'flex';
   }
 
   function checkLoginBarDone() {
-    const bar = $('loginbar');
-    if (!loginAt || bar.style.display === 'none') return;
-    if (OUTFILES.every(([k]) => outfileMtime(k) >= loginAt)) {
-      bar.style.display = 'none';
+    const modal = $('login-modal');
+    if (!reminderAt || modal.style.display === 'none') return;
+    if (loginModalRows() === 0) { // every wanted file is fresher than the login
+      modal.style.display = 'none';
       toast('✅ Tracking files all fresh — counters and checkmarks are live');
     }
   }
@@ -3275,6 +3555,421 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // the dock's 📖 guide mode: a wiki page (or one section) as readable text
   const GUIDE_TITLE = "Alanna's Race Unlock Guide";   // wiki redirect → User:Alanna/…
   const openGuide = (payload) => window.overlay.openDock('guide', payload);
+
+  // ================= 💀 Slayer achievements =================
+  // Pure read-out of the achievements export: progress bars, closest-to-done
+  // sorting, meta-chain click-through, and a 🧭 route read-out per target with
+  // hunting spots and faction trade-offs (personalized against YOUR faction
+  // file and race-unlock progress).
+  const SLY = window.EQLSlayer;
+  const slyExpanded = new Set();
+  const slyGroupOpen = { general: false, conquest: true, special: true, skill: false };
+  let slyScrollTo = null;
+
+  const SLY_SECTIONS = [
+    { key: 'general', title: '🏅 General — meta-achievements', re: /^Slayer: General$/i },
+    { key: 'conquest', title: '⚔ Conquest — creature families', re: /^Slayer: Conquest$/i },
+    { key: 'special', title: '🎯 Special — focused groups', re: /^Slayer: Special$/i },
+    { key: 'skill', title: '🔪 Skill — one of everything', re: /^Slayer: Skill$/i }
+  ];
+
+  // real objectives (drop the "This achievement..." footnotes some carry)
+  const slyObjs = (a) => a.objectives.filter(o => !/^This achievement/i.test(o.text));
+
+  // completion fraction: counted objectives contribute cur/max, completed
+  // uncounted ones contribute 1, untouched uncounted ones 0
+  function slyPct(a) {
+    if (a.done) return 1;
+    const objs = slyObjs(a);
+    if (!objs.length) return 0;
+    let got = 0;
+    for (const o of objs) got += o.done ? 1 : (o.max ? Math.min(1, (o.cur || 0) / o.max) : 0);
+    return got / objs.length;
+  }
+
+  function slyProgressText(a) {
+    if (a.done) return 'DONE';
+    const objs = slyObjs(a);
+    const counted = objs.filter(o => o.max && !o.done);
+    if (objs.length === 1 && counted.length === 1)
+      return counted[0].cur.toLocaleString() + ' / ' + counted[0].max.toLocaleString();
+    const done = objs.filter(o => o.done).length;
+    return done + '/' + objs.length;
+  }
+
+  // family tokens out of an objective's text: "Ghouls, Ghosts, and Zombies."
+  function slyTokens(text) {
+    let t = String(text).replace(/\.$/, '');
+    const clock = /^Clockwork:/i.test(t);
+    if (clock) return ['clockwork'];
+    return t.split(/,| and | of /i).map(s => s.trim().toLowerCase())
+      .filter(s => s && !/^the playable races$/.test(s));
+  }
+
+  function slyFamily(tok) {
+    const F = SLY.FAMILIES;
+    if (F[tok]) return { name: tok, ...F[tok] };
+    const sing = tok.replace(/ies$/, 'y').replace(/ves$/, 'f').replace(/e?s$/, '');
+    for (const k of Object.keys(F)) {
+      const ks = k.replace(/ies$/, 'y').replace(/ves$/, 'f').replace(/e?s$/, '');
+      if (ks === sing) return { name: k, ...F[k] };
+    }
+    return null;
+  }
+
+  // faction requirements of a race's unlock achievement, straight from the export
+  function slyRaceUnlockFactions(race) {
+    const sec = achSection(/Untapped Potential: Race/i);
+    if (!sec) return null;
+    const ach = sec.achievements.find(a => a.name.toLowerCase() === ('race unlock - ' + race).toLowerCase());
+    if (!ach) return null;
+    const factions = [];
+    for (const o of ach.objectives) {
+      const m = /^Get maximum faction with (.+?)\.?$/.exec(o.text);
+      if (m) factions.push(m[1]);
+    }
+    return { unlocked: ach.done, factions };
+  }
+
+  function openSlayerRoute(a, secKey) {
+    const lines = [];
+    const objs = slyObjs(a);
+    lines.push(a.done ? '✅ COMPLETED' : 'Progress: ' + slyProgressText(a));
+    lines.push('');
+    for (const o of objs) {
+      lines.push((o.done ? '☑ ' : '☐ ') + o.text +
+        (o.max ? '  — ' + (o.cur || 0).toLocaleString() + ' / ' + o.max.toLocaleString() : ''));
+    }
+    const toks = [...new Set(objs.flatMap(o => slyTokens(o.text.replace(/^\(Optional\)\s*/, ''))))];
+    const spots = [], warns = [], misses = [], races = [];
+    for (const tok of toks) {
+      if (/^complete the achievement/i.test(tok)) continue;
+      const race = SLY.RACE_UNLOCKS[tok];
+      if (race) { races.push({ tok, race }); continue; }
+      const fam = slyFamily(tok);
+      if (fam) {
+        spots.push('• ' + tok + ' — ' + fam.spots.map(s => s.zone + (s.note ? ' (' + s.note + ')' : '')).join(' · '));
+        for (const w of fam.warn || []) warns.push('⚠ ' + tok + ': ' + w.note);
+      } else misses.push(tok);
+    }
+    if (spots.length || races.length) {
+      lines.push('', '━ WHERE TO HUNT ━', '(suggestions from classic-era zones — Legends may differ)', '');
+      lines.push(...spots);
+      for (const { tok, race } of races) {
+        const where = SLY.RACE_SPOTS[tok];
+        if (where) lines.push('• ' + tok + ' — ' + where);
+      }
+    }
+    if (races.length || warns.length) {
+      lines.push('', '━ FACTION TRADE-OFFS ━', '');
+      for (const { tok, race } of races) {
+        const ru = slyRaceUnlockFactions(race);
+        if (!ru || !ru.factions.length) {
+          lines.push('⚠ ' + tok + ': killing their guards/citizens hits their home-city factions — check the mob page first.');
+          continue;
+        }
+        lines.push('⚠ ' + tok + ' — kills typically TANK the factions the ' + race + ' race unlock needs:');
+        for (const f of ru.factions) {
+          const fi = factionInfo(f);
+          let status = fi ? 'your standing ' + fi.value + ' / 2000' : 'no faction data';
+          if (ru.unlocked) status += ' · unlock already DONE — safe for you';
+          else if (fi && fi.value > 0) status += ' · ⚠ you have POSITIVE progress here — these kills undo your grind!';
+          lines.push('   · ' + f + ' (' + status + ')');
+        }
+        if (!ru.unlocked) lines.push('   → if you ever want to unlock ' + race + ', hunt a different target.');
+      }
+      lines.push(...warns);
+    }
+    if (misses.length) lines.push('', 'No stored suggestions for: ' + misses.join(', ') + ' — their wiki pages list spawns.');
+    lines.push('', '━ NOTES ━', '',
+      '• Counts come from /outputfile achievements — run it again after a hunt to update.',
+      '• Before settling into a camp, check the mob\'s faction hits on its wiki page.',
+      '• Conquest counters keep counting after the achievement completes — overlap with Special/Skill targets where you can.');
+    openGuide({ label: '💀 ' + a.name, localText: lines.join('\n'),
+                credit: 'progress from your achievements export · suggestions are classic-era knowledge' });
+  }
+
+  function slyFindAndExpand(name) {
+    const want = name.toLowerCase();
+    for (const s of SLY_SECTIONS) {
+      const sec = achSection(s.re);
+      if (!sec) continue;
+      const a = sec.achievements.find(x => x.name.toLowerCase() === want);
+      if (a) {
+        slyGroupOpen[s.key] = true;
+        slyExpanded.add(s.key + '|' + a.name);
+        slyScrollTo = s.key + '|' + a.name;
+        renderQuests();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function renderSlayer() {
+    const list = $('q-list');
+    list.innerHTML = '';
+    $('q-progress').textContent = '';
+    const of = outfileBar(['achievements']);
+    if (of) list.appendChild(of);
+    if (!achSections().length) {
+      setQuestEmpty('No achievements data yet.\n\nIn game, type  /outputfile achievements\nSEQO reads the file automatically — no clicks needed.');
+      return;
+    }
+    setQuestEmpty('');
+    let anySec = false;
+    for (const s of SLY_SECTIONS) {
+      const sec = achSection(s.re);
+      if (!sec) continue;
+      anySec = true;
+      const doneCount = sec.achievements.filter(a => a.done).length;
+      const hdr = document.createElement('div');
+      hdr.className = 'l-divider';
+      hdr.style.cursor = 'pointer';
+      hdr.textContent = (slyGroupOpen[s.key] ? '▾ ' : '▸ ') + s.title + ' — ' + doneCount + '/' + sec.achievements.length;
+      hdr.addEventListener('click', () => { slyGroupOpen[s.key] = !slyGroupOpen[s.key]; renderQuests(); });
+      list.appendChild(hdr);
+      if (!slyGroupOpen[s.key]) continue;
+
+      // closest-to-done first, completed last
+      const achs = sec.achievements.slice().sort((a, b) => {
+        if (a.done !== b.done) return a.done - b.done;
+        return slyPct(b) - slyPct(a);
+      });
+
+      for (const a of achs) {
+        const key = s.key + '|' + a.name;
+        const card = document.createElement('div');
+        card.className = 'q-quest' + (a.done ? ' done' : '');
+        const head = document.createElement('div');
+        head.className = 'q-head';
+        head.innerHTML = '<span>' + (slyExpanded.has(key) ? '▾' : '▸') + '</span><span class="rw"></span>' +
+          (s.key !== 'general' && !a.done ? '<span class="gd" title="Route read-out: where to hunt these, and what the kills cost you in faction">🧭</span>' : '') +
+          '<span class="bar"></span><span class="st"></span>';
+        head.querySelector('.rw').textContent = a.name;
+        head.querySelector('.bar').innerHTML = a.done ? '' : unlBar(slyPct(a));
+        head.querySelector('.st').textContent = slyProgressText(a);
+        const gd = head.querySelector('.gd');
+        if (gd) {
+          gd.style.cssText = 'cursor:pointer;opacity:.6;flex:none';
+          gd.addEventListener('click', (ev) => { ev.stopPropagation(); openSlayerRoute(a, s.key); });
+        }
+        head.addEventListener('click', () => {
+          slyExpanded.has(key) ? slyExpanded.delete(key) : slyExpanded.add(key);
+          renderQuests();
+        });
+        card.appendChild(head);
+
+        if (slyExpanded.has(key)) {
+          const box = document.createElement('div');
+          box.className = 'q-items';
+          for (const o of slyObjs(a)) {
+            const row = document.createElement('div');
+            row.className = 'q-it' + (o.done ? ' have' : '');
+            const chain = /^(?:\(Optional\)\s*)?Complete the achievement "(.+)"$/.exec(o.text);
+            const optional = /^\(Optional\)/.test(o.text);
+            row.innerHTML = '<span class="box">' + (o.done ? '☑' : '☐') + '</span><span class="nm"></span><span class="loc"></span>';
+            if (chain) {
+              row.querySelector('.nm').textContent = (optional ? '(optional) ' : '') + chain[1];
+              row.querySelector('.nm').style.textDecoration = 'underline dotted';
+              row.style.cursor = 'pointer';
+              row.title = 'Click to jump to this achievement';
+              row.addEventListener('click', (ev) => { ev.stopPropagation(); slyFindAndExpand(chain[1]); });
+            } else {
+              row.querySelector('.nm').textContent = o.text;
+              if (o.max) row.querySelector('.loc').innerHTML =
+                unlBar((o.cur || 0) / o.max) + ' <span style="color:#9ab">' + (o.cur || 0).toLocaleString() + '/' + o.max.toLocaleString() + '</span>';
+            }
+            if (optional) row.style.opacity = '.65';
+            box.appendChild(row);
+          }
+          card.appendChild(box);
+        }
+        card.dataset.slykey = key;
+        list.appendChild(card);
+      }
+    }
+    if (!anySec) setQuestEmpty('Your achievements export has no Slayer sections —\nrun /outputfile achievements in game and this view fills in.');
+    if (SLY.CREDITS && SLY.CREDITS[0]) list.appendChild(creditLine({ note: SLY.CREDITS[0].label, url: SLY.CREDITS[0].url }));
+    if (slyScrollTo) {
+      const el = list.querySelector('[data-slykey="' + CSS.escape(slyScrollTo) + '"]');
+      if (el) { el.scrollIntoView({ block: 'center' }); scrollOverride = true; }
+      slyScrollTo = null;
+    }
+  }
+
+  // ================= 🧙 optional class spell quests =================
+  const SPQ = window.EQLSpellQuests;
+  let spellQuestState = {};   // key -> { sel, done, items: {name: true} }
+  const spqExpanded = new Set();
+  window.overlay.getSpellQuests().then((d) => { spellQuestState = d || {}; if (activeTab === 'quests') renderQuests(); });
+
+  const spqState = (key) => spellQuestState[key] || { sel: false, done: false, items: {} };
+  function spqSave(key, st) {
+    if (st.sel || st.done || Object.keys(st.items || {}).length) spellQuestState[key] = st;
+    else delete spellQuestState[key];
+    window.overlay.setSpellQuest(key, st);
+    needsDirty = true;
+  }
+  // "do I have it": manual check, exact inventory name, or live loot
+  function spqHave(st, it) {
+    if (st.items[it.name]) return true;
+    if (it.kind === 'drop' || it.kind === 'ground') return invHas(it.name);
+    return false;
+  }
+  // fuzzy count for grouped collectibles ("Old Silver Coin (Azia)" → base name)
+  function invCountContains(sub) {
+    const inv = gameFiles && gameFiles.inventory;
+    if (!inv) return 0;
+    const s = sub.toLowerCase();
+    let n = 0;
+    for (const [k, it] of Object.entries(inv.items || {})) if (k.includes(s)) n += it.count || 1;
+    for (const [k, c] of lootedLive) if (k.includes(s)) n += c;
+    return n;
+  }
+  const spqBase = (name) => name.replace(/\s*\([^)]*\)\s*$/, '');
+  const zoneEq = (a, b) => String(a || '').toLowerCase().replace(/^the /, '') === String(b || '').toLowerCase().replace(/^the /, '');
+
+  // selected quests' uncollected hunted pieces in THIS zone → needs rows
+  function spellQuestNeeds(zone) {
+    const rows = [];
+    if (!SPQ) return rows;
+    for (const q of SPQ.QUESTS) {
+      const st = spqState(q.key);
+      if (!st.sel || st.done) continue;
+      for (const it of q.items) {
+        if (it.kind !== 'drop' && it.kind !== 'ground') continue;
+        if (!it.zone || !zoneEq(it.zone, zone)) continue;
+        if (spqHave(st, it)) continue;
+        rows.push({ g: 'spellq', item: it.name, mobs: [it.mob || it.where || 'ground spawn'],
+                    reason: q.spell + ' (' + q.cls + ') — ' + q.name });
+      }
+    }
+    return rows;
+  }
+
+  function renderSpellQuests() {
+    const list = $('q-list');
+    list.innerHTML = '';
+    $('q-progress').textContent = '';
+    const of = outfileBar(['inventory']);
+    if (of) list.appendChild(of);
+    setQuestEmpty('');
+    const intro = document.createElement('div');
+    intro.className = 'q-npc';
+    intro.textContent = '⭐ Track a quest and its hunted pieces join the zone-needs list. Checkmarks fill from your inventory and live loot; click any box by hand too.';
+    list.appendChild(intro);
+    const selFirst = SPQ.QUESTS.slice().sort((a, b) => {
+      const sa = spqState(a.key), sb = spqState(b.key);
+      return (sb.sel - sa.sel) || (sa.done - sb.done) || a.cls.localeCompare(b.cls);
+    });
+    for (const q of selFirst) {
+      const st = spqState(q.key);
+      const hunted = q.items.filter(it => it.kind === 'drop' || it.kind === 'ground');
+      const got = q.items.filter(it => spqHave(st, it)).length;
+      const card = document.createElement('div');
+      card.className = 'q-quest' + (st.done ? ' done' : '');
+      const head = document.createElement('div');
+      head.className = 'q-head';
+      head.innerHTML = '<span>' + (spqExpanded.has(q.key) ? '▾' : '▸') + '</span>' +
+        '<span class="trk" title="Track this quest — its pieces feed the zone-needs list"></span>' +
+        '<span class="rw"></span><span class="cls"></span><span class="st"></span>' +
+        '<span class="q-donebtn" title="Mark the quest finished / unfinished">✓</span>';
+      head.querySelector('.trk').textContent = st.sel ? '⭐' : '☆';
+      head.querySelector('.trk').style.cssText = 'cursor:pointer;flex:none;color:' + (st.sel ? '#ffd766' : '#667');
+      head.querySelector('.rw').textContent = q.spell + ' — ' + q.name;
+      head.querySelector('.cls').textContent = q.cls + ' L' + q.spellLv;
+      head.querySelector('.st').textContent = st.done ? 'DONE' : got + '/' + q.items.length;
+      head.querySelector('.trk').addEventListener('click', (e) => {
+        e.stopPropagation();
+        spqSave(q.key, { ...st, sel: !st.sel });
+        renderQuests();
+        toast(st.sel ? '☆ ' + q.spell + ' untracked' : '⭐ Tracking ' + q.spell + ' — zone needs will flag its pieces');
+      });
+      head.querySelector('.q-donebtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        spqSave(q.key, { ...st, done: !st.done });
+        renderQuests();
+      });
+      head.addEventListener('click', () => {
+        spqExpanded.has(q.key) ? spqExpanded.delete(q.key) : spqExpanded.add(q.key);
+        renderQuests();
+      });
+      card.appendChild(head);
+
+      if (spqExpanded.has(q.key)) {
+        const npc = document.createElement('div');
+        npc.className = 'q-npc';
+        npc.textContent = 'Starts: ' + q.npc + ' · quest from L' + q.startLv + ', spell usable at L' + q.spellLv;
+        card.appendChild(npc);
+        if (q.clicky) {
+          const ck = document.createElement('div');
+          ck.className = 'q-npc';
+          ck.textContent = '💠 ' + q.clicky;
+          card.appendChild(ck);
+        }
+        const box = document.createElement('div');
+        box.className = 'q-items';
+        // grouped collectibles get one live count line ("you hold 3 matching 'Rod'")
+        const bases = new Map();
+        for (const it of hunted) {
+          const b = spqBase(it.name);
+          if (b !== it.name) bases.set(b, (bases.get(b) || 0) + 1);
+        }
+        for (const [b, totalOfBase] of bases) {
+          const n = invCountContains(b.toLowerCase());
+          if (n > 0) {
+            const line = document.createElement('div');
+            line.className = 'q-npc';
+            line.textContent = '📦 Your inventory holds ' + n + ' item' + (n === 1 ? '' : 's') + ' matching "' + b + '" (of ' + totalOfBase + ' needed) — tick off which spots you\'ve done below.';
+            box.appendChild(line);
+            break; // one summary line per quest is enough
+          }
+        }
+        for (const it of q.items) {
+          const row = document.createElement('div');
+          const have = spqHave(st, it);
+          row.className = 'q-it' + (have ? ' have' : '');
+          row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') + '</span><span class="nm itemlink"></span><span class="loc"></span>';
+          row.querySelector('.nm').textContent = it.name + (it.count ? ' ×' + it.count : '');
+          row.querySelector('.loc').textContent = (it.zone ? it.zone + ' — ' : '') + (it.mob || it.where || it.kind);
+          row.title = 'Click ☐ to check off by hand · click the name for item details';
+          row.querySelector('.nm').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (it.kind === 'drop' || it.kind === 'ground') openItemLink(it.name);
+          });
+          row.addEventListener('click', () => {
+            const s = spqState(q.key);
+            const items = { ...s.items };
+            if (items[it.name]) delete items[it.name]; else items[it.name] = true;
+            spqSave(q.key, { ...s, items });
+            renderQuests();
+          });
+          box.appendChild(row);
+        }
+        card.appendChild(box);
+        const stepsHd = document.createElement('div');
+        stepsHd.className = 'q-npc';
+        stepsHd.style.marginTop = '3px';
+        stepsHd.textContent = '🗺 Route:';
+        card.appendChild(stepsHd);
+        const ol = document.createElement('div');
+        ol.className = 'q-items';
+        q.steps.forEach((s, i) => {
+          const r = document.createElement('div');
+          r.className = 'q-it';
+          r.style.cursor = 'default';
+          r.innerHTML = '<span class="box"></span><span class="nm" style="white-space:normal"></span>';
+          r.querySelector('.box').textContent = (i + 1) + '.';
+          r.querySelector('.nm').textContent = s;
+          ol.appendChild(r);
+        });
+        card.appendChild(ol);
+      }
+      list.appendChild(card);
+    }
+    if (SPQ.CREDITS && SPQ.CREDITS[0]) list.appendChild(creditLine(SPQ.CREDITS[0]));
+  }
 
   function renderUnlocks() {
     const list = $('q-list');
@@ -3573,74 +4268,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // ---------- 🏆 BiS gear view ----------
   const bisData = () => (bisOverride && bisOverride.data) || BISDB.DATA;
 
-  function renderBis() {
-    const list = $('q-list');
-    list.innerHTML = '';
-    setQuestEmpty('');
-
-    const bar = document.createElement('div');
-    bar.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:5px';
-    const sel = document.createElement('select');
-    sel.style.cssText = 'background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px';
-    for (const c of BISDB.CLASSES) {
-      const o = document.createElement('option');
-      o.value = c; o.textContent = c;
-      sel.appendChild(o);
-    }
-    sel.value = settings.bisClass || qSelClasses()[0] || 'Shadow Knight';
-    if (!BISDB.CLASSES.includes(sel.value)) sel.value = 'Shadow Knight';
-    sel.addEventListener('change', () => { save({ bisClass: sel.value }); renderQuests(); });
-    const upd = document.createElement('button');
-    upd.className = 'kbtn';
-    upd.textContent = 'Update list ⟳';
-    upd.title = 'Re-read the live list from eqlegendstools.com';
-    upd.addEventListener('click', async () => {
-      upd.disabled = true; upd.textContent = 'Updating…';
-      const res = await window.overlay.updateBis();
-      upd.disabled = false; upd.textContent = 'Update list ⟳';
-      if (res.error) { toast('⚠ ' + res.error); return; }
-      bisOverride = await window.overlay.getBisData();
-      toast('🏆 BiS list refreshed from eqlegendstools.com (' + res.classes + ' classes)');
-      renderQuests();
-    });
-    const when = document.createElement('span');
-    when.style.cssText = 'color:#777;font-size:9.5px;flex:1';
-    when.textContent = bisOverride ? 'list updated ' + fmtAge(bisOverride.updated) : 'built-in list (' + BISDB.CAPTURED + ')';
-    bar.append(sel, upd, when);
-    list.appendChild(bar);
-    const ofB = outfileBar(['inventory']);   // ☑ owned marks read your inventory export
-    if (ofB) list.appendChild(ofB);
-
-    const cls = sel.value;
-    const data = bisData()[cls] || {};
-    const slots = Object.keys(data).sort((a, b) => a.localeCompare(b));
-    let ownedCount = 0, totalCount = 0;
-    for (const slot of slots) {
-      const div = document.createElement('div');
-      div.className = 'l-divider';
-      div.textContent = slot;
-      list.appendChild(div);
-      for (const it of data[slot]) {
-        totalCount++;
-        const have = invHas(it.n);
-        if (have) ownedCount++;
-        const row = document.createElement('div');
-        row.className = 'q-it' + (have ? ' have' : '');
-        const stats = [it.ac ? 'AC' + it.ac : '', it.hp ? it.hp + 'hp' : '', it.mana ? it.mana + 'mana' : '', it.acc ? it.acc + 'acc' : '']
-          .filter(Boolean).join(' ');
-        row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') + '</span><span class="nm itemlink"></span>' +
-          '<span style="color:#9ab;font-size:9.5px;white-space:nowrap">' + stats + '</span><span class="loc"></span>';
-        row.querySelector('.nm').textContent = it.n;
-        row.querySelector('.loc').textContent = it.src;
-        row.title = (it.sp ? it.sp + ' — ' : '') + it.src + ' — ☆ stars it onto your wish list';
-        row.querySelector('.nm').addEventListener('click', (ev) => { ev.stopPropagation(); openItemLink(it.n); });
-        row.insertBefore(wishStar(it.n), row.querySelector('.loc'));
-        list.appendChild(row);
-      }
-    }
-    $('q-progress').textContent = ownedCount + '/' + totalCount + ' owned';
-    list.appendChild(creditLine(BISDB.CREDIT));
-  }
+  // (renderBis removed in v2.5.0 — the ⚔ Class tab's Gear advisor replaced the
+  // old 🏆 BiS view; the bisFlag drop alerts still read the cached BiS list)
 
   // ================= render: ✨ Exaltations =================
   // Browse every effect that can be pulled into an exaltation slot (Focus /
@@ -3817,7 +4446,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // it. Lives in its own slim window (persistent + minimizable); this side
   // builds the rows and pushes them whenever anything relevant changes.
   let needsOpen = false;
+  let pendingNeedsFlash = null; // loot bursts coalesce to ONE rebuild in the 500ms loop
   $('l-needs').addEventListener('click', () => window.overlay.openNeeds());
+  $('n-popout').addEventListener('click', () => window.overlay.openNeeds());
 
   function buildZoneNeeds() {
     if (!currentZone) return { zone: '', rows: [] };
@@ -3855,7 +4486,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         rows.push({ g: 'unlock', item, have: g.have, need: g.total || 0,
                     left: g.left, faction: g.faction, mobs: [...mobs] });
     }
-    const order = { wish: 0, epic: 1, unlock: 2 };
+    rows.push(...spellQuestNeeds(currentZone)); // 🧙 tracked spell-quest pieces here
+    const order = { wish: 0, epic: 1, unlock: 2, spellq: 3 };
     rows.sort((a, b) => (order[a.g] - order[b.g]) || a.item.localeCompare(b.item));
     return { zone: currentZone, rows };
   }
@@ -3878,6 +4510,903 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     else if (cmd.kind === 'item' && cmd.name) openItem(cmd.name);
     else if (cmd.kind === 'wish' && cmd.name) toggleWish(cmd.name);
   });
+
+  // ---- 🎯 Needs tab: the same rows as the pop-out, rendered in the overlay ----
+  const NEED_GROUPS = [
+    { g: 'wish', label: '⭐ WISH LIST' },
+    { g: 'epic', label: '⚔ EPIC PREP' },
+    { g: 'unlock', label: '🔓 UNLOCK TURN-INS' },
+    { g: 'spellq', label: '🧙 SPELL QUESTS' }
+  ];
+  function renderNeedsTab(flashItem) {
+    keepScroll($('n-rows'));
+    const p = buildZoneNeeds();
+    const rows = p.rows || [];
+    $('n-zone').textContent = '🎯 Needs — ' + (p.zone || 'no zone yet') + (rows.length ? ' (' + rows.length + ')' : '');
+    const box = $('n-rows');
+    box.innerHTML = '';
+    $('n-empty').style.display = rows.length ? 'none' : 'flex';
+    if (!rows.length) {
+      $('n-empty').innerHTML = p.zone
+        ? 'Nothing you still need drops in ' + p.zone + ' —<br>or SEQO has no drop data here yet.<br>It fills in as you hunt (and from the wiki\'s zone page).'
+        : 'Zone needs appear once SEQO<br>sees you enter a zone.';
+      return;
+    }
+    for (const grp of NEED_GROUPS) {
+      const inGrp = rows.filter(r => r.g === grp.g);
+      if (!inGrp.length) continue;
+      const h = document.createElement('div');
+      h.className = 'l-divider';
+      h.textContent = grp.label;
+      box.appendChild(h);
+      for (const r of inGrp) {
+        const d = document.createElement('div');
+        d.className = 'l-mob';
+        d.style.cssText = 'cursor:pointer;gap:6px;align-items:baseline';
+        if (flashItem && flashItem.toLowerCase() === r.item.toLowerCase())
+          d.style.animation = 'needflash 2.2s';
+        const nm = document.createElement('span');
+        nm.textContent = r.item;
+        nm.style.cssText = 'color:#ffd766;flex:none;max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+                           'text-decoration:underline dotted rgba(255,215,102,.35);text-underline-offset:2px';
+        const cnt = document.createElement('span');
+        cnt.className = 'k';
+        cnt.style.cssText = 'color:#7dffa0;font-variant-numeric:tabular-nums;flex:none';
+        if (r.need > 0) {
+          cnt.textContent = Math.min(r.have || 0, r.need) + '/' + r.need +
+            (r.left != null && r.left > 0 ? ' · ~' + r.left + ' to max' : '');
+          if (r.left != null)
+            cnt.title = 'Full grind: ' + r.need + '. Your current faction standing already covers part of it — about ' + r.left + ' more turn-ins max it out.';
+        } else if (r.g === 'unlock' && r.have) cnt.textContent = '×' + r.have;
+        const mobs = document.createElement('span');
+        mobs.style.cssText = 'color:#8fa9c7;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px';
+        const mobTxt = (r.mobs || []).filter(Boolean);
+        mobs.textContent = r.faction
+          ? (mobTxt.length ? mobTxt.slice(0, 3).join(', ') + ' · ' : '') + r.faction
+          : mobTxt.length ? mobTxt.slice(0, 3).join(', ') + (mobTxt.length > 3 ? ' +' + (mobTxt.length - 3) : '')
+          : 'zone drop';
+        mobs.title = (mobTxt.join('\n') || 'listed as a zone-wide drop') + (r.reason ? '\n' + r.reason : '');
+        d.append(nm, cnt, mobs);
+        if (r.g === 'wish') {
+          const star = document.createElement('span');
+          star.textContent = '★';
+          star.style.cssText = 'flex:none;cursor:pointer;color:#ffd766;padding:0 3px';
+          star.title = 'Un-star (stops watching this item)';
+          star.addEventListener('click', (e) => { e.stopPropagation(); toggleWish(r.item); });
+          d.appendChild(star);
+        }
+        d.title = 'Click for item details' + (r.reason ? ' — ' + r.reason : '');
+        d.addEventListener('click', () => openItem(r.item));
+        box.appendChild(d);
+      }
+    }
+  }
+
+  // ================= ⚔ Class tab: gear advisor + buff lineup =================
+  const TRIO_CLASSES = ['WAR', 'CLR', 'PAL', 'RNG', 'SHD', 'DRU', 'MNK', 'BRD', 'ROG', 'SHM', 'NEC', 'WIZ', 'MAG', 'ENC', 'BST', 'BER'];
+
+  // purpose presets: starting stat weights, every one editable underneath
+  const GEAR_PRESETS = {
+    balanced: { label: '⚖ Balanced', ac: 2, hp: 1, mana: 0.7, str: 0.5, sta: 0.8, agi: 0.4, dex: 0.4, wis: 0.5, int: 0.5, cha: 0.1, atk: 0.5, end: 0.2, resists: 0.3, haste: 15, ratio: 12, effect: 10 },
+    tank: { label: '🛡 Tank', ac: 4, hp: 1.6, mana: 0.2, str: 0.6, sta: 1.3, agi: 0.7, dex: 0.4, wis: 0.2, int: 0.2, cha: 0, atk: 0.3, end: 0.4, resists: 0.5, haste: 10, ratio: 8, effect: 10 },
+    melee: { label: '⚔ Melee ST', ac: 1, hp: 0.8, mana: 0, str: 1, sta: 0.7, agi: 0.5, dex: 0.8, wis: 0, int: 0, cha: 0, atk: 1, end: 0.5, resists: 0.25, haste: 30, ratio: 20, effect: 12 },
+    aoe: { label: '💥 AoE', ac: 0.8, hp: 0.6, mana: 1.6, str: 0, sta: 0.5, agi: 0.3, dex: 0, wis: 1.2, int: 1.2, cha: 0.3, atk: 0, end: 0, resists: 0.35, haste: 2, ratio: 2, effect: 10 },
+    caster: { label: '🔥 Caster DPS', ac: 0.7, hp: 0.6, mana: 1.4, str: 0, sta: 0.5, agi: 0.3, dex: 0, wis: 1.3, int: 1.3, cha: 0.2, atk: 0, end: 0, resists: 0.35, haste: 2, ratio: 2, effect: 10 },
+    healer: { label: '✚ Healer', ac: 1, hp: 0.9, mana: 1.6, str: 0, sta: 0.6, agi: 0.3, dex: 0, wis: 1.6, int: 0.3, cha: 0.5, atk: 0, end: 0, resists: 0.35, haste: 5, ratio: 2, effect: 10 }
+  };
+  const GEAR_WKEYS = [['ac', 'AC'], ['hp', 'HP'], ['mana', 'Mana'], ['str', 'STR'], ['sta', 'STA'], ['agi', 'AGI'],
+    ['dex', 'DEX'], ['wis', 'WIS'], ['int', 'INT'], ['cha', 'CHA'], ['atk', 'ATK'], ['end', 'End'],
+    ['resists', 'Resists'], ['haste', 'Haste %'], ['ratio', 'Wpn dmg/dly'], ['effect', 'Has effect']];
+  // display name | inventory worn-row location | catalog slot token
+  const GEAR_SLOTS = [
+    ['Head', 'Head', 'HEAD'], ['Face', 'Face', 'FACE'], ['Ear', 'Ear', 'EAR'], ['Neck', 'Neck', 'NECK'],
+    ['Shoulders', 'Shoulders', 'SHOULDERS'], ['Arms', 'Arms', 'ARMS'], ['Back', 'Back', 'BACK'],
+    ['Wrist', 'Wrist', 'WRIST'], ['Hands', 'Hands', 'HANDS'], ['Finger', 'Fingers', 'FINGER'],
+    ['Chest', 'Chest', 'CHEST'], ['Legs', 'Legs', 'LEGS'], ['Feet', 'Feet', 'FEET'], ['Waist', 'Waist', 'WAIST'],
+    ['Primary', 'Primary', 'PRIMARY'], ['Secondary', 'Secondary', 'SECONDARY'], ['Range', 'Range', 'RANGE'],
+    ['Any Slot', 'Any Slot', 'ANY']
+  ];
+  const GEAR_WEAPONS = [['any', 'Any weapon'], ['1H SLASHING', '1H Slash'], ['1H BLUNT', '1H Blunt'],
+    ['PIERCING', 'Piercing'], ['2H SLASHING', '2H Slash'], ['2H BLUNT', '2H Blunt'], ['2H PIERCING', '2H Pierce'],
+    ['HAND TO HAND', 'Hand to Hand'], ['ranged', 'Bow / Thrown'], ['shield', 'Shield']];
+  const GEAR_OBTAIN = [['drop', '☠ Drop'], ['quest', '📜 Quest'], ['craft', '⚒ Craft'], ['vendor', '🪙 Vendor'], ['unknown', '❓ Unknown']];
+
+  let gearCatalog = null;
+  let gearProgressMsg = '';
+  let gearBuildBusy = false;
+  const clExpanded = new Set();
+  let wEditOpen = false;
+  let buffFilter = '';
+  window.overlay.getGearCatalog().then((c) => { gearCatalog = c; classDirty = true; });
+  window.overlay.onGearProgress((msg) => {
+    gearProgressMsg = msg || '';
+    if (activeTab === 'class') renderClassTab();
+  });
+
+  const clChip = () => (settings && settings.classChip) || 'gear';
+  const detectedTrio = () => (settings && settings.myTrio) || null;
+  const currentTrio = () => (settings && settings.plannerTrio) || detectedTrio();
+  const gearPurpose = () => (settings && settings.gearPurpose) || 'balanced';
+  function gearWeights() {
+    const p = gearPurpose();
+    const base = { ...GEAR_PRESETS[p] };
+    delete base.label;
+    return { ...base, ...((settings && settings.gearWeights && settings.gearWeights[p]) || {}) };
+  }
+  const gearObtainSel = () => (settings && settings.gearObtain) || { drop: true, quest: true, craft: true, vendor: true, unknown: false };
+
+  // upgrade-tier scaling — same math as the item panel's slider (wiki Item
+  // Upgrade System): stats +10%/tier, DMG +5%/tier, round DOWN, minimum +1 per
+  // tier. Only positive values improve.
+  const upStat = (n, T) => (T && n > 0) ? Math.max(Math.floor(n * (1 + 0.10 * T)), n + T) : n;
+  const upDmg = (n, T) => (T && n > 0) ? Math.max(Math.floor(n * (1 + 0.05 * T)), n + T) : n;
+
+  function gearScore(e, W, T) {
+    T = T || 0;
+    let s = 0;
+    for (const [k, v] of Object.entries(e.stats || {})) {
+      const sv = upStat(v, T);
+      if (k.startsWith('sv')) s += (W.resists || 0) * sv;
+      else s += (W[k] || 0) * sv;
+    }
+    if (e.haste) s += (W.haste || 0) * upStat(e.haste, T);
+    if (e.dmg && e.dly) s += (W.ratio || 0) * (upDmg(e.dmg, T) / e.dly) * 10;
+    if (e.effect) s += (W.effect || 0);
+    return s;
+  }
+  const trioCanWear = (e, trio) => !e.classes || !e.classes.length || e.classes.includes('ALL') ||
+    trio.some(c => e.classes.includes(c));
+  function weaponTypeOk(e, slotTok, wsel) {
+    if (slotTok !== 'PRIMARY' && slotTok !== 'SECONDARY' && slotTok !== 'RANGE') return true;
+    if (wsel === 'any') return true;
+    if (wsel === 'shield') return !e.skill && (e.stats && e.stats.ac > 0);
+    if (wsel === 'ranged') return e.skill === 'ARCHERY' || /^THROWING/.test(e.skill || '');
+    return e.skill === wsel;
+  }
+  function slotMatches(e, tok) {
+    if (!e.slots) return false;
+    if (tok === 'ANY') return e.slots.includes('ANY');
+    return e.slots.includes(tok) || (tok === 'EAR' && e.slots.includes('EARS')) ||
+           (tok === 'WRIST' && e.slots.includes('WRISTS')) || (tok === 'FINGER' && e.slots.includes('FINGERS'));
+  }
+
+  // catalog lookups by normalized base name ("+7" upgrades match their base)
+  let gearByName = null;
+  function gearEntry(name) {
+    if (!gearCatalog || !gearCatalog.items) return null;
+    if (!gearByName) {
+      gearByName = new Map();
+      for (const e of gearCatalog.items) gearByName.set(normItemName(e.n), e);
+    }
+    return gearByName.get(normItemName(name)) || null;
+  }
+
+  // ---------- buffs chip: live buffs + trio lineup ----------
+  function plannerModel(trio) {
+    const pool = [];
+    for (const recs of spellByName.values()) {
+      let best = null;
+      for (const r of recs) {
+        if (!r.cls) continue;
+        for (const c of trio) {
+          const lv = r.cls[c];
+          if (lv && lv <= 50 && (!best || lv < best.lv)) best = { sp: r, cls: c, lv };
+        }
+      }
+      if (best) pool.push(best);
+    }
+    const groups = new Map(), solo = [];
+    for (const e of pool) {
+      const st = spellDB.stacking[e.sp.id];
+      if (st) {
+        e.rank = st.r;
+        if (!groups.has(st.g)) groups.set(st.g, []);
+        groups.get(st.g).push(e);
+      } else solo.push(e);
+    }
+    // within a group: the game's rank decides; among equals, the bigger
+    // numbers win (so the fatter of two same-rank versions comes out on top)
+    const effSum = (sp) => Object.values(sp.eff || {}).reduce((s, v) => s + v, 0);
+    for (const list of groups.values())
+      list.sort((a, b) => (b.rank - a.rank) || (effSum(b.sp) - effSum(a.sp)) || (b.lv - a.lv));
+    return { groups, solo, pool };
+  }
+
+  const fmtBuffDur = (sp) => {
+    const s = buffDurS(sp, myLevel());
+    if (s == null) return '∞';
+    return s >= 3600 ? Math.round(s / 360) / 10 + 'h' : s >= 90 ? Math.round(s / 60) + 'm' : s + 's';
+  };
+
+  // ---------- loadout builder: "I have N gems, focus hp/sta/dex" ----------
+  const BUFF_STATS = [['hp', 'HP'], ['hpregen', 'HP regen'], ['mana', 'Mana'], ['manaregen', 'Mana regen'],
+    ['ac', 'AC'], ['atk', 'ATK'], ['str', 'STR'], ['sta', 'STA'], ['agi', 'AGI'], ['dex', 'DEX'],
+    ['wis', 'WIS'], ['int', 'INT'], ['cha', 'CHA'], ['haste', 'Haste'], ['ds', 'Dmg shield'],
+    ['rune', 'Rune'], ['proc', 'Weapon proc'], ['acc', 'Accuracy'], ['meleedmg', 'Melee dmg'],
+    ['hate', 'Aggro'], ['move', 'Run speed'], ['vision', 'Vision'], ['seeinvis', 'See invis'],
+    ['invis', 'Invisibility'], ['lev', 'Levitate'], ['eb', 'Water breathing'], ['res', 'Resists (all 5)']];
+  const EFF_LABEL = { hp: 'HP', hpregen: 'HP regen', mana: 'Mana', manaregen: 'Mana regen', ac: 'AC', atk: 'ATK',
+    str: 'STR', sta: 'STA', agi: 'AGI', dex: 'DEX', wis: 'WIS', int: 'INT', cha: 'CHA', haste: 'Haste%',
+    ds: 'DS', rune: 'Rune', move: 'Run%', acc: 'Accuracy%', meleedmg: 'Melee dmg%', hate: 'Aggro',
+    svF: 'svFire', svC: 'svCold', svM: 'svMagic', svD: 'svDis', svP: 'svPoi' };
+  // flag effects: the presence is the point, a number would be noise
+  const EFF_FLAGS = { seeinvis: 'See invis', lev: 'Levitate', eb: 'Water breathing', invis: 'Invisibility', illusion: 'Illusion' };
+  const RES_KEYS = ['svF', 'svC', 'svM', 'svD', 'svP'];
+
+  function effVal(sp, key) {
+    const e = sp.eff || {};
+    if (key === 'res') return Math.max(e.svF || 0, e.svC || 0, e.svM || 0, e.svD || 0, e.svP || 0);
+    return e[key] || 0;
+  }
+  const effText = (sp) => Object.entries(sp.eff || {})
+    .map(([k, v]) => k === 'proc'
+        ? 'Proc: ' + (sp.procInfo
+            ? sp.procInfo.n + ' (' + (sp.procInfo.kind === 'AE' ? 'hits nearby mobs' : sp.procInfo.kind) +
+              (sp.procInfo.amt ? ' ~' + sp.procInfo.amt : '') + ')'
+            : 'weapon proc')
+      : EFF_FLAGS[k] ? EFF_FLAGS[k]
+      : k === 'vision' ? (v >= 2 ? 'Ultravision' : 'Infravision')
+      : (EFF_LABEL[k] || k) + ' +' + v).join(' · ');
+
+  // group=the whole party, single=one target, self=caster only
+  const tgtLabel = (sp) => [3, 40, 41].includes(sp.tgt) ? 'group'
+    : [5, 51].includes(sp.tgt) ? 'single' : sp.tgt === 6 ? 'self' : '';
+
+  // bard songs are BRD-only spells: they stack with regular buffs (the classic
+  // rule), so they never knock spells out of the lineup — and vice versa
+  const isSong = (sp) => !!(sp.cls && sp.cls.BRD && Object.keys(sp.cls).length === 1);
+
+  // greedy pick: best marginal coverage of the chosen stats. A pick knocks out
+  // candidates that share its stacking group, or — among NON-songs, and among
+  // songs — share an effect type (same-effect buffs usually block each other;
+  // songs and spells coexist freely).
+  // mode: 'both' = one fighting set (songs capped at what Symphonic Aura can
+  // run) · 'spells' = a pure buff set, cast-and-swap, songs excluded ·
+  // 'songs' = ONLY the songs Symphonic Aura keeps running (budget 1–5)
+  function buildLoadout(trio, focus, gems, mode, songCap) {
+    const model = plannerModel(trio);
+    const cands = [];
+    for (const list of model.groups.values()) cands.push(list[0]); // group winners
+    cands.push(...model.solo);
+    const lvl = myLevel();
+    let rem = cands.filter(e => e.sp.eff && e.lv <= lvl);
+    if (mode === 'spells') rem = rem.filter(e => !isSong(e.sp));
+    else if (mode === 'songs') rem = rem.filter(e => isSong(e.sp));
+    // "Resists" means ALL FIVE: each resist is its own goal, so the builder
+    // keeps picking until fire/cold/magic/disease/poison are each covered
+    // (multi-resist buffs cover several in one gem and rank accordingly)
+    const fkeys = [...new Set(focus.flatMap(f => f === 'res' ? RES_KEYS : [f]))];
+    const top = {};
+    for (const f of fkeys) top[f] = Math.max(1, ...rem.map(e => effVal(e.sp, f)));
+    const picked = [];
+    const covered = new Map(); // focus key -> the best amount already in the set
+    while (picked.length < gems && rem.length) {
+      for (const e of rem)
+        e._s = fkeys.reduce((s, f) => s + Math.max(0, effVal(e.sp, f) - (covered.get(f) || 0)) / top[f], 0);
+      rem.sort((a, b) => b._s - a._s);
+      // in a mixed fighting set, Symphonic Aura can only run so many songs
+      if (mode === 'both' && songCap != null) {
+        const songsPicked = picked.filter(p => isSong(p.sp)).length;
+        if (songsPicked >= songCap) rem = rem.filter(e => !isSong(e.sp));
+        if (!rem.length) break;
+      }
+      const best = rem[0];
+      if (!best || best._s <= 0.0001) break;
+      // a same-group sibling with a different target (group vs single vs self)
+      // is worth knowing about — attach it to the pick for display
+      const bg = spellDB.stacking[best.sp.id];
+      best.alts = [];
+      if (bg) {
+        const mates = model.groups.get(bg.g) || [];
+        best.alts = mates
+          .filter(e => e.sp.n !== best.sp.n && e.lv <= lvl)
+          .slice(0, 2)
+          .map(e => ({ n: e.sp.n, t: [tgtLabel(e.sp), e.sp.procInfo
+              ? (e.sp.procInfo.kind === 'AE' ? 'AE proc' : e.sp.procInfo.kind + ' proc') + (e.sp.procInfo.amt ? ' ~' + e.sp.procInfo.amt : '')
+              : ''].filter(Boolean).join(', ') }));
+      }
+      picked.push(best);
+      const bestKeys = new Set(Object.keys(best.sp.eff));
+      const bestSong = isSong(best.sp);
+      for (const f of fkeys) covered.set(f, Math.max(covered.get(f) || 0, effVal(best.sp, f)));
+      const bumped = []; // candidates this pick knocks out — the best become visible alternates
+      rem = rem.filter(e => {
+        if (e === best) return false;
+        const eg = spellDB.stacking[e.sp.id];
+        if (bg && eg && eg.g === bg.g) { bumped.push(e); return false; } // game says: same group
+        if (isSong(e.sp) !== bestSong) return true;           // song + spell coexist
+        if (Object.keys(e.sp.eff).some(k => bestKeys.has(k))) { bumped.push(e); return false; }
+        return true;
+      });
+      bumped.sort((a, b) => b._s - a._s);
+      for (const e of bumped.slice(0, 2 - best.alts.length)) {
+        if (e._s <= 0.0001 || best.alts.some(a => a.n === e.sp.n)) continue;
+        best.alts.push({ n: e.sp.n, t: [effText(e.sp), tgtLabel(e.sp)].filter(Boolean).join(' — ') });
+      }
+    }
+    return picked;
+  }
+
+  function renderBuffsChip(root) {
+    const trio = currentTrio();
+    // --- live: on you now ---
+    const live = document.createElement('div');
+    live.className = 'l-divider';
+    live.textContent = '🧪 ON YOU NOW — from your log\'s exact spell lines';
+    root.appendChild(live);
+    if (!spellDB) {
+      const d = document.createElement('div');
+      d.className = 'q-npc';
+      d.textContent = spellDbError ? '⚠ ' + spellDbError : 'Reading the game\'s spell files…';
+      root.appendChild(d);
+    } else if (!activeBuffs.size) {
+      const d = document.createElement('div');
+      d.className = 'q-npc';
+      d.textContent = 'Nothing tracked yet — buffs appear the moment their landing line hits your log. (Buffs cast before SEQO started can\'t be back-filled.)';
+      root.appendChild(d);
+    } else {
+      const now = Date.now();
+      const rows = [...activeBuffs.values()].sort((a, b) => a.at - b.at);
+      for (const b of rows) {
+        const d = document.createElement('div');
+        d.className = 'l-mob';
+        const nm = document.createElement('span');
+        nm.textContent = (b.ben === false ? '☠ ' : '') + b.name;
+        nm.style.cssText = 'flex:1;color:' + (b.ben === false ? '#ff9d9d' : '#cfe3cf') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        const left = document.createElement('span');
+        left.className = 'k';
+        if (b.durS == null) left.textContent = '∞';
+        else {
+          const rem = Math.max(0, Math.round(b.durS - (now - b.at) / 1000));
+          left.textContent = (b.est ? '~' : '') + (rem >= 90 ? Math.ceil(rem / 60) + 'm' : rem + 's');
+          left.title = b.est ? 'Estimate — the caster\'s level sets the real duration' : 'Exact (your own cast)';
+          if (rem < 60) left.style.color = '#ffb27d';
+        }
+        const x = document.createElement('span');
+        x.textContent = '✕';
+        x.style.cssText = 'flex:none;cursor:pointer;color:#667;padding:0 3px';
+        x.title = 'Stop tracking (e.g. you clicked the buff off in game)';
+        x.addEventListener('click', () => { activeBuffs.delete(b.name.toLowerCase()); renderClassTab(); });
+        d.append(nm, left, x);
+        if (spellDB.desc[b.id]) d.title = spellDB.desc[b.id];
+        root.appendChild(d);
+      }
+    }
+    // --- loadout builder: gems + focus stats -> what to memorize ---
+    const bh = document.createElement('div');
+    bh.className = 'l-divider';
+    bh.textContent = '🎛 LOADOUT BUILDER — pick focus stats, fit your gems';
+    root.appendChild(bh);
+    if (spellDB && trio) {
+      const ctl = document.createElement('div');
+      ctl.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:3px 0';
+      // mode: one fighting set / pure buff set (swap-friendly) / Symphonic Aura songs
+      const mode = (settings && settings.buffMode) || 'both';
+      for (const [k, label, tip] of [
+        ['both', '⚡ Fighting set', 'Spells AND songs together — the set you fight with. Songs are capped at what Symphonic Aura can run.'],
+        ['spells', '✦ Buff set', 'Spells only, no songs: cast everything, then swap to your fighting loadout. Long timers do the rest.'],
+        ['songs', '♪ Songs only', 'Just the songs Symphonic Aura keeps running (1–5) — the song slots of your fighting loadout.']
+      ]) {
+        const chip = document.createElement('span');
+        chip.className = 'qview-chip' + (mode === k ? ' active' : '');
+        chip.textContent = label;
+        chip.title = tip;
+        chip.addEventListener('click', () => { save({ buffMode: k }); settings.buffMode = k; renderClassTab(); });
+        ctl.appendChild(chip);
+      }
+      const glab = document.createElement('span');
+      glab.style.cssText = 'color:#889;font-size:10px;margin-left:6px';
+      const gin = document.createElement('input');
+      gin.type = 'number';
+      gin.style.cssText = 'width:44px;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:11px;padding:1px 4px';
+      if (mode === 'songs') {
+        glab.textContent = 'Songs:';
+        gin.min = '1'; gin.max = '5'; // Symphonic Aura runs 1–5 songs
+        gin.value = Math.max(1, Math.min(5, (settings && settings.buffSongs) || 3));
+        gin.title = 'How many songs your Symphonic Aura keeps running (1–5)';
+        gin.addEventListener('change', () => {
+          const v = Math.max(1, Math.min(5, +gin.value || 3));
+          save({ buffSongs: v });
+          settings.buffSongs = v;
+          renderClassTab();
+        });
+      } else {
+        glab.textContent = 'Spell gems:';
+        gin.min = '1'; gin.max = '14'; // the game caps at 14 gems with every AA
+        gin.value = Math.min(14, (settings && settings.buffGems) || 8);
+        gin.title = 'How many spell gems you have (AAs raise it, up to 14) — the lineup fits inside this budget';
+        gin.addEventListener('change', () => {
+          const v = Math.max(1, Math.min(14, +gin.value || 8));
+          save({ buffGems: v });
+          settings.buffGems = v;
+          renderClassTab();
+        });
+      }
+      ctl.append(glab, gin);
+      const focus = (settings && settings.buffStats) || [];
+      for (const [k, label] of BUFF_STATS) {
+        const chip = document.createElement('span');
+        chip.className = 'qview-chip' + (focus.includes(k) ? ' active' : '');
+        chip.textContent = label;
+        chip.title = 'Focus the lineup on ' + label;
+        chip.addEventListener('click', () => {
+          const next = focus.includes(k) ? focus.filter(x => x !== k) : [...focus, k];
+          save({ buffStats: next });
+          settings.buffStats = next;
+          renderClassTab();
+        });
+        ctl.appendChild(chip);
+      }
+      root.appendChild(ctl);
+      if (focus.length) {
+        const songCap = Math.max(1, Math.min(5, (settings && settings.buffSongs) || 3));
+        const gems = mode === 'songs' ? songCap : Math.min(14, (settings && settings.buffGems) || 8);
+        const picked = buildLoadout(trio, focus, gems, mode, songCap);
+        if (!picked.length) {
+          const d = document.createElement('div');
+          d.className = 'q-npc';
+          d.textContent = 'Nothing castable at your level gives ' + focus.map(f => (BUFF_STATS.find(b => b[0] === f) || [f, f])[1]).join(' / ') + ' yet.';
+          root.appendChild(d);
+        } else {
+          picked.forEach((e, i) => {
+            const d = document.createElement('div');
+            d.className = 'q-it';
+            d.style.cursor = 'default';
+            d.innerHTML = '<span class="box"></span><span class="nm"></span><span class="loc" style="flex:none"></span>';
+            d.querySelector('.box').textContent = (i + 1) + '.';
+            const tl = tgtLabel(e.sp);
+            let nm = e.sp.n + (tl ? ' (' + tl + ')' : '') + '  — ' + effText(e.sp);
+            if (e.alts && e.alts.length)
+              nm += '   ·   or: ' + e.alts.map(a => a.n + ' (' + a.t + ')').join(', ');
+            d.querySelector('.nm').textContent = nm;
+            d.querySelector('.nm').style.whiteSpace = 'normal';
+            d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
+            if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
+            root.appendChild(d);
+          });
+          const note = document.createElement('div');
+          note.className = 'q-npc';
+          note.textContent =
+            (mode === 'songs'
+              ? picked.length + ' of ' + gems + ' Symphonic Aura song slots. These live in your FIGHTING loadout — they only play while the aura runs them. '
+              : mode === 'spells'
+                ? picked.length + ' of ' + gems + ' gems, all castable with long timers — cast the set, then swap to your fighting loadout. ' +
+                  (gems - picked.length > 0 ? (gems - picked.length) + ' gems to spare. ' : '')
+                : picked.length + ' of ' + gems + ' gems (songs capped at ' + songCap + ' for Symphonic Aura) — ' +
+                  (gems - picked.length > 0 ? (gems - picked.length) + ' left for nukes, heals and utility. ' : 'budget full. ')) +
+            'Spells sharing an effect type are assumed NOT to stack (one HP buff, one haste…) — but bard songs stack WITH spells. ' +
+            'Values are at level 50; song stat values are WITHOUT instruments (instruments raise everything except haste and mana regen).';
+          root.appendChild(note);
+        }
+      } else {
+        const d = document.createElement('div');
+        d.className = 'q-npc';
+        d.textContent = 'Pick one or more stats above — e.g. HP + STA + DEX — and SEQO builds the strongest non-conflicting buff set your trio can memorize in that many gems.';
+        root.appendChild(d);
+      }
+    }
+
+    // --- planner: trio lineup ---
+    const hd = document.createElement('div');
+    hd.className = 'l-divider';
+    hd.textContent = '📋 BUFF LINEUP — ' + (trio ? trio.join('/') : 'pick a trio above');
+    root.appendChild(hd);
+    if (!spellDB || !trio) return;
+    const model = plannerModel(trio);
+    // conflicts first: stacking groups with 2+ different spells
+    const conflicts = [...model.groups.values()].filter(l => new Set(l.map(e => e.sp.n)).size > 1);
+    if (conflicts.length) {
+      const note = document.createElement('div');
+      note.className = 'q-npc';
+      note.textContent = '⚠ ' + conflicts.length + ' buff group' + (conflicts.length > 1 ? 's' : '') +
+        ' in your trio DON\'T stack (the game\'s own stacking table). Cast only the ✔ one:';
+      root.appendChild(note);
+      for (const list of conflicts) {
+        const d = document.createElement('div');
+        d.className = 'q-it';
+        d.style.flexWrap = 'wrap';
+        const win = list[0];
+        d.innerHTML = '<span style="color:#7dffa0">✔ </span><span class="nm"></span>' +
+          '<span class="loc" style="flex:none"></span>' +
+          '<span style="color:#778;flex-basis:100%;padding-left:14px;font-size:9.5px"></span>';
+        const wtl = tgtLabel(win.sp);
+        d.querySelector('.nm').textContent = win.sp.n + (wtl ? ' (' + wtl + ')' : '') +
+          (win.sp.eff ? ' — ' + effText(win.sp) : '');
+        d.querySelector('.loc').textContent = win.cls + ' L' + win.lv + ' · ' + fmtBuffDur(win.sp);
+        d.children[3].textContent = 'overrides: ' +
+          [...new Set(list.slice(1).map(e => e.sp.n + (tgtLabel(e.sp) ? ' (' + tgtLabel(e.sp) + ')' : '')))].join(', ');
+        if (spellDB.desc[win.sp.id]) d.title = spellDB.desc[win.sp.id];
+        root.appendChild(d);
+      }
+    }
+    // full castable list with filter
+    const frow = document.createElement('div');
+    frow.style.cssText = 'display:flex;gap:6px;align-items:center;margin:4px 0 2px';
+    const inp = document.createElement('input');
+    inp.placeholder = 'filter your trio\'s ' + model.pool.length + ' buffs…';
+    inp.value = buffFilter;
+    inp.style.cssText = 'flex:1;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 8px;font-size:11px;outline:none';
+    inp.addEventListener('input', () => {
+      buffFilter = inp.value;
+      renderBuffList(listBox, model);
+    });
+    frow.appendChild(inp);
+    root.appendChild(frow);
+    const listBox = document.createElement('div');
+    root.appendChild(listBox);
+    renderBuffList(listBox, model);
+    const foot = document.createElement('div');
+    foot.className = 'q-npc';
+    foot.style.marginTop = '4px';
+    foot.textContent = 'Durations at your level (' + myLevel() + '). Groups come from the game\'s own stacking table; buffs outside it can still collide on effect slots — when a cast fails, SEQO names the blocker.';
+    root.appendChild(foot);
+  }
+
+  function renderBuffList(box, model) {
+    box.innerHTML = '';
+    const f = buffFilter.trim().toLowerCase();
+    const losers = new Set();
+    for (const list of model.groups.values()) for (const e of list.slice(1)) losers.add(e.sp.n);
+    const rows = model.pool
+      .filter(e => !f || e.sp.n.toLowerCase().includes(f) || e.cls.toLowerCase() === f)
+      .sort((a, b) => a.lv - b.lv || a.sp.n.localeCompare(b.sp.n));
+    const lvl = myLevel();
+    for (const e of rows.slice(0, f ? 400 : 120)) {
+      const d = document.createElement('div');
+      d.className = 'q-it';
+      const over = losers.has(e.sp.n);
+      d.innerHTML = '<span class="box"></span><span class="nm"></span><span class="loc" style="flex:none"></span>';
+      d.querySelector('.box').textContent = over ? '✕' : e.lv > lvl ? '◌' : '•';
+      d.querySelector('.nm').textContent = e.sp.n;
+      d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp) + ' · ' + e.sp.mana + ' mana';
+      if (over) { d.style.opacity = '.45'; d.title = 'Overridden by a stronger buff in the same stacking group (see above)'; }
+      else if (e.lv > lvl) { d.style.opacity = '.6'; d.title = 'Not castable yet — needs level ' + e.lv; }
+      if (spellDB.desc[e.sp.id]) d.title = (d.title ? d.title + '\n' : '') + spellDB.desc[e.sp.id];
+      box.appendChild(d);
+    }
+    if (!f && rows.length > 120) {
+      const more = document.createElement('div');
+      more.className = 'q-npc';
+      more.textContent = rows.length - 120 + ' more — type in the filter to find them';
+      box.appendChild(more);
+    }
+  }
+
+  // ---------- gear chip: BiS advisor ----------
+  function wornBySlot(invLoc) {
+    const inv = gameFiles && gameFiles.inventory;
+    if (!inv) return [];
+    const out = [];
+    for (const it of Object.values(inv.items || {}))
+      if ((it.locs || []).includes(invLoc)) out.push(it.name);
+    return out;
+  }
+
+  function renderGearChip(root) {
+    const trio = currentTrio();
+    // controls
+    const ctr = document.createElement('div');
+    ctr.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:4px';
+    const selP = document.createElement('select');
+    selP.style.cssText = 'background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px';
+    for (const [k, v] of Object.entries(GEAR_PRESETS)) {
+      const o = document.createElement('option');
+      o.value = k; o.textContent = v.label;
+      selP.appendChild(o);
+    }
+    selP.value = gearPurpose();
+    selP.title = 'Purpose: which stat weights to score gear with. Tweak every number under ⚙.';
+    selP.addEventListener('change', () => { save({ gearPurpose: selP.value }); settings.gearPurpose = selP.value; renderClassTab(); });
+    const selW = document.createElement('select');
+    selW.style.cssText = selP.style.cssText;
+    for (const [k, v] of GEAR_WEAPONS) {
+      const o = document.createElement('option');
+      o.value = k; o.textContent = v;
+      selW.appendChild(o);
+    }
+    selW.value = (settings && settings.gearWeapon) || 'any';
+    selW.title = 'Weapon slots only show this type (a sword-and-board knight never gets told a two-hander is their upgrade)';
+    selW.addEventListener('change', () => { save({ gearWeapon: selW.value }); settings.gearWeapon = selW.value; renderClassTab(); });
+    const selT = document.createElement('select');
+    selT.style.cssText = selP.style.cssText;
+    for (let t = 0; t <= 10; t++) {
+      const o = document.createElement('option');
+      o.value = t;
+      o.textContent = t === 0 ? 'at base (+0)' : t === 10 ? 'at max (+10)' : 'at +' + t;
+      selT.appendChild(o);
+    }
+    selT.value = (settings && settings.gearTier) || 0;
+    selT.title = 'Score every item at this upgrade tier — "+10" compares items by their FULLY UPGRADED potential (the fairest long-term comparison), "+0" by what drops. Same math as the item panel\'s slider: stats +10%/tier, DMG +5%/tier, +1 minimum.';
+    selT.addEventListener('change', () => { save({ gearTier: +selT.value }); settings.gearTier = +selT.value; renderClassTab(); });
+    const wbtn = document.createElement('button');
+    wbtn.className = 'kbtn' + (wEditOpen ? ' gold' : '');
+    wbtn.textContent = '⚙ weights';
+    wbtn.style.fontSize = '10px';
+    wbtn.addEventListener('click', () => { wEditOpen = !wEditOpen; renderClassTab(); });
+    const upd = document.createElement('button');
+    upd.className = 'kbtn gold';
+    upd.style.fontSize = '10px';
+    upd.textContent = gearCatalog ? '⟳ Update catalog' : '⬇ Build catalog';
+    upd.disabled = gearBuildBusy;
+    upd.title = gearCatalog
+      ? 'Quick update: asks the wiki what changed since the last build and re-reads ONLY those pages (seconds, usually). Shift-click for a full rebuild of everything.'
+      : 'First build reads every item page off the wiki (a few minutes, with progress). After that, updates only re-read what changed.';
+    upd.addEventListener('click', async (ev) => {
+      if (gearBuildBusy) return;
+      gearBuildBusy = true;
+      renderClassTab();
+      const r = await window.overlay.buildGearCatalog({ full: !!ev.shiftKey });
+      gearBuildBusy = false;
+      gearByName = null;
+      if (r && r.error) toast('⚠ Gear catalog: ' + r.error);
+      else {
+        gearCatalog = await window.overlay.getGearCatalog();
+        if (r.unchanged) toast('🛡 Catalog already current — nothing changed on the wiki');
+        else if (r.incremental) toast('🛡 Catalog updated: ' + (r.updated || 0) + ' refreshed, ' + (r.added || 0) + ' new' + (r.dropped ? ', ' + r.dropped + ' removed' : ''));
+        else toast('🛡 Gear catalog ready: ' + (r.items || 0) + ' wearable items');
+      }
+      renderClassTab();
+    });
+    ctr.append(selP, selW, selT, wbtn, upd);
+    root.appendChild(ctr);
+    // obtain filter chips
+    const ob = gearObtainSel();
+    const obr = document.createElement('div');
+    obr.style.cssText = 'display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px';
+    for (const [k, label] of GEAR_OBTAIN) {
+      const chip = document.createElement('span');
+      chip.className = 'qview-chip' + (ob[k] ? ' active' : '');
+      chip.textContent = label;
+      chip.title = 'Include items obtained this way in "best obtainable"';
+      chip.addEventListener('click', () => {
+        const next = { ...gearObtainSel(), [k]: !ob[k] };
+        save({ gearObtain: next });
+        settings.gearObtain = next;
+        renderClassTab();
+      });
+      obr.appendChild(chip);
+    }
+    root.appendChild(obr);
+    if (gearProgressMsg || gearBuildBusy) {
+      const p = document.createElement('div');
+      p.className = 'q-npc';
+      p.textContent = '⏳ ' + (gearProgressMsg || 'building…');
+      root.appendChild(p);
+    }
+    if (wEditOpen) {
+      const we = document.createElement('div');
+      we.className = 'q-npc';
+      we.style.cssText += ';display:flex;flex-wrap:wrap;gap:4px 10px';
+      const W = gearWeights();
+      for (const [k, label] of GEAR_WKEYS) {
+        const lab = document.createElement('label');
+        lab.style.cssText = 'display:flex;gap:3px;align-items:center;font-size:9.5px;color:#9ab';
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.step = '0.1';
+        inp.value = W[k] || 0;
+        inp.style.cssText = 'width:44px;background:#26262f;color:#eee;border:1px solid #444;border-radius:3px;font-size:10px;padding:0 2px';
+        inp.addEventListener('change', () => {
+          const p = gearPurpose();
+          const gw = { ...((settings && settings.gearWeights) || {}) };
+          gw[p] = { ...(gw[p] || {}), [k]: +inp.value || 0 };
+          save({ gearWeights: gw });
+          settings.gearWeights = gw;
+          renderClassTab();
+        });
+        lab.append(label, inp);
+        we.appendChild(lab);
+      }
+      const rst = document.createElement('button');
+      rst.className = 'kbtn';
+      rst.textContent = 'reset to preset';
+      rst.style.fontSize = '9.5px';
+      rst.addEventListener('click', () => {
+        const gw = { ...((settings && settings.gearWeights) || {}) };
+        delete gw[gearPurpose()];
+        save({ gearWeights: gw });
+        settings.gearWeights = gw;
+        renderClassTab();
+      });
+      we.appendChild(rst);
+      root.appendChild(we);
+    }
+    if (!gearCatalog || !gearCatalog.items) {
+      const d = document.createElement('div');
+      d.className = 'q-npc';
+      d.innerHTML = 'No gear catalog yet. <b>⬇ Build catalog</b> reads every item page off the wiki once (a few minutes), then it\'s cached, synced between your computers, and scored instantly.';
+      root.appendChild(d);
+      return;
+    }
+    if (!trio) {
+      const d = document.createElement('div');
+      d.className = 'q-npc';
+      d.textContent = 'Pick your trio above (or type /who in game once — SEQO reads your makeup from your own row).';
+      root.appendChild(d);
+      return;
+    }
+    // the slot board
+    const W = gearWeights();
+    const wsel = (settings && settings.gearWeapon) || 'any';
+    const T = (settings && settings.gearTier) || 0;
+    const age = document.createElement('div');
+    age.className = 'q-npc';
+    age.textContent = '📚 ' + gearCatalog.items.length + ' wearable items' +
+      (gearCatalog.futureSkipped ? ' (current Legends content only — ' + gearCatalog.futureSkipped + ' future-era pages skipped)' : '') +
+      ' · built ' + fmtAge(gearCatalog.built) + ' · scored for ' + trio.join('/') +
+      ' (' + GEAR_PRESETS[gearPurpose()].label + (T ? ', everything at +' + T : ', at base') + ')';
+    root.appendChild(age);
+    const inv = gameFiles && gameFiles.inventory;
+    for (const [disp, invLoc, tok] of GEAR_SLOTS) {
+      const candidates = gearCatalog.items.filter(e =>
+        slotMatches(e, tok) && trioCanWear(e, trio) && weaponTypeOk(e, tok, wsel));
+      const scored = candidates.map(e => ({ e, s: gearScore(e, W, T) })).sort((a, b) => b.s - a.s);
+      const obSel = gearObtainSel();
+      const obtainable = scored.filter(x => obSel[x.e.ob]);
+      // worn + owned — an item you hold is scored at BOTH tiers that matter:
+      // what it is right now ("Breastplate +7" at +7) and what it would be at
+      // the compare tier, so "+3 → at +10" is explicit instead of confusing
+      const realTier = (name) => {
+        const m = /\+(\d+)$/.exec(String(name).trim());
+        return m ? Math.min(10, +m[1]) : 0;
+      };
+      const ownScore = (name, e) => {
+        if (!e) return { now: null, cmp: null, rt: realTier(name), ct: T };
+        const rt = realTier(name);
+        const ct = Math.max(T, rt);
+        return { rt, ct, now: gearScore(e, W, rt), cmp: gearScore(e, W, ct) };
+      };
+      const wornNames = wornBySlot(invLoc);
+      const wornScored = wornNames.map(n => {
+        const e = gearEntry(n);
+        const sc = ownScore(n, e);
+        return { n, e, ...sc, s: sc.cmp }; // comparisons use the potential value
+      });
+      let bestOwned = null;
+      if (inv) {
+        for (const it of Object.values(inv.items || {})) {
+          const e = gearEntry(it.name);
+          if (!e || !slotMatches(e, tok) || !trioCanWear(e, trio) || !weaponTypeOk(e, tok, wsel)) continue;
+          const sc = ownScore(it.name, e);
+          if (!bestOwned || sc.cmp > bestOwned.s) bestOwned = { n: it.name, e, ...sc, s: sc.cmp };
+        }
+      }
+      const card = document.createElement('div');
+      card.className = 'q-quest';
+      const head = document.createElement('div');
+      head.className = 'q-head';
+      head.innerHTML = '<span>' + (clExpanded.has(tok) ? '▾' : '▸') + '</span><span class="rw"></span><span class="st"></span>';
+      head.querySelector('.rw').textContent = disp +
+        (wornScored.length ? ' — ' + wornScored.map(x => x.n).join(' · ') : ' — (empty)');
+      const topUp = obtainable[0];
+      const wornBest = wornScored.reduce((m, x) => x.s != null && (m == null || x.s > m) ? x.s : m, null);
+      const upArrow = topUp && wornBest != null && topUp.s > wornBest * 1.02;
+      head.querySelector('.st').textContent = topUp
+        ? (upArrow ? '⬆ upgrade exists' : wornBest != null ? '✓ near best' : '')
+        : '';
+      if (upArrow) head.querySelector('.st').style.color = '#7dffa0';
+      head.addEventListener('click', () => {
+        clExpanded.has(tok) ? clExpanded.delete(tok) : clExpanded.add(tok);
+        renderClassTab();
+      });
+      card.appendChild(head);
+      if (clExpanded.has(tok)) {
+        const box = document.createElement('div');
+        box.className = 'q-items';
+        const addRow = (tag, name, scoreText, e, star) => {
+          const r = document.createElement('div');
+          r.className = 'q-it';
+          r.innerHTML = '<span class="box"></span><span class="nm itemlink"></span><span class="loc"></span>' + (star ? '<span class="str" style="flex:none;cursor:pointer;color:#ffd766;padding:0 3px">☆</span>' : '');
+          r.querySelector('.box').textContent = tag;
+          r.querySelector('.nm').textContent = name;
+          r.querySelector('.loc').textContent = (scoreText || 'not in catalog') +
+            (e && e.src ? ' · ' + e.src : e && e.ob ? ' · ' + e.ob : '');
+          r.querySelector('.nm').addEventListener('click', (ev) => { ev.stopPropagation(); openItem(name); });
+          if (star) r.querySelector('.str').addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            toggleWish(name);
+            toast('⭐ ' + name + ' added to your wish list — zone needs will flag where it drops');
+          });
+          if (e) r.title = [e.skill, e.dmg ? 'DMG ' + e.dmg + ' DLY ' + e.dly : '',
+            Object.entries(e.stats || {}).map(([k, v]) => k.toUpperCase() + ' ' + (v > 0 ? '+' : '') + v).join(' '),
+            e.haste ? 'Haste +' + e.haste + '%' : '', e.effect ? 'Effect: ' + e.effect : '']
+            .filter(Boolean).join(' · ');
+          box.appendChild(r);
+        };
+        // your items read "score 640 @+3 → 812 @+10": what it IS, then what it
+        // would be at the compare tier — the name keeps its real +N
+        const ownText = (x) => x.now == null ? null
+          : 'score ' + Math.round(x.now) + ' @+' + x.rt +
+            (x.ct > x.rt ? ' → ' + Math.round(x.cmp) + ' @+' + x.ct : '');
+        for (const x of wornScored) addRow('👤', x.n, ownText(x), x.e, false);
+        if (bestOwned && !wornNames.some(n => normItemName(n) === normItemName(bestOwned.n)))
+          addRow('🎒', bestOwned.n, ownText(bestOwned), bestOwned.e, false);
+        for (const x of obtainable.slice(0, 5))
+          addRow('🌍', x.e.n, 'score ' + Math.round(x.s) + ' @+' + T, x.e, true);
+        if (!obtainable.length) {
+          const none = document.createElement('div');
+          none.className = 'q-npc';
+          none.textContent = 'Nothing matches the filters for this slot.';
+          box.appendChild(none);
+        }
+        card.appendChild(box);
+      }
+      root.appendChild(card);
+    }
+    const foot = document.createElement('div');
+    foot.className = 'q-npc';
+    foot.style.marginTop = '4px';
+    foot.textContent = '👤 worn · 🎒 best you own · 🌍 best obtainable (☆ = watch it in zone needs). "+N" upgrades score as their base item — the game\'s upgrade tiers only raise stats. Data: eqlwiki.com — all credit to its editors.';
+    root.appendChild(foot);
+  }
+
+  // ---------- the tab shell: chips + trio selector ----------
+  function renderClassTab() {
+    const root = $('cl-root');
+    if (!root) return;
+    const prevBody = $('cl-body');
+    const prevScroll = prevBody ? prevBody.scrollTop : 0;
+    root.innerHTML = '';
+    // header: chip switcher + trio selector
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:4px';
+    for (const [key, label] of [['gear', '🛡 Gear'], ['buffs', '🧪 Buffs']]) {
+      const c = document.createElement('span');
+      c.className = 'qview-chip' + (clChip() === key ? ' active' : '');
+      c.textContent = label;
+      c.addEventListener('click', () => { save({ classChip: key }); settings.classChip = key; renderClassTab(); });
+      head.appendChild(c);
+    }
+    const spacer = document.createElement('span');
+    spacer.style.cssText = 'color:#889;font-size:10px;margin-left:8px';
+    spacer.textContent = 'Trio:';
+    head.appendChild(spacer);
+    const trio = currentTrio() || ['', '', ''];
+    for (let i = 0; i < 3; i++) {
+      const sel = document.createElement('select');
+      sel.style.cssText = 'background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px';
+      const blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = '—';
+      sel.appendChild(blank);
+      for (const c of TRIO_CLASSES) {
+        const o = document.createElement('option');
+        o.value = c; o.textContent = c;
+        sel.appendChild(o);
+      }
+      sel.value = trio[i] || '';
+      sel.addEventListener('change', () => {
+        const next = [0, 1, 2].map(j => j === i ? sel.value : (currentTrio() || ['', '', ''])[j] || '');
+        save({ plannerTrio: next });
+        settings.plannerTrio = next;
+        renderClassTab();
+      });
+      head.appendChild(sel);
+    }
+    const det = detectedTrio();
+    if (settings && settings.plannerTrio && det) {
+      const auto = document.createElement('button');
+      auto.className = 'kbtn';
+      auto.style.fontSize = '9.5px';
+      auto.textContent = '↩ mine (' + det.join('/') + ')';
+      auto.title = 'Back to your detected makeup';
+      auto.addEventListener('click', () => { save({ plannerTrio: null }); settings.plannerTrio = null; renderClassTab(); });
+      head.appendChild(auto);
+    } else if (!det && !(settings && settings.plannerTrio)) {
+      const hint = document.createElement('span');
+      hint.style.cssText = 'color:#778;font-size:9.5px';
+      hint.textContent = '(/who in game fills this in)';
+      head.appendChild(hint);
+    }
+    root.appendChild(head);
+    const body = document.createElement('div');
+    body.id = 'cl-body';
+    body.style.cssText = 'flex:1;min-height:0;overflow-y:auto;padding-right:4px';
+    root.appendChild(body);
+    if (clChip() === 'buffs') renderBuffsChip(body);
+    else renderGearChip(body);
+    body.scrollTop = prevScroll; // live re-renders must not snap the view to the top
+  }
 
   // ================= copy buttons =================
   (() => {
@@ -3969,6 +5498,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   }
   window.overlay.onTestTab((tab) => {
     $('export-modal').style.display = 'none'; // reset transient panels between shots
+    $('login-modal').style.display = 'none';
     if (tab.startsWith('item:')) { // dev-only: open item detail, slider mid-way
       setTab('lookup');
       openItem(tab.slice(5)); // details render in the dock (see dockshot)
@@ -4022,7 +5552,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         window.dispatchEvent(new MouseEvent('mousemove', { clientX: b.x + b.width / 2, clientY: b.y + b.height / 2 }));
         return id + '=' + interactiveNow;
       };
-      console.log('LOCKTEST ' + ['l-run', 'l-export', 'afk-btn2', 'unlock-btn', 'l-coin', 'bb-run'].map(probe).join(' '));
+      console.log('LOCKTEST ' + ['l-run', 'l-needs', 'afk-btn2', 'unlock-btn', 'l-coin', 'bb-run'].map(probe).join(' '));
       return;
     }
     if (tab === 'qlive') { // dev-only: epics view with injected live wiki data
@@ -4070,6 +5600,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     }
     if (tab === 'logindemo') { // dev-only: the fresh-session outputfile reminder
       loginAt = Date.now();
+      reminderAt = loginAt;
       loginReminded = false;
       maybeLoginReminder();
       setTab('meter');
@@ -4145,8 +5676,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         // clock + quest view state
         chk('fmtClock m:ss', fmtClock(62000) === '1:02', fmtClock(62000));
         chk('fmtClock h:mm:ss', fmtClock(3723000) === '1:02:03', fmtClock(3723000));
-        setQuestView('__bis');
-        chk('quest chips drive the view', questZone() === '__bis');
+        setQuestView('__slayer');
+        chk('quest chips drive the view', questZone() === '__slayer');
         setQuestView('');
         // BiS stays quiet unless the flag is on
         settings.bisFlag = false; settings.bisClass = 'Shadow Knight';
@@ -4222,6 +5753,213 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       setTab('quests');
       setQuestView('__unlocks');
       renderQuests();
+      return;
+    }
+    if (tab === 'spellverify') { // dev-only: buff-engine assertions against the REAL game files
+      const t0 = Date.now();
+      const waitDb = () => new Promise(res => {
+        const h = setInterval(() => { if (spellDB || spellDbError || Date.now() - t0 > 40000) { clearInterval(h); res(); } }, 300);
+      });
+      (async () => {
+        await waitDb();
+        const ok = (name, cond, extra) => console.log('SPELLVERIFY|' + (cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? ' = ' + JSON.stringify(extra) : ''));
+        ok('spell DB loaded', !!spellDB, spellDbError || (spellDB && Object.keys(spellDB.spells).length + ' spells'));
+        if (!spellDB) { console.log('SPELLVERIFY|DONE'); return; }
+        const breeze = (spellByName.get('breeze') || [])[0];
+        ok('Breeze in planner pool (ENC 14)', !!breeze && breeze.cls && breeze.cls.ENC === 14, breeze && breeze.cls);
+        ok('Breeze duration 27m at L50', !!breeze && buffDurS(breeze, 50) === 1620, breeze && buffDurS(breeze, 50));
+        handleLogLines(['[Tue Oct 13 12:00:00 2026] A light breeze slips through your mind.']);
+        ok('cast-on-you line starts tracking', activeBuffs.has('breeze'), [...activeBuffs.keys()]);
+        handleLogLines(['[Tue Oct 13 12:00:05 2026] You become one with your weapons.']);
+        ok('second buff tracked', activeBuffs.has("nature's precision"), [...activeBuffs.keys()]);
+        const sb = stackBlockInfo('Firefist');
+        ok('stacking group explains a blocked cast', !!sb && sb.blocker === "Nature's Precision" && sb.theirs > sb.mine, sb);
+        const fn = spellFadeNames('light breeze', 'fades');
+        ok('exact fade line resolves to the spell', !!fn && fn.includes('Breeze'), fn);
+        handleLogLines(['[Tue Oct 13 12:01:00 2026] The light breeze fades.']);
+        ok('fade ends tracking', !activeBuffs.has('breeze'), [...activeBuffs.keys()]);
+        // loadout builder: gems + focus stats, against the real spell data
+        const alac = (spellByName.get('alacrity') || [])[0];
+        ok('effects parsed from game data (Alacrity haste 40)', !!(alac && alac.eff && alac.eff.haste === 40), alac && alac.eff);
+        // song haste evaluated at L50 through the calc formula, not the raw cap
+        const mcv = (spellByName.get("mcvaxius' berserker crescendo") || [])[0];
+        ok('song haste level-scaled (McVaxius 20, not its 33 cap)', !!(mcv && mcv.eff && mcv.eff.haste === 20), mcv && mcv.eff);
+        const lo = buildLoadout(['SHD', 'SHM', 'ENC'], ['hp', 'sta', 'dex'], 10);
+        ok('loadout builder fills the gem budget', lo.length > 0 && lo.length <= 10, lo.map(e => e.sp.n + ' [' + effText(e.sp) + ']').slice(0, 6));
+        const seen = new Set();
+        let overlap = false;
+        for (const e of lo) for (const k of Object.keys(e.sp.eff)) { if (seen.has(k)) overlap = true; seen.add(k); }
+        ok('no effect-type overlap between picks', !overlap);
+        ok('every pick serves a focus stat', lo.every(e => ['hp', 'sta', 'dex'].some(f => effVal(e.sp, f) > 0)));
+        // Ed's real trio: songs must coexist with spells, Item Benefits stay out
+        const lo2 = buildLoadout(['SHD', 'DRU', 'BRD'], ['hp', 'haste', 'dex', 'ac'], 14);
+        ok('SHD/DRU/BRD: songs AND spells both picked',
+          lo2.some(e => isSong(e.sp)) && lo2.some(e => !isSong(e.sp)),
+          lo2.map(e => (isSong(e.sp) ? '♪' : '✦') + e.sp.n + ' [' + effText(e.sp) + ']'));
+        ok('no "Item Benefit" rows anywhere in the pool',
+          ![...spellByName.keys()].some(k => /^item (benefit|effect)\b/.test(k)) &&
+          !lo2.some(e => /^Item Benefit/i.test(e.sp.n)));
+        // field-report round: resists = all five, DS/proc/vision parse
+        const lo3 = buildLoadout(['SHD', 'DRU', 'BRD'], ['res'], 8);
+        const resTypes = new Set();
+        for (const e of lo3) for (const k of RES_KEYS) if ((e.sp.eff || {})[k]) resTypes.add(k);
+        ok('Resists focus covers several resist types', resTypes.size >= 3, [...resTypes]);
+        const thorn = (spellByName.get('thorncoat') || [])[0];
+        ok('negative-base damage shields parse (Thorncoat DS 5)', !!(thorn && thorn.eff && thorn.eff.ds === 5), thorn && thorn.eff);
+        const ss = (spellByName.get('shadow sight') || [])[0];
+        ok('vision buffs parse (Shadow Sight ultra + see invis)', !!(ss && ss.eff && ss.eff.vision === 2 && ss.eff.seeinvis), ss && ss.eff);
+        const sod = (spellByName.get('scream of death') || [])[0];
+        ok('proc buffs parse (Scream of Death)', !!(sod && sod.eff && sod.eff.proc), sod && sod.eff);
+        const dt = (spellByName.get('dark temptation') || [])[0];
+        ok('Dark Temptation in pool with ATK 25', !!(dt && dt.eff && dt.eff.atk === 25), dt && dt.eff);
+        // loadout modes: buff set has no songs, songs-only is all songs ≤ 5
+        const loSp = buildLoadout(['SHD', 'DRU', 'BRD'], ['hp', 'haste', 'str', 'ac'], 14, 'spells', 3);
+        ok('buff set (spells mode) excludes songs', loSp.length > 0 && loSp.every(e => !isSong(e.sp)), loSp.map(e => e.sp.n).slice(0, 5));
+        const loSo = buildLoadout(['SHD', 'DRU', 'BRD'], ['hp', 'haste', 'str', 'ac', 'dex'], 5, 'songs', 5);
+        ok('songs-only mode is all songs, max 5', loSo.length > 0 && loSo.length <= 5 && loSo.every(e => isSong(e.sp)), loSo.map(e => e.sp.n));
+        const loMix = buildLoadout(['SHD', 'DRU', 'BRD'], ['hp', 'haste', 'str', 'ac', 'dex', 'agi', 'atk'], 14, 'both', 1);
+        ok('fighting set caps songs at the aura limit', loMix.filter(e => isSong(e.sp)).length <= 1, loMix.map(e => (isSong(e.sp) ? '♪' : '') + e.sp.n).slice(0, 7));
+        // proc-buff audit round: procs resolve to their actual spell, coverage is amount-aware
+        const sod2 = (spellByName.get('scream of death') || [])[0];
+        ok('Scream of Death proc resolves (AE ~30)', !!(sod2 && sod2.procInfo && sod2.procInfo.kind === 'AE' && sod2.procInfo.amt === 30), sod2 && sod2.procInfo);
+        const ve2 = (spellByName.get('vampiric embrace') || [])[0];
+        ok('Vampiric Embrace proc resolves (single lifetap, bigger)', !!(ve2 && ve2.procInfo && ve2.procInfo.kind !== 'AE' && ve2.procInfo.amt > 30), ve2 && ve2.procInfo);
+        const loAtk = buildLoadout(['SHD', 'DRU', 'BRD'], ['atk', 'haste'], 14, 'both', 5);
+        ok('ATK focus surfaces Dark Temptation (as pick or alternate)',
+          loAtk.some(e => e.sp.n === 'Dark Temptation' || (e.alts || []).some(a => a.n === 'Dark Temptation')),
+          loAtk.map(e => (isSong(e.sp) ? '♪' : '') + e.sp.n + (e.alts && e.alts.length ? ' or: ' + e.alts.map(a => a.n).join('/') : '')));
+        // whole-pool audit: the overwhelming majority of castable buffs parse effects
+        const poolAll = [...spellByName.values()].flat().filter(sp => sp.cls);
+        const withEff = poolAll.filter(sp => sp.eff).length;
+        ok('pool-wide effect coverage ≥ 85%', withEff / poolAll.length >= 0.85,
+          withEff + '/' + poolAll.length + ' buffs parse effects (' + Math.round(withEff / poolAll.length * 100) + '%)');
+        ok('audit spot-checks (Daring HP, HoT, accuracy, aggro)', (() => {
+          const d = (spellByName.get('daring') || [])[0];
+          const ch = (spellByName.get('celestial healing') || [])[0];
+          const he = (spellByName.get('hawk eye') || [])[0];
+          const vd = (spellByName.get('voice of darkness') || [])[0];
+          return d && d.eff.hp > 0 && ch && ch.eff.hpregen > 0 && he && he.eff.acc > 0 && vd && vd.eff.hate > 0;
+        })());
+        console.log('SPELLVERIFY|DONE');
+      })();
+      return;
+    }
+    if (tab === 'verify25') { // dev-only: v2.5.0 assertions against the REAL game files
+      const ok = (name, cond, extra) => console.log('VERIFY25|' + (cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? ' = ' + JSON.stringify(extra) : ''));
+      // tabs: nine, in the agreed order, needs + class present
+      const tabOrder = [...document.querySelectorAll('.tab[data-tab]')].map(t => t.dataset.tab);
+      ok('nine tabs in order', JSON.stringify(tabOrder) === JSON.stringify(['meter', 'loot', 'needs', 'quests', 'class', 'timers', 'map', 'lookup', 'notes']), tabOrder);
+      // wiki export lives in settings now, not the loot bar
+      ok('wiki export moved to settings', !!$('l-export').closest('#settings') && !$('l-export').closest('#view-loot'));
+      // achievements parser: real Conquest counters carry cur/max
+      const conq = achSection(/^Slayer: Conquest$/i);
+      const dead = conq && conq.achievements.find(a => /We Are the Dead/i.test(a.name));
+      const dobj = dead && dead.objectives.find(o => o.max);
+      ok('Conquest counter parsed from export', !!dobj && dobj.cur > 0 && dobj.max >= 5000, dobj && dobj.cur + '/' + dobj.max);
+      ok('slyPct sane', !!dead && slyPct(dead) > 0 && slyPct(dead) < 1, dead && Math.round(slyPct(dead) * 100) + '%');
+      // race-target faction warning comes from the export itself
+      const ru = slyRaceUnlockFactions('Barbarian');
+      ok('Barbarian slayer warning factions from export', !!ru && ru.factions.includes('Wolves of the North') && ru.factions.length >= 3, ru && ru.factions);
+      // slayer renders rows
+      setTab('quests'); setQuestView('__slayer'); renderQuests();
+      ok('Slayer view renders', $('q-list').children.length > 3, $('q-list').children.length + ' nodes');
+      // own /who row teaches trio + level
+      const who = EQLParser.parseLine('[Mon Oct 12 21:00:00 2026] [50 SHD/SHM/ENC] Maeel (Dark Elf) <The Walking Dads> ZONE: The Feerrott (feerrott)  ');
+      ok('/who row parses trio + level', !!who && who.player === 'Maeel' && who.level === 50 && JSON.stringify(who.trio) === '["SHD","SHM","ENC"]', who && { p: who.player, l: who.level, t: who.trio });
+      handleLogLines(['[Mon Oct 12 21:00:00 2026] [50 SHD/SHM/ENC] Maeel (Dark Elf) <The Walking Dads> ZONE: The Feerrott (feerrott)  ']);
+      ok('trio detected into settings', JSON.stringify(settings.myTrio) === '["SHD","SHM","ENC"]', settings.myTrio);
+      // gear scoring machinery
+      const fake = { n: 'T', slots: ['CHEST'], classes: ['SHD'], stats: { ac: 10, hp: 20 }, ob: 'drop' };
+      ok('gearScore weighs stats', gearScore(fake, { ac: 2, hp: 1 }) === 40, gearScore(fake, { ac: 2, hp: 1 }));
+      // full-upgrade comparison: +10 doubles stats (10%/tier, floor, +1/tier min)
+      ok('gearScore at +10 uses upgraded stats', gearScore(fake, { ac: 2, hp: 1 }, 10) === 80, gearScore(fake, { ac: 2, hp: 1 }, 10));
+      ok('low stats get the +1/tier minimum', upStat(3, 10) === 13 && upDmg(12, 10) === 22, [upStat(3, 10), upDmg(12, 10)]);
+      ok('trioCanWear class gate', trioCanWear(fake, ['SHD', 'SHM', 'ENC']) && !trioCanWear(fake, ['WAR', 'CLR', 'DRU']));
+      const shield = { n: 'S', slots: ['SECONDARY'], stats: { ac: 20 } };
+      ok('weapon filter: shield', weaponTypeOk(shield, 'SECONDARY', 'shield') && !weaponTypeOk({ skill: '1H SLASHING', slots: ['SECONDARY'], stats: {} }, 'SECONDARY', 'shield'));
+      // worn gear read from the REAL inventory export
+      const worn = wornBySlot('Chest');
+      ok('worn Chest from inventory export', worn.some(n => /Lustrous Russet Breastplate/i.test(n)), worn);
+      // spell quests: auto-check against the REAL inventory
+      const llq = SPQ.QUESTS.find(q => q.key === 'lifeleech');
+      const necklace = llq.items.find(i => /White Gold Necklace/i.test(i.name));
+      ok('quest piece auto-checks from inventory', spqHave(spqState('lifeleech'), necklace));
+      const orb = llq.items.find(i => /Crystalline Orb/i.test(i.name));
+      ok('unowned quest piece stays open', !spqHave(spqState('lifeleech'), orb));
+      const before = spellQuestNeeds('Nagafen\'s Lair').length;
+      spellQuestState['lifeleech'] = { sel: true, done: false, items: {} };
+      const after = spellQuestNeeds('Nagafen\'s Lair');
+      ok('tracked quest feeds zone needs', before === 0 && after.length === 1 && after[0].item === 'Crystalline Orb', after);
+      delete spellQuestState['lifeleech'];
+      // login reminder gating
+      const savedUS = settings.usedSlayer, savedPC = settings.posClasses, savedUU = settings.usedUnlocks;
+      settings.usedSlayer = false; settings.usedUnlocks = false; settings.posClasses = [];
+      ok('achievements reminder gated OFF when unused', !outfileWanted('achievements') && !outfileWanted('factions'));
+      settings.usedSlayer = true;
+      ok('achievements + factions reminder ON for slayer users', outfileWanted('achievements') && outfileWanted('factions'));
+      ok('inventory reminder always on', outfileWanted('inventory'));
+      settings.usedSlayer = savedUS; settings.posClasses = savedPC; settings.usedUnlocks = savedUU;
+      console.log('VERIFY25|DONE');
+      return;
+    }
+    if (tab.startsWith('spellqdemo')) { // dev-only: track Life Leech, show the view ('spellqdemo:needs' shows the needs tab in Lower Guk)
+      spellQuestState['lifeleech'] = { sel: true, done: false, items: {} };
+      spqExpanded.add('lifeleech');
+      if (tab.endsWith(':needs')) {
+        setZone('Nagafen\'s Lair', { autoFetch: false });
+        setTab('needs');
+        renderNeedsTab();
+        console.log('SPQNEEDS|' + JSON.stringify(buildZoneNeeds().rows.filter(r => r.g === 'spellq')));
+      } else {
+        setTab('quests');
+        setQuestView('__spellq');
+        renderQuests();
+      }
+      return;
+    }
+    if (tab.startsWith('classdemo')) { // dev-only: seeded Class tab ('classdemo:gear' | 'classdemo:buffs')
+      (async () => {
+        const t0 = Date.now();
+        while (!spellDB && !spellDbError && Date.now() - t0 < 30000) await new Promise(r => setTimeout(r, 300));
+        settings.myTrio = settings.myTrio || ['SHD', 'SHM', 'ENC'];
+        settings.classChip = tab.endsWith(':buffs') ? 'buffs' : 'gear';
+        handleLogLines([
+          '[Tue Oct 13 12:00:00 2026] A light breeze slips through your mind.',
+          '[Tue Oct 13 12:00:02 2026] You become one with your weapons.',
+          '[Tue Oct 13 12:00:04 2026] Your body pulses with the spirit of the wolf.'
+        ]);
+        if (!gearCatalog) {
+          gearCatalog = { built: Date.now(), items: [
+            { n: 'Lustrous Russet Breastplate', slots: ['CHEST'], classes: ['WAR', 'PAL', 'SHD', 'CLR'], stats: { ac: 32, str: 9, sta: 9 }, ob: 'drop', src: 'Phase Spider Queen, Castle Mistmoore' },
+            { n: 'Breastplate of Eradication', slots: ['CHEST'], classes: ['SHD'], stats: { ac: 40, str: 15, sta: 10, hp: 50 }, haste: 0, ob: 'drop', src: 'Innoruuk, The Plane of Hate' },
+            { n: 'Woven Shadow Tunic', slots: ['CHEST'], classes: ['ALL'], stats: { ac: 18, agi: 9, hp: 35 }, ob: 'quest', src: 'reward: Shadows of Neriak' },
+            { n: 'Blackened Alloy Breastplate', slots: ['CHEST'], classes: ['WAR', 'SHD'], stats: { ac: 25, sta: 5 }, ob: 'craft', src: 'Blacksmithing (trivial 188)' }
+          ] };
+          gearByName = null;
+        }
+        clExpanded.add('CHEST');
+        setTab('class');
+        renderClassTab();
+      })();
+      return;
+    }
+    if (tab.startsWith('slayerx:')) { // dev-only: expand one slayer achievement
+      setTab('quests');
+      setQuestView('__slayer');
+      renderQuests();
+      slyFindAndExpand(tab.slice(8));
+      return;
+    }
+    if (tab.startsWith('slyroute:')) { // dev-only: open the 🧭 route read-out in the dock
+      setTab('quests');
+      setQuestView('__slayer');
+      renderQuests();
+      const want = tab.slice(9).toLowerCase();
+      for (const s of SLY_SECTIONS) {
+        const sec = achSection(s.re);
+        const a = sec && sec.achievements.find(x => x.name.toLowerCase() === want);
+        if (a) { openSlayerRoute(a, s.key); break; }
+      }
       return;
     }
     if (tab.startsWith('qview:')) { // dev-only: 'qview:__unlocks' / '__epics' / '__bis' / zone name
@@ -4346,6 +6084,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   }
 
   function renderMeter() {
+    keepScroll($('c-rows'));
     renderXpStrip();
     const s = tracker.summary();
     const view = $('view-meter');
@@ -4475,6 +6214,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   }
 
   function renderBreakdown() {
+    keepScroll($('b-rows'));
     $('b-mode-fight').classList.toggle('gold', bMode === 'fight');
     $('b-mode-session').classList.toggle('gold', bMode === 'session');
     const rowsEl = $('b-rows');
@@ -4915,6 +6655,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   // ================= render: loot =================
   function renderLoot() {
+    keepScroll($('l-scroll'));
     $('l-coin').textContent = sessionCoin ? 'Session coin: ' + fmtCoin(sessionCoin) : '';
     renderRunBox();
 
@@ -5371,6 +7112,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     $('export-modal').style.display = 'flex';
   });
   $('export-close').addEventListener('click', () => $('export-modal').style.display = 'none');
+  $('login-close').addEventListener('click', () => $('login-modal').style.display = 'none');
   $('export-copy').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText($('export-text').textContent);
@@ -5637,6 +7379,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     else if (activeTab === 'map') sizeCanvas();
     else if (activeTab === 'timers') renderTimers();
     else if (activeTab === 'quests') renderQuests();
+    else if (activeTab === 'needs') renderNeedsTab();
+    else if (activeTab === 'class') renderClassTab();
     else renderZone();
   }
 
@@ -5699,9 +7443,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       pushCleanup();
       maybeAutoScan();   // new unknowns from fresh loot/inventory look themselves up
     }
-    if (needsDirty && needsOpen) {
+    if (needsDirty && (needsOpen || activeTab === 'needs')) {
       needsDirty = false;
-      pushNeeds();
+      const flash = pendingNeedsFlash;
+      pendingNeedsFlash = null;
+      if (needsOpen) pushNeeds(flash);
+      if (activeTab === 'needs') renderNeedsTab(flash);
     }
   }, 500);
 

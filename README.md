@@ -1,16 +1,15 @@
 # SEQO — Simple EQ Overlay
 
 **A log-powered companion overlay for EverQuest Legends on Windows 11.**
-Live DPS meter · spell & proc analytics · loot tracking with real drop rates · a zone-needs panel that watches for what you're hunting · race/class/deity unlock tracking · epic & best-in-slot checklists that understand turn-ins · item/zone/quest lookup with in-app guide pages · world travel routing · learned camp timers with spawn windows · rare-spawn, charm-break, buff-fade & AFK alerts · cross-computer sync with honest status · built-in help on every feature.
+Live DPS meter · group & session breakdowns · loot tracking with real drop rates · a zone-needs tab AND pop-out that watch for what you're hunting · race/class/deity unlock tracking · 💀 Slayer achievement tracker with hunting routes and faction warnings · optional class spell quest checklists · epic checklists that understand turn-ins · an experimental ⚔ Class tab: trio gear advisor + a buff lab running on the game's own spell data · item/zone/quest lookup with in-app guide pages · world travel routing · learned camp timers with spawn windows · rare-spawn, charm-break, exact buff-fade & AFK alerts · cross-computer sync with honest status · built-in help on every feature.
 
-> ### New in v2.4 — [release notes](https://github.com/RealMaeel/seqo/releases/latest)
-> A **bottom bar on every tab**: labeled ▶ Start run / ⏹ End run with a live clock, plus the session XP/AA readout with a ↺ reset — no more tab-hopping to start a run or check pace. Runs now show **motes per hour**.
-> A **🎯 zone-needs panel**: a slim, persistent, minimizable strip under the overlay listing everything you still need from the zone you're in — starred gear, epic pieces, unlock turn-ins with live counters — and which mobs drop it.
-> **Epics that understand turn-ins**: own a Darkforge piece and its rotted ingredients show ✔ covered; chains, shared items across classes (1/2), ×N quantities, and manual tick-offs for hand-ins the inventory file can't see.
-> **Respawn timers, overhauled**: learned from several of your own kill cycles with outliers dropped, **spawn windows** ("15–30m") with a window-open alert, a trust mark on every countdown (⟲ learned · ~ tentative · ~wiki · ✎ manual), and a ✎ to set any timer yourself. Instanced copies and zone transitions never pollute the learning.
-> **Cleanup reorganized** into strict location sections — 🎒 Bags / 📦 Character storage / 🏦 Bank — with verdict filter chips, per-location counts, and unknowns that **look themselves up automatically**.
-> **Unlocks you can read**: alternate grinds as labeled Option A / Option B with per-route counters, 📖 buttons that open the relevant guide text in the attached window (cached, offline), and a Normal/Large **text size** setting.
-> A **modern face**: AFK and lock live in the title bar, Quests sub-views are one-click chips, and Settings is rebuilt into six clean groups with toggle switches. **BiS flagging is now opt-in** (your class only) — ☆ star what you actually hunt instead. **❓ built-in help** covers every feature plus an FAQ. **/outputfile reminder bars** with one-click copy, a once-per-login freshness nudge, and a **sync status** that tells you which computer wrote last.
+> ### New in v2.5 — [release notes](https://github.com/RealMaeel/seqo/releases/latest)
+> **💀 Slayer achievements**: all four groups from your achievements export with live progress bars, closest-to-done first, meta-chains you can click through — and a 🧭 route read-out per target that tells you where that family hunts and what the kills COST you in faction, checked against your own standings and the unlocks you're grinding.
+> **⚔ Class tab** *(experimental — see below)*: your trio auto-detected from /who, a per-slot **gear advisor** scored for YOUR three classes with editable stat weights and an upgrade-tier compare, and a **buff lab** running on the game's own spell files — live buffs with countdowns, exact fade identification, "didn't take hold" explained by name, and a loadout builder that fits your focus stats into your spell gems.
+> **🧙 Spell quests**: Tashania, Ice Comet, Divine Might, Life Leech and Call of Flame as tracked checklists — ⭐ one and its hunted pieces join the zone-needs list.
+> **🎯 Needs is a tab now** too — same list as the pop-out, pick your flavor. Spell-quest pieces included.
+> **📂 Login popup**: a fresh login (or starting SEQO mid-session) brings up the /outputfile commands as copy buttons that tick themselves off as the files land.
+> **Nine tabs, reordered** — inactive tabs shrink to icons so everything fits. Scrolling no longer snaps to the top when live data updates. Wiki lookups batch 50 pages per request and catalog updates only re-read what changed.
 
 SEQO never touches the game. It reads the log file EverQuest Legends already writes to disk — the same technique GamParse and nParse used safely for two decades of classic EQ. **No injection, no memory reading, no automation. Nothing for anti-cheat to object to.**
 
@@ -101,7 +100,7 @@ Lives under the Meter tab now: the **⚔ Fight / Σ Session** buttons switch bet
 
 **⭐ Rare checklist** (new in 2.2): during a run, the strip also tracks the zone's **named mobs** — every rare you kill gets a green ✓ (with a toast), and the ones still up stay listed with ○ so you know what's left in the crawl. The known-rares list is built from [EQLForge](https://eqlforge.com/)'s per-zone Notable NPCs (the community's dungeon-crawl rare lists — support them) plus the wiki zone page's Boss/Named entries and drop tables, and it refreshes automatically the first time you start a run in a zone with old or missing data. Generic mobs and loot objects (a haunted chest, an ashenbone drake) are filtered out — only proper names count, unless a source explicitly calls the mob a boss — and if something slips through, click it in the list to remove it from that zone's rares for good ("restore" on the Rares line brings them back). The same filter applies to the ⭐ RARE UP alerts. This pairs with the game's own [Dungeon Crawl](https://eqlwiki.com/Dungeon_Crawl) instances, where clearing every rare is the objective.
 
-**🎯 Zone-needs panel** (new in 2.4): the **Needs** button opens a slim strip under the overlay listing everything you still need **from the zone you're standing in** — ⭐ starred gear, ⚔ epic pieces (true remaining counts), 🔓 unlock turn-ins with live counters that tick the moment the loot line hits your log — each row naming the mobs that drop it, click-through to full item details. It's persistent (follows you between zones, reopens after a restart), **minimizable to a one-line "🎯 4 needed here" bar**, scrollable, and height-draggable. Rows flash when their item just dropped, so a glance tells you what mattered.
+**🎯 Zone needs** (2.4, a full tab since 2.5): the same list lives in two places — the **🎯 Needs tab** in the overlay, and the **Needs** button's slim pop-out strip under the overlay listing everything you still need **from the zone you're standing in** — ⭐ starred gear, ⚔ epic pieces (true remaining counts), 🔓 unlock turn-ins with live counters that tick the moment the loot line hits your log — each row naming the mobs that drop it, click-through to full item details — and since 2.5, 🧙 pieces of any spell quest you're tracking. It's persistent (follows you between zones, reopens after a restart), **minimizable to a one-line "🎯 4 needed here" bar**, scrollable, and height-draggable. Rows flash when their item just dropped, so a glance tells you what mattered.
 
 Every kill and every looted item is recorded automatically to a permanent database.
 
@@ -165,7 +164,7 @@ The map matches EQ Legends' actual world: **New Sebilis Expedition** (door in NW
 
 ## 📜 Quests
 
-A quest tracker for **any zone**, with a deep hand-built database for Plane of Sky. The tab's sub-views sit in a **chip row** — 📜 Quests · 🔓 Unlocks · ⚔ Epics · 🏆 BiS · ✨ Exalts — one click each, no more hunting in a dropdown.
+A quest tracker for **any zone**, with a deep hand-built database for Plane of Sky. The tab's sub-views sit in a **chip row** — 📜 Quests · 🔓 Unlocks · 💀 Slayer · 🧙 Spells · ⚔ Epics · ✨ Exalts — one click each, no more hunting in a dropdown.
 
 The zone selector defaults to wherever you are (it follows you as you zone) and can be pointed anywhere manually. For most zones you get the wiki's quest list from your local cache — an Update button fetches the zone page's Quests section once, each quest is a click away from its wiki page, and ✓ done-states persist and sync. The wiki files quests **by class**, though, so most zone pages list few or none — that's what **📇 Index my classes** solves: one click fetches your classes' complete quest lists from the wiki (Shaman: 67, Enchanter: 36, ...), reads each quest page, and matches it to the zones it mentions. From then on, every zone shows "Class quests involving this zone" with class tags — cached, synced, rebuild anytime as the wiki grows. Zone matching is best-effort text scanning, so expect the occasional quest tied to a zone it merely mentions.
 
@@ -198,6 +197,18 @@ The 🔓 chip shows every **race, class and deity unlock** with live progress fr
 - Hard to read the fine print? ⚙ Appearance → **Text size: Large** grows it across the overlay and all attached windows.
 - Everything is bypassable with store Unlock Tokens; the view just tracks the earned path.
 
+### 💀 Slayer achievements (new in 2.5)
+
+Your whole Slayer grind from `/outputfile achievements`, live: **General** (the meta-achievements, as clickable chains — tap a requirement and jump straight to it), **Conquest** (the big family counters, "We Are the Dead! 6,765/10,000" with progress bars), **Special** and **Skill**. Everything sorts closest-to-done first, so the next cheap achievement is always on top.
+
+The part that saves real heartache: the **🧭 route read-out** on every target. It opens in the attached window with where that creature family actually hunts — and for race targets (killing Barbarians, gnomes' clockworks, and so on) it lists the exact factions those kills tank, **checked against your own faction file and the race unlocks you're working**. If you've got positive progress on a faction the route would burn, SEQO says so in plain text before you commit to the camp. Run `/outputfile achievements` after a hunt and the counters update. Zone suggestions are classic-era knowledge — Legends remixes things, so treat them as starting points.
+
+### 🧙 Spell quests (new in 2.5)
+
+The optional class spell quests — **Tashania** (ENC), **Ice Comet** (WIZ), **Divine Might** (PAL), **Life Leech** (SHD), **Call of Flame** (RNG) — as proper tracked checklists: every piece with where it comes from, checkmarks that fill from your inventory and live loot (click any box by hand too), and the full route step by step with the gotchas called out — temporary containers that eat your rods, turn-ins that spawn a fight, don't-hand-in-while-invisible. Where a quest has a keep-the-clicky choice (the Coin of Tash line), the card says when you can stop early.
+
+**⭐ Track** a quest and its hunted pieces join the zone-needs list — walk into Nagafen's Lair and the needs panel reminds you a stone spider there holds your Crystalline Orb. Quest mechanics courtesy of the [EQ Legends Tools quest guides](https://eqlegendstools.com/quests/) — support them.
+
 ### ⚔ Epics prep
 
 Every class's epic quest components with **the exact EQ Legends item names**, following the community ["Epic Items To Keep" checklist by Manlaan](https://eqlwiki.com/User:Manlaan/Epic_Items_To_Keep) on eqlwiki.com — please support the wiki. Auto-checked against your inventory file **including your bank and key ring**, ⚠ marking entries the wiki hasn't verified, and a toast + automatic KEEP verdict when a piece you still need drops. Full walkthroughs live on each class's Epic Quest wiki page.
@@ -210,9 +221,35 @@ Since 2.4 the checklist **understands how epics are built** (recipes verified ag
 
 Exaltations let you pull a Focus, Worn, Proc or Clicky effect off leveled gear and slot it into other gear — so the real question is always "which items carry the effect I want?" This view answers it: fetch the effect index once (pulled read-only from the wiki's effect categories), pick a type, search or browse the effects, click one — say Mana Preservation II — and every item that carries it lists out, clickable for full stats, with a **✓ on the ones you already own**. Effect pages cache after first fetch and refresh through Sync data.
 
-### 🏆 BiS gear (new in 2.1.0)
+### 🏆 Where did BiS go?
 
-Per-class best-in-slot lists for all 16 classes — **courtesy of [eqlegendstools.com](https://eqlegendstools.com/bis-gear/), please support them**. Pick a class, see the top items per slot with AC/HP/mana (and the new **Accuracy** stat, once the site lists it) and source, with ✓ on everything you already own (worn, bags, or bank). Ships with a built-in snapshot; **Update list ⟳** re-reads the live site any time and adapts to new site columns automatically. **BiS flagging is opt-in** (new in 2.4): by default this is a view you browse, not a voice in your loot — the source lists don't know your level, so a level-20 "upgrade" at 50 is noise. Switch on **Flag best-in-slot drops** (⚙ Alerts & Sounds) and drops for *your class only* get the 🏆 toast + KEEP verdict. The better habit: ☆ **star** the pieces you're actually hunting, right from this list — starred items always alert.
+The old per-class BiS list grew up and moved: it's now the **Gear advisor on the ⚔ Class tab** (below), scored for your actual trio instead of one class, with your own worn gear in the comparison. The one piece that stayed behind is the alert option — **Flag best-in-slot drops** (⚙ Alerts & Sounds, off by default) still toasts a 🏆 when a community-list item for your class drops.
+
+## ⚔ Class — gear advisor & buff lab *(EXPERIMENTAL)*
+
+> I'm calling both halves of this tab **experimental** while we iron out the kinks. The data underneath is the real thing — the game's own spell files and the wiki's full item catalog — but the recommendations are young, and field testing keeps teaching it new rules (bard songs, proc buffs, era filtering all got smarter in the first week). Trust the numbers, sanity-check the advice, and tell me when something looks wrong.
+
+Your **trio fills in automatically** from your own `/who` row (type `/who` once in game), and three dropdowns let you preplan any other makeup — pick a trio you don't even play, browse its gear, ☆ pieces for it.
+
+### 🛡 Gear (experimental)
+
+A best-in-slot advisor scored for **your three classes together**. Per slot: 👤 what you wear, 🎒 the best you own, 🌍 the best obtainable with its source — and ☆ on any 🌍 row stars it onto your wish list so zone needs flags where it drops.
+
+- **Purpose presets** — Balanced, Tank, Melee ST, AoE, Caster DPS, Healer — are just stat-weight tables, and **⚙ weights** lets you edit every number (saved per purpose).
+- **Weapon-type filter** keeps sword-and-board builds from being told a two-hander is an upgrade; **obtained-by chips** (Drop/Quest/Craft/Vendor) match how you actually play.
+- **Compare at +0 … +10**: score everything at base (what drops) or at full-upgrade potential (what's worth investing mats in). Your own items always score at their REAL tier too — rows read "score 640 @+3 → 812 @+10" so nothing is silently compared at a tier it isn't.
+- **First use:** ⬇ Build catalog reads every item page off the wiki once (a few minutes, progress shown). After that it's cached, synced between your computers, and **⟳ Update only re-reads pages that changed** (seconds). Only current Legends content makes the list — pages the wiki banners as future-era content are skipped, and if you provably own an item from a "future" banner, that whole banner is reinstated as current.
+
+### 🧪 Buffs (experimental)
+
+This runs on the **game's own spell files**, read straight from your install and re-parsed automatically each patch — not wiki guesses.
+
+- **On you now**: every lasting effect tracked the moment its landing line hits your log, with countdowns — exact for your own casts, ~estimated when someone else's level decides the duration.
+- **Exact fades**: fade lines match the game's string table, so the alert names the actual spell — no more guessing which "strength" dropped.
+- **"Didn't take hold", explained**: a blocked cast names the buff that blocked it (from the game's own stacking table) and says whether yours was stronger.
+- **🎛 Loadout builder**: set your spell-gem count (up to 14 with AAs), tap focus stats — HP, STA, resists, haste, weapon procs, whatever — and SEQO picks the strongest non-conflicting set your trio can memorize in that budget. Resists means **all five**. Proc buffs show what the proc actually does ("Scream of Death Strike — hits nearby mobs ~30" vs "Vampiric Embrace — lifetap ~62"), every pick shows its real numbers from the game data, and knocked-out runners-up appear as "or:" alternates so the choice stays yours.
+- **Three modes** for the two-loadout life: **⚡ Fighting set** (spells + songs, songs capped at what your Symphonic Aura can run), **✦ Buff set** (spells only — cast everything, then swap loadouts), **♪ Songs only** (the 1–5 songs the aura keeps running).
+- **Buff lineup** below lists everything your trio can cast and calls out the groups that DON'T stack — cast the ✔ one.
 
 ## 🔔 Alerts
 
@@ -227,17 +264,18 @@ Every alert type has its own sound, so you know what happened without looking:
 | 👁 Invisibility | rising sweep | the *early warning* ("starting to appear") **and** the drop |
 | 🫧 Buff fade | soft boop | any effect ending on you — see below |
 
-- **Buff fades are automatic.** Legends uses a uniform format ("The cool breeze fades."), and SEQO attributes each to its spell line: *Breeze/Clarity (mana regen)*, *Tashani (magic-resist debuff)* — debuffs ending are announced as good news ("Debuff gone"). Unknown effects are **self-learned** by correlating the fade with the cast that produced it, so one cast-fade cycle teaches SEQO your exact spell, permanently.
+- **Buff fades are exact** (since 2.5). Fade lines are matched against the game's own string table, so the alert names the actual spell — and debuffs ending are announced as good news ("Debuff gone"). The old self-learning (correlating a fade with the cast that produced it) stays as the fallback for anything the table doesn't cover.
+- **"Did not take hold" is explained** (new in 2.5): when your buff bounces, SEQO names the buff that blocked it and whether yours was stronger — click the old one off, or save the mana.
 - **Muted alerts:** every buff/fade alert seen this session appears in Settings → Alerts with a checkbox — tick to silence the spammy ones forever, unmute anytime.
 - **Volume:** a dedicated slider with live preview, independent of game and system volume. **Test all alerts 🔔** plays the full set.
 
-**📂 Login reminder** (new in 2.4): when SEQO sees a fresh login (the game's welcome line, or a long log silence ending) and your `/outputfile` exports are older than the session, a slim dismissible strip offers each command as a one-click 📋 copy — paste, done, counters live. It disappears by itself when fresh files land, fires once per login, and has an off switch in ⚙ Alerts & Sounds.
+**📂 Login popup** (upgraded in 2.5): on a fresh login — or when you start SEQO with the game already running — a popup lists each `/outputfile` command your features actually use, with a 📋 Copy button and the file's age. Paste each in game and the lines tick themselves ✅ off as the new files land; when everything's fresh it closes itself. Dismiss anytime, off switch in ⚙ Alerts & Sounds, and it only asks for the exports your features need (no Slayer use, no achievements nag).
 
 **😴 AFK watch:** click **😴** in the title bar before stepping away. If anything attacks you, the siren and border flash repeat every 2.5 seconds until you click AFK off **or your character acts** — a real melee swing or cast. Pets fighting, damage shields, and DoT ticks don't count as "back". A charmed pet turning on you also stops being counted as yours the moment its charm-break is detected.
 
 ## ⚙ Settings
 
-Rebuilt in 2.4 into six clean groups — **General** (character, log, SEQO updates) · **Appearance** (incl. the Normal/Large text size) · **Alerts & Sounds** · **Game Data & Sync** · **Advanced** (wiki contribution) · **About** (credits + ⟳ Sync data) — one setting per row with proper toggle switches. Every stored value carries over; nothing resets.
+Rebuilt in 2.4 into six clean groups — **General** (character, log, SEQO updates) · **Appearance** (incl. the Normal/Large text size) · **Alerts & Sounds** · **Game Data & Sync** · **Advanced** (wiki contribution + the Wiki export button) · **About** (credits + ⟳ Sync data) — one setting per row with proper toggle switches. Every stored value carries over; nothing resets.
 
 ## ⚙ Character & housekeeping
 
@@ -261,6 +299,9 @@ Rebuilt in 2.4 into six clean groups — **General** (character, log, SEQO updat
 - **Game data line says ✗** → run the matching command in game: `/outputfile inventory`, `/outputfile achievements`, `/outputfile faction`. SEQO reads the files from your EQ folder automatically.
 - **Hotkeys don't work** → another app owns them; SEQO warns at launch, and every function has an on-screen or tray alternative.
 - **Wiki login fails** → use a **bot password** from `Special:BotPasswords` (format `YourName@botname`), not your account password.
+- **First launch after updating to 2.5 pauses a second or two** → SEQO is parsing the game's spell files (38MB) once; after that it loads from cache in milliseconds and only re-parses when the game patches.
+- **Class tab's Gear view says "no catalog"** → press ⬇ Build catalog once (a few minutes, progress shown). Quick ⟳ updates after that take seconds. Shift-click forces a full rebuild.
+- **A buff or item recommendation looks wrong** → the Class tab is experimental; tell me which spell/item and what you expected — field reports are what's sharpening it.
 
 ## Contributing to the wiki
 
@@ -275,6 +316,8 @@ All of SEQO's data views stand on community work — please support these people
 - **Dungeon-crawl rare lists:** [EQLForge](https://eqlforge.com/) — each zone's Notable NPCs feed the rare checklist.
 - **Epic 1.0 pre-loot knowledge:** the classic-EQ community — Project 1999 forums/wiki, EQProgression, Zliz's Compendium.
 - **Game data:** [eqlwiki.com](https://eqlwiki.com) via its MediaWiki API — support the wiki.
+- **Spell data:** the game's own files (`spells_us.txt`, the string table, the stacking groups), read from your install — the same data the game runs on, so the buff lab is never out of date.
+- **Spell quest walkthroughs:** the [EQ Legends Tools quest guides](https://eqlegendstools.com/quests/).
 - **Item lookups** link out to the community databases, with thanks: [eqlwiki](https://eqlwiki.com/), [EQLBase](https://eqlbase.com/), [EQ Legends Tools](https://eqlegendstools.com/), [Loadout Legends](https://www.loadoutlegends.com/), [Gnoll Guard](https://www.gnollguard.com/).
 - Built with Electron. Field-tested and shaped by real EverQuest Legends combat logs.
 

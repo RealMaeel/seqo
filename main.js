@@ -5,6 +5,7 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, screen, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const spelldb = require('./spelldb.js');
 
 // ---------------------------------------------------------------------------
 // Settings persistence
@@ -145,6 +146,7 @@ function createWindow() {
         const img = await win.webContents.capturePage();
         fs.writeFileSync('/tmp/overlay-' + name + '.png', img.toPNG());
       };
+      win.webContents.executeJavaScript('window.__EQLTEST = true; true').catch(() => {});
       setTimeout(async () => {
         try {
           const tabs = (process.env.EQL_TEST_TABS ||
@@ -182,6 +184,15 @@ function createWindow() {
               if (needsWin && !needsWin.isDestroyed()) {
                 const img = await needsWin.webContents.capturePage();
                 fs.writeFileSync('/tmp/overlay-' + String(i + 1).padStart(2, '0') + '-needs.png', img.toPNG());
+              }
+              continue;
+            }
+            if (tabs[i].startsWith('slydock:')) { // dev-only: Slayer route read-out in the dock
+              win.webContents.send('test-tab', 'slyroute:' + tabs[i].slice(8));
+              await new Promise(r => setTimeout(r, wait + 1500));
+              if (dockWin && !dockWin.isDestroyed()) {
+                const img = await dockWin.webContents.capturePage();
+                fs.writeFileSync('/tmp/overlay-' + String(i + 1).padStart(2, '0') + '-slydock.png', img.toPNG());
               }
               continue;
             }
@@ -262,6 +273,15 @@ function applyLockState() {
     win.setIgnoreMouseEvents(false);
   }
   win.webContents.send('lock-state', settings.locked);
+  // the attached windows (needs panel, dock) follow the same rules: locked =
+  // click-through with hover-to-interact (their renderers drive it), unlocked
+  // = ordinary windows
+  for (const w of [needsWin, dockWin]) {
+    if (!w || w.isDestroyed()) continue;
+    if (settings.locked) w.setIgnoreMouseEvents(true, { forward: true });
+    else w.setIgnoreMouseEvents(false);
+    w.webContents.send('lock-state', settings.locked);
+  }
   snapDock();  // the drawn panel shifts between edit/locked — children follow
   updateTrayMenu();
 }
@@ -325,6 +345,28 @@ function loadGameDB() {
   gameDB.zones = gameDB.zones || {};
   gameDB.items = gameDB.items || {};
   delete gameDB.charmSpells; // v1.1.1: purge poisoned auto-learned "charm spells"
+  pruneGameDB(); // v2.5.0: keep the DB lean — it loads, saves and syncs whole
+}
+
+// Months of play grow two caches without bound: item-knowledge (every junk
+// drop ever judged) and opened guide pages. Prune what hasn't been touched in
+// a long while — anything pruned that's still wanted re-fetches cheaply (the
+// cleanup scan bulk-checks existence 50 names per request).
+function pruneGameDB() {
+  try {
+    let dropped = 0;
+    const ik = gameDB.itemKnowledge || {};
+    const entries = Object.entries(ik);
+    if (entries.length > 1500) { // cap: keep the 1500 most recently checked
+      entries.sort((a, b) => (b[1].checkedAt || 0) - (a[1].checkedAt || 0));
+      for (const [k] of entries.slice(1500)) { delete ik[k]; dropped++; }
+    }
+    const gp = gameDB.guidePages || {};
+    const cutoff = Date.now() - 60 * 864e5; // a guide untouched for 60 days re-fetches on next open
+    for (const [t, p] of Object.entries(gp))
+      if (!p || (p.updated || 0) < cutoff) { delete gp[t]; dropped++; }
+    if (dropped) saveGameDBSoon();
+  } catch { /* never let housekeeping break startup */ }
 }
 
 function saveGameDBSoon() {
@@ -798,6 +840,10 @@ function openDock(mode, payload) {
       snapDock();
       applyChildOpacity();
       dockWin.webContents.send('ui-scale', settings.textScale || 'normal');
+      if (settings.locked) { // born locked: click-through with hover-to-interact
+        dockWin.setIgnoreMouseEvents(true, { forward: true });
+        dockWin.webContents.send('lock-state', true);
+      }
       dockWin.webContents.send('dock-mode', { mode, payload });
       if (win && mode === 'cleanup') win.webContents.send('cleanup-state', true);
     });
@@ -863,6 +909,10 @@ function openNeeds() {
     applyChildOpacity();
     needsWin.webContents.send('ui-scale', settings.textScale || 'normal');
     needsWin.webContents.send('needs-min', !!settings.needsPanelMin);
+    if (settings.locked) { // born locked: click-through with hover-to-interact
+      needsWin.setIgnoreMouseEvents(true, { forward: true });
+      needsWin.webContents.send('lock-state', true);
+    }
     if (win) win.webContents.send('needs-state', true);
   });
   settings.needsPanelOpen = true;
@@ -920,6 +970,34 @@ ipcMain.on('set-item-knowledge', (_e, { key, entry }) => {
   saveGameDBSoon();
 });
 ipcMain.handle('get-item-knowledge', () => gameDB.itemKnowledge || {});
+
+// ---- spell database from the game's own files (spelldb.js) ----
+// Parsed once per game patch, cached locally (machine-specific — NEVER in the
+// shared/synced folder). The renderer gets the compact maps in one shot.
+let spellDbBuilding = null;
+ipcMain.handle('get-spell-db', async () => {
+  const root = settings.logPath ? gameRootFromLog(settings.logPath) : null;
+  if (!root) return { error: 'pick your log file first — the spell data lives next to it' };
+  try {
+    if (!spellDbBuilding) spellDbBuilding = spelldb.getSpellDB(root, app.getPath('userData'));
+    const db = await spellDbBuilding;
+    spellDbBuilding = null;
+    return db || { error: 'no spells_us.txt next to your Logs folder — is the log inside the game folder?' };
+  } catch (e) {
+    spellDbBuilding = null;
+    return { error: e.message || String(e) };
+  }
+});
+
+// bulk wiki existence pre-check for the cleanup scan: one query per 50 titles
+// instead of parse + search fallbacks per missing item
+ipcMain.handle('check-pages-exist', async (_e, titles) => {
+  try {
+    return await updater.pagesExist((titles || []).filter(Boolean).slice(0, 400));
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+});
 
 // clipboard for the copy-to-chat buttons (renderer is sandboxed)
 ipcMain.on('copy-text', (_e, text) => {
@@ -1184,6 +1262,15 @@ ipcMain.on('set-posquest', (_e, { reward, state }) => {
 });
 ipcMain.handle('get-posquests', () => gameDB.posQuests || {});
 
+// spell-quest tracker state: questKey -> { sel, done, items: {name: true} } (synced)
+ipcMain.on('set-spellquest', (_e, { key, state }) => {
+  gameDB.spellQuests = gameDB.spellQuests || {};
+  if (state && (state.sel || state.done || Object.keys(state.items || {}).length)) gameDB.spellQuests[key] = state;
+  else delete gameDB.spellQuests[key];
+  saveGameDBSoon();
+});
+ipcMain.handle('get-spellquests', () => gameDB.spellQuests || {});
+
 // personal loot verdicts: itemName(lower) -> 'keep' | 'junk' (synced)
 ipcMain.on('set-item-verdict', (_e, { item, verdict }) => {
   gameDB.itemVerdicts = gameDB.itemVerdicts || {};
@@ -1259,6 +1346,129 @@ ipcMain.handle('build-quest-index', async (_e, classes) => {
   }
 });
 ipcMain.handle('get-quest-index', () => gameDB.questIndex || null);
+
+// ---------------------------------------------------------------------------
+// Gear catalog: every wearable item on the wiki, parsed into compact scored-
+// comparison records. Built on demand (a few minutes, with progress), cached
+// in the game DB (synced between computers), refreshed by the same button.
+// ---------------------------------------------------------------------------
+let gearBuilding = false;
+ipcMain.handle('build-gear-catalog', async (_e, opts = {}) => {
+  if (gearBuilding) return { error: 'a catalog build is already running' };
+  gearBuilding = true;
+  const progress = (msg) => { try { win.webContents.send('gear-progress', msg); } catch { /* window gone */ } };
+  try {
+    const prior = gameDB.gearCatalog;
+
+    // ---- incremental update: only pages that CHANGED since the last build ----
+    if (prior && prior.items && prior.built && !opts.full) {
+      progress('Asking the wiki what changed since the last build…');
+      let changed = null;
+      try { changed = await updater.getRecentChangeTitles(prior.built - 3600 * 1000); } catch { changed = null; }
+      if (changed) {
+        if (!changed.length) {
+          prior.built = Date.now();
+          saveGameDBSoon();
+          progress('');
+          gearBuilding = false;
+          return { items: prior.items.length, unchanged: true };
+        }
+        progress(changed.length + ' wiki pages changed — re-reading only those…');
+        // the banner verdicts settled at full-build time (incl. inventory proof)
+        const futureSet = new Set(prior.futureBanners || []);
+        const byName = new Map(prior.items.map(it => [it.n, it]));
+        let updated = 0, added = 0, dropped = 0;
+        for (let i = 0; i < changed.length; i += 50) {
+          const pages = await updater.fetchPagesContent(changed.slice(i, i + 50));
+          for (const [title, text] of Object.entries(pages)) {
+            const res = updater.parseGearPage(title, text, futureSet);
+            if (!res || res.future) { // no longer gear (or provably future-era)
+              if (byName.delete(title)) dropped++;
+              continue;
+            }
+            if (byName.has(title)) updated++; else added++;
+            byName.set(title, res);
+          }
+          progress('Re-reading changed pages… ' + Math.min(i + 50, changed.length) + ' / ' + changed.length);
+        }
+        gameDB.gearCatalog = { ...prior, built: Date.now(), items: [...byName.values()] };
+        saveGameDBSoon();
+        progress('');
+        gearBuilding = false;
+        return { items: gameDB.gearCatalog.items.length, updated, added, dropped, incremental: true };
+      }
+      progress('A lot changed since the last build — doing a full rebuild…');
+    }
+
+    // ---- full build ----
+    // Era banners mark eras, CURRENT ones included — only banners whose own
+    // template text says "not yet available / future" skip items. And if the
+    // player OWNS an item from a "future" banner, that banner is provably
+    // current: all its items come back in.
+    progress('Reading the wiki\'s era banners…');
+    let futureBanners = new Set();
+    try {
+      const eb = await updater.getEraBanners();
+      futureBanners = eb.future;
+      progress(eb.future.size + ' of ' + eb.all.size + ' era banners mark FUTURE content — only those skip items');
+    } catch { progress('era banner list unavailable — keeping everything'); }
+    progress('Listing every item on the wiki…');
+    const titles = await updater.getAllCategoryMembers('Items', (n) => progress('Listing items… ' + n));
+    if (!titles.length) throw new Error('the wiki returned no item list');
+    progress(titles.length + ' item pages — reading in batches of 50…');
+    const items = [];
+    const futureStash = new Map(); // banner -> parsed entries held aside
+    let read = 0, skipped = 0, futureSkipped = 0;
+    for (let i = 0; i < titles.length; i += 50) {
+      const pages = await updater.fetchPagesContent(titles.slice(i, i + 50));
+      for (const [title, text] of Object.entries(pages)) {
+        read++;
+        const res = updater.parseGearPage(title, text, futureBanners);
+        if (!res) { skipped++; continue; }             // not wearable gear
+        if (res.future) {                              // held aside, maybe reinstated below
+          futureSkipped++;
+          if (res.entry) {
+            if (!futureStash.has(res.future)) futureStash.set(res.future, []);
+            futureStash.get(res.future).push(res.entry);
+          }
+          continue;
+        }
+        items.push(res);
+      }
+      progress('Reading item pages… ' + Math.min(i + 50, titles.length) + ' / ' + titles.length +
+               ' (' + items.length + ' wearable, ' + futureSkipped + ' future-era held aside)');
+    }
+    // inventory ground truth: a banner whose item the player HOLDS is current
+    const ownedBase = new Set();
+    const invItems = gameData.inventory && gameData.inventory.items;
+    if (invItems) for (const k of Object.keys(invItems))
+      ownedBase.add(k.replace(/\s*\+\d+$/, '').replace(/`/g, "'").trim());
+    const reinstSet = new Set();
+    let reinstated = 0;
+    for (const [banner, list] of futureStash) {
+      if (list.some(e => ownedBase.has(e.n.toLowerCase().replace(/`/g, "'").trim()))) {
+        items.push(...list);
+        futureSkipped -= list.length;
+        reinstated += list.length;
+        reinstSet.add(banner);
+      }
+    }
+    if (reinstated) progress('You own items from ' + reinstSet.size + ' "future" banner(s) — ' + reinstated + ' items reinstated as current content');
+    gameDB.gearCatalog = {
+      built: Date.now(), total: titles.length, items, futureSkipped,
+      futureBanners: [...futureBanners].filter(b => !reinstSet.has(b))
+    };
+    saveGameDBSoon();
+    progress('');
+    gearBuilding = false;
+    return { items: items.length, pages: read, skipped, futureSkipped, reinstated };
+  } catch (err) {
+    gearBuilding = false;
+    progress('');
+    return { error: err.message || String(err) };
+  }
+});
+ipcMain.handle('get-gear-catalog', () => gameDB.gearCatalog || null);
 
 // ---------------------------------------------------------------------------
 // Update check: GitHub Releases API, no dependencies. Compares the latest
@@ -1859,10 +2069,13 @@ ipcMain.handle('get-loot-db', () => lootDB);
 // Locked-mode hover interactivity: renderer asks to become clickable while
 // the cursor is over a control, click-through everywhere else.
 // ---------------------------------------------------------------------------
-ipcMain.on('set-interactive', (_e, interactive) => {
-  if (!win || !settings.locked) return;
-  if (interactive) win.setIgnoreMouseEvents(false);
-  else win.setIgnoreMouseEvents(true, { forward: true });
+ipcMain.on('set-interactive', (e, interactive) => {
+  if (!settings.locked) return;
+  // works for whichever window asked: the overlay, the needs panel or the dock
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (!w || w.isDestroyed()) return;
+  if (interactive) w.setIgnoreMouseEvents(false);
+  else w.setIgnoreMouseEvents(true, { forward: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -2063,7 +2276,13 @@ function parseAchievementsFile(text) {
       ach = { name: m[3].trim(), done: m[1] === 'C', objectives: [] };
       if (sec) sec.achievements.push(ach);
     } else if (ach) {               // objective line
-      ach.objectives.push({ text: m[3].trim(), done: m[1] === 'C' });
+      // Slayer-style rows carry a progress column: "<text>\t1187/5000"
+      let text = m[3].trim(), cur, max;
+      const c = /^(.*?)\t(\d[\d,]*)\s*\/\s*(\d[\d,]*)$/.exec(text);
+      if (c) { text = c[1].trim(); cur = +c[2].replace(/,/g, ''); max = +c[3].replace(/,/g, ''); }
+      const o = { text, done: m[1] === 'C' };
+      if (cur !== undefined && !isNaN(cur) && !isNaN(max)) { o.cur = cur; o.max = max; }
+      ach.objectives.push(o);
     }
   }
   return { sections };

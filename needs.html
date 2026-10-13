@@ -68,10 +68,12 @@
   const GROUPS = [
     { g: 'wish', label: '⭐ WISH LIST' },
     { g: 'epic', label: '⚔ EPIC PREP' },
-    { g: 'unlock', label: '🔓 UNLOCK TURN-INS' }
+    { g: 'unlock', label: '🔓 UNLOCK TURN-INS' },
+    { g: 'spellq', label: '🧙 SPELL QUESTS' }
   ];
 
   function render(flashItem) {
+    { const _el = $('list'), _st = _el ? _el.scrollTop : 0; if (_st) queueMicrotask(() => { _el.scrollTop = _st; }); } // live pushes must not snap the scroll to the top
     const rows = last.rows || [];
     $('title').textContent = minimized
       ? '🎯 ' + (rows.length ? rows.length + ' needed in ' + (last.zone || 'this zone') : 'nothing needed in ' + (last.zone || 'this zone'))
@@ -162,6 +164,22 @@
     window.overlay.needsMinimize(!minimized);
   });
   $('btn-close').addEventListener('click', (e) => { e.stopPropagation(); window.overlay.closeNeeds(); });
+
+  // locked overlay = this panel goes click-through too: rows and the title
+  // bar come alive on hover (click + scroll still work there), everywhere
+  // else your clicks reach the game underneath
+  let lockedMode = false, hoverLive = false;
+  const HOVER_SEL = '#topbar, .row, .grp';
+  window.overlay.onLockState((locked) => {
+    lockedMode = !!locked;
+    hoverLive = false;
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!lockedMode) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const want = !!(el && el.closest && el.closest(HOVER_SEL));
+    if (want !== hoverLive) { hoverLive = want; window.overlay.setInteractive(want); }
+  });
 
   // ask the overlay for a first fill
   window.overlay.needsCmd({ kind: 'refresh' });

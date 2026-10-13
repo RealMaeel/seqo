@@ -53,6 +53,30 @@ async function getLatestRevisions(titles) {
   return out;
 }
 
+// Bulk existence check: { requestedTitle: true/false } — 50 titles per request
+// instead of one parse call (plus search fallbacks) per missing item. Follows
+// redirects and normalization so the answer keys match what was asked.
+async function pagesExist(titles) {
+  const out = {};
+  for (let i = 0; i < titles.length; i += 50) {
+    const batch = titles.slice(i, i + 50);
+    const j = await api({ action: 'query', titles: batch.join('|'), redirects: '1' });
+    const pages = (j.query && j.query.pages) || {};
+    const byTitle = {};
+    for (const p of Object.values(pages)) if (p.title) byTitle[p.title] = !('missing' in p);
+    // walk requested -> normalized -> redirected to find each answer
+    const normal = {}, redir = {};
+    for (const n of (j.query && j.query.normalized) || []) normal[n.from] = n.to;
+    for (const r of (j.query && j.query.redirects) || []) redir[r.from] = r.to;
+    for (const t of batch) {
+      let k = normal[t] || t;
+      for (let hop = 0; hop < 4 && redir[k]; hop++) k = redir[k];
+      out[t] = byTitle[k] === true;
+    }
+  }
+  return out;
+}
+
 // Category members (e.g. "Category:Befallen Quests") -> page titles
 async function getCategoryMembers(category, limit = 100) {
   const out = [];
@@ -69,6 +93,191 @@ async function getCategoryMembers(category, limit = 100) {
     if (!cont) break;
   }
   return out.slice(0, limit);
+}
+
+// Full category enumeration (no practical cap) — cmcontinue until exhausted.
+// opts.anyType includes templates/categories too (default: article pages only).
+async function getAllCategoryMembers(category, onPage, opts = {}) {
+  const out = [];
+  let cont = null;
+  for (let page = 0; page < 100; page++) {
+    const params = {
+      action: 'query', list: 'categorymembers',
+      cmtitle: 'Category:' + category, cmlimit: '500'
+    };
+    if (!opts.anyType) params.cmtype = 'page';
+    if (cont) params.cmcontinue = cont;
+    const j = await api(params);
+    for (const c of (j.query && j.query.categorymembers) || []) out.push(c.title);
+    if (onPage) onPage(out.length);
+    cont = j.continue && j.continue.cmcontinue;
+    if (!cont) break;
+    await new Promise(r => setTimeout(r, 250)); // be polite to the wiki
+  }
+  return out;
+}
+
+// Category:Era Templates mixes two very different things: page-top
+// AVAILABILITY banners (built on {{PageEra}} — they gate whole pages behind an
+// era unlock) and small inline era tags ("Kun", "Fear Era Inline") that
+// current items legitimately carry inside drop tables. Only templates whose
+// own source calls PageEra (directly, or through one redirect) are banners.
+const normTplName = (t) => String(t).replace(/^Template:/i, '').replace(/_/g, ' ').trim().toLowerCase();
+
+async function getEraBanners() {
+  const titles = (await getAllCategoryMembers('Era Templates', null, { anyType: true }))
+    .filter(t => /^Template:/i.test(t));
+  const future = new Set(['pageera']); // the machinery itself always counts
+  const all = new Set(['pageera']);
+  const pages = await fetchPagesContent(titles);
+  const redirects = {}; // name -> target title
+  for (const [title, text] of Object.entries(pages)) {
+    const name = normTplName(title);
+    all.add(name);
+    const rd = /^#redirect\s*\[\[([^\]#|]+)/i.exec(String(text).trim());
+    if (rd) { redirects[name] = rd[1].trim(); continue; }
+    if (/\{\{\s*PageEra\b/i.test(text)) future.add(name);
+  }
+  // one redirect hop: a name pointing at a PageEra-calling template is a banner
+  const needed = [...new Set(Object.values(redirects))]
+    .filter(t => !future.has(normTplName(t)) && /^Template:/i.test(t));
+  if (needed.length) {
+    try {
+      const rp = await fetchPagesContent(needed);
+      for (const [title, text] of Object.entries(rp))
+        if (/\{\{\s*PageEra\b/i.test(text)) future.add(normTplName(title));
+    } catch { /* redirects stay unresolved — conservative */ }
+  }
+  for (const [name, target] of Object.entries(redirects))
+    if (future.has(normTplName(target))) future.add(name);
+  return { future, all };
+}
+
+// kept for compatibility: the full era-template name set
+async function getEraBannerNames() {
+  return (await getEraBanners()).all;
+}
+
+// Does this page open with an availability banner? Only templates in the
+// LEADING run of the page count — an era tag deep in a drop table never
+// marks the whole item as unavailable.
+function pageEraBanner(wikitext, bannerSet) {
+  if (!bannerSet || !bannerSet.size) return null;
+  const s = String(wikitext);
+  let i = 0;
+  for (let guard = 0; guard < 5; guard++) {
+    while (i < s.length && /\s/.test(s[i])) i++;
+    if (s.startsWith('<!--', i)) { const e = s.indexOf('-->', i); if (e < 0) return null; i = e + 3; continue; }
+    if (!s.startsWith('{{', i)) return null;            // top-of-page content reached
+    let depth = 0, j = i;
+    for (; j < s.length - 1; j++) {                     // matching }} (nesting-aware)
+      if (s[j] === '{' && s[j + 1] === '{') { depth++; j++; }
+      else if (s[j] === '}' && s[j + 1] === '}') { depth--; j++; if (!depth) { j++; break; } }
+    }
+    const name = s.slice(i + 2, j).split(/[|\n}]/)[0].replace(/_/g, ' ').trim().toLowerCase();
+    if (name === 'pageera' || bannerSet.has(name)) return name;
+    if (/^(itempage|itembox|mobpage|merchantpage|questpage|spellpage)/.test(name)) return null; // the content started
+    i = j;                                              // some other notice: look at the next one
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Gear catalog: parse an item page's statsblock (in-game inspect format) into
+// a compact scored-comparison record. Lines look like:
+//   MAGIC ITEM LORE ITEM NO TRADE
+//   Slot: PRIMARY SECONDARY        Skill: 1H Slashing Atk Delay: 30
+//   DMG: 10  AC: 5  STR: +5 STA: +5 HP: +25  SV FIRE: +5  Haste: +21%
+//   Effect: Minor Healing (Worn)   Class: WAR PAL SHD   Race: ALL
+// ---------------------------------------------------------------------------
+const GEAR_STATS = { STR: 'str', STA: 'sta', AGI: 'agi', DEX: 'dex', CHA: 'cha', INT: 'int', WIS: 'wis', HP: 'hp', MANA: 'mana', ENDUR: 'end', ENDURANCE: 'end', AC: 'ac', ATK: 'atk', ATTACK: 'atk' };
+
+function parseStatsBlock(sb) {
+  if (!sb) return null;
+  const out = { slots: [], classes: [], races: [], stats: {} };
+  const up = sb.toUpperCase();
+  if (/\bNO (DROP|TRADE)\b/.test(up)) out.nodrop = 1;
+  if (/\bLORE ITEM\b/.test(up)) out.lore = 1;
+  let m;
+  if ((m = /\bSLOT:\s*([A-Z0-9 ]+?)(?=\s*(?:SKILL:|AC:|DMG:|$|\n))/.exec(up)))
+    out.slots = m[1].trim().split(/\s+/).filter(s => s && s !== 'NONE');
+  if ((m = /\bSKILL:\s*([12]H [A-Z]+|PIERCING|ARCHERY|THROWING[A-Z ]*|HAND TO HAND)/.exec(up)))
+    out.skill = m[1].trim();
+  if ((m = /\b(?:ATK )?DELAY:\s*(\d+)/.exec(up))) out.dly = +m[1];
+  if ((m = /\bDMG:\s*(\d+)/.exec(up))) out.dmg = +m[1];
+  if ((m = /\bHASTE:\s*\+?(\d+)\s*%/.exec(up))) out.haste = +m[1];
+  const statRe = /\b(STR|STA|AGI|DEX|CHA|INT|WIS|HP|MANA|ENDURANCE|ENDUR|ATK|AC)\s*:\s*([+-]?\d+)\b/g;
+  while ((m = statRe.exec(up))) {
+    const k = GEAR_STATS[m[1]];
+    if (k) out.stats[k] = (out.stats[k] || 0) + +m[2];
+  }
+  const resRe = /\bSV (FIRE|COLD|MAGIC|DISEASE|POISON)\s*:\s*([+-]?\d+)\b/g;
+  while ((m = resRe.exec(up))) {
+    const k = 'sv' + m[1][0];
+    out.stats[k] = (out.stats[k] || 0) + +m[2];
+  }
+  if ((m = /^\s*EFFECT:\s*(.+?)\s*(?:\(|$)/im.exec(sb))) out.effect = m[1].trim();
+  if ((m = /\bCLASS:\s*([A-Z ]+?)(?=\s*(?:RACE:|$|\n))/.exec(up)))
+    out.classes = m[1].trim() === 'ALL' ? ['ALL'] : m[1].trim().split(/\s+/);
+  if ((m = /\bRACE:\s*([A-Z ]+?)(?=\s*(?:$|\n))/.exec(up)))
+    out.races = m[1].trim() === 'ALL' ? ['ALL'] : m[1].trim().split(/\s+/);
+  // only gear is comparable: it must occupy a slot
+  return out.slots.length ? out : null;
+}
+
+// Changed/new article titles since a timestamp (the wiki's recent-changes
+// feed) — the cheap path for catalog updates. Returns null when more than
+// `cap` pages changed (then a full rebuild is the honest move).
+async function getRecentChangeTitles(sinceMs, cap = 1500) {
+  const out = new Set();
+  let cont = null;
+  const rcend = new Date(sinceMs).toISOString(); // list runs newest → oldest, stops here
+  for (let i = 0; i < 12; i++) {
+    const params = { action: 'query', list: 'recentchanges', rcprop: 'title',
+      rctype: 'edit|new', rcnamespace: '0', rclimit: '500', rcend };
+    if (cont) params.rccontinue = cont;
+    const j = await api(params);
+    for (const c of (j.query && j.query.recentchanges) || []) out.add(c.title);
+    if (out.size > cap) return null;
+    cont = j.continue && j.continue.rccontinue;
+    if (!cont) break;
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return [...out];
+}
+
+// one item page -> a catalog entry (or null when it isn't current wearable gear)
+// A page carrying a FUTURE banner still gets parsed: the caller keeps it aside
+// and can reinstate the whole banner if the player provably OWNS one of its
+// items (the strongest possible proof a banner is actually current content).
+function parseGearPage(title, wikitext, bannerSet) {
+  const banner = pageEraBanner(wikitext, bannerSet);
+  const parsed = parseGearStats(title, wikitext);
+  if (banner) return { future: String(banner).replace(/_/g, ' ').trim().toLowerCase(), entry: parsed };
+  return parsed;
+}
+
+function parseGearStats(title, wikitext) {
+  const sb = extractTemplateParam(wikitext, 'statsblock')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/\[\[([^\]|#]+?)\|([^\]]*)\]\]/g, '$2')
+    .replace(/\[\[([^\]|#]+?)\]\]/g, '$1');
+  const g = parseStatsBlock(sb);
+  if (!g) return null;
+  const dropsfrom = wikitextToText(extractTemplateParam(wikitext, 'dropsfrom'))
+    .replace(/\s+/g, ' ').trim().slice(0, 90);
+  return { n: title, ...g, ob: classifyObtain(wikitext, dropsfrom), src: dropsfrom };
+}
+
+// how an item is obtained, judged from its page: drop / quest / craft / vendor
+function classifyObtain(wikitext, dropsfromText) {
+  const w = String(wikitext);
+  const hasDrops = !!dropsfromText || /==\s*(?:drops|dropped by|drop sources)\s*==/i.test(w);
+  if (/\[\[Category:\s*Quest (?:Items|Rewards)/i.test(w) || /\bquest reward\b/i.test(w)) return 'quest';
+  if (/\[\[Category:\s*Tradeskill/i.test(w) || /\b(?:crafted|created) (?:by|with|via)\b/i.test(w)) return 'craft';
+  if (hasDrops) return 'drop';
+  if (/\bsold by\b|\bmerchant\b/i.test(w)) return 'vendor';
+  return 'unknown';
 }
 
 // Extract a named parameter from an {{Itempage ...}} style template.
@@ -681,7 +890,9 @@ async function wikiEdit({ title, text, newSectionTitle, summary, csrf }) {
 }
 
 module.exports = {
-  fetchZoneData, fetchItemData, searchWiki, getLatestRevisions,
+  fetchZoneData, fetchItemData, searchWiki, getLatestRevisions, pagesExist,
+  getAllCategoryMembers, parseStatsBlock, classifyObtain, getEraBannerNames, getEraBanners, pageEraBanner,
+  getRecentChangeTitles, parseGearPage,
   parseZoneDrops, parseZoneQuestSections, wikitextToText, extractTemplateParam,
   wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE,
   getCategoryMembers, fetchPagesContent, fetchExaltIndex, fetchEffectItems,

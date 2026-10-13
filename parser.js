@@ -193,8 +193,8 @@
 
     // EQ Legends uses a uniform fade format for effects ending on you:
     // "The cool breeze fades." / "Your strength fades." / "The spirit of the puma departs."
-    if ((m = /^(?:The|Your) (.+) (?:fades|departs)\.$/.exec(msg)))
-      return { type: 'bufffade', when, effect: m[1] };
+    if ((m = /^(?:The|Your) (.+) (fades|departs)\.$/.exec(msg)))
+      return { type: 'bufffade', when, effect: m[1], verb: m[2] };
 
     if ((m = RE_LOOT.exec(msg)))
       // sold = the loot filter auto-sold it ("and sold it for 3 silver." /
@@ -262,9 +262,12 @@
     // signal when a zone logs no entry line (the planes) or the log was
     // cleared mid-session — a plain /who row for yourself says where you are.
     if ((m = /ZONE: (.+?)(?: \d+)? \(([a-z0-9]+?)(?:_(\d+))?\)/i.exec(msg))) {
-      const pm = /^\[[^\]]*\]\s+(\w+)/.exec(msg);
+      // the level/trio bracket: "[50 SHD/DRU/BRD] Maeel (Dark Elf) ..."
+      const pm = /^\[\s*(\d+)?\s*([A-Z]{3}(?:\/[A-Z]{3}){0,2})?[^\]]*\]\s+(\w+)/.exec(msg);
       return { type: 'zonemap', when, longName: m[1].trim(), shortName: m[2].toLowerCase(),
-               inst: !!m[3], player: pm ? pm[1] : null };
+               inst: !!m[3], player: pm ? pm[3] : null,
+               level: pm && pm[1] ? +pm[1] : null,
+               trio: pm && pm[2] ? pm[2].split('/') : null };
     }
 
     return null;

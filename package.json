@@ -1,7 +1,7 @@
 {
   "name": "seqo",
   "productName": "SEQO",
-  "version": "2.4.2",
+  "version": "2.5.0",
   "description": "SEQO - Simple EQ Overlay for EverQuest Legends",
   "main": "main.js",
   "author": "Ed",
@@ -45,6 +45,9 @@
       "zones.js",
       "worldmap.js",
       "buffs.js",
+      "slayer.js",
+      "spellquests.js",
+      "spelldb.js",
       "overlay.html",
       "dock.html",
       "needs.html",
