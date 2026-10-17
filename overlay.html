@@ -2807,7 +2807,69 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   // ---- wish list: items/spells you're hunting ----
   let wishList = {};   // key -> { name, added }
-  window.overlay.getWishList().then((l) => { wishList = l || {}; });
+  // the item's OWN wiki page knows where it drops ("Drops From: The Hole — a
+  // rock golem") — cache that per wished item so zone needs can use it
+  const wishDropCache = new Map(); // key -> { zones: [{zone,mobs}] } ({} = nothing known)
+  // the cached dropsfrom TEXT ("The Hole\n* a rock golem"): a short non-bullet
+  // line is a zone header, bullets under it are that zone's mobs
+  const parseDropsfromText = (txt) => {
+    const out = [];
+    let cur = null;
+    for (const raw of String(txt || '').split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (/^[*#]/.test(line)) {
+        const mob = line.replace(/^[*#]+\s*/, '').trim();
+        if (!mob) continue;
+        if (!cur) out.push(cur = { zone: '', mobs: [] });
+        if (cur.mobs.length < 12 && !cur.mobs.includes(mob)) cur.mobs.push(mob);
+      } else if (line.length <= 40 && !/[.!?]$/.test(line)) { // prose is not a zone
+        out.push(cur = { zone: line, mobs: [] });
+      }
+    }
+    return out.filter(g => g.zone);
+  };
+  function refreshWishDrops() {
+    for (const [key, e] of Object.entries(wishList)) {
+      if (wishDropCache.has(key)) continue;
+      wishDropCache.set(key, {}); // claim the slot so we fetch once
+      (async () => {
+        let d = await window.overlay.getItemData(e.name).catch(() => null);
+        // nothing cached (or cached before drop parsing): one polite wiki
+        // fetch — starring an item is exactly when you want its drop zones
+        if (!d || (!d.dropZones && !(d.dropsList || []).length && !d.dropsfrom)) {
+          const fresh = await window.overlay.updateItemData(e.name).catch(() => null);
+          if (fresh && !fresh.error) d = fresh;
+        }
+        if (!d) return;
+        let zones = (d.dropZones || []).filter(g => g.zone);
+        // older caches: derive zones from the dropsfrom text, then from the
+        // flat list (Title Case entries head it, lowercase "a …" are mobs)
+        if (!zones.length) zones = parseDropsfromText(d.dropsfrom);
+        if (!zones.length) {
+          const list = d.dropsList || [];
+          const mobs = list.filter(n => /^(a|an|the) [a-z]/.test(n));
+          zones = list.filter(n => !mobs.includes(n)).map(z => ({ zone: z, mobs }));
+        }
+        if (zones && zones.length) {
+          wishDropCache.set(key, { zones });
+          needsDirty = true;
+          renderWishList(); // the source line can now name the drop zone
+        }
+      })();
+    }
+  }
+  // match against every name the current zone goes by: the game's log name
+  // AND the wiki page title (game "The Ruins of Old Paineel" = wiki "The Hole")
+  const wishWikiHere = (key, zoneNames) => {
+    const c = wishDropCache.get(key);
+    if (!c || !c.zones) return null;
+    const zs = [].concat(zoneNames).filter(Boolean).map(z => z.toLowerCase());
+    if (!zs.length) return null;
+    return c.zones.find(g => g.zone &&
+      zs.some(z => z.startsWith(g.zone.toLowerCase()) || g.zone.toLowerCase().startsWith(z))) || null;
+  };
+  window.overlay.getWishList().then((l) => { wishList = l || {}; refreshWishDrops(); });
   const pushWishList = () => window.overlay.setWishList(wishList);
   const isWished = (n) => !!wishList[verdictKey(n)];
 
@@ -2817,6 +2879,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (wishList[key]) { delete wishList[key]; toast('☆ Removed from wish list: ' + name); }
     else { wishList[key] = { name: name.replace(/ \+\d+$/, ''), added: Date.now() }; toast('🌟 Added to wish list: ' + name); }
     pushWishList();
+    refreshWishDrops(); // pull the item page's drop zones for zone needs
     renderWishList();
     document.querySelectorAll('.wishstar[data-item]').forEach(s => {
       if (verdictKey(s.dataset.item) === key) {
@@ -2873,6 +2936,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (qi && qi.zones.length) lines.push('quest zones (' + qi.cls + '): ' + qi.zones.join(', '));
     const cached = await window.overlay.getItemData(e.name);
     if (cached && cached.dropsfrom) lines.push('wiki: drops from ' + cached.dropsfrom);
+    const wd = wishDropCache.get(key);
+    if (wd && wd.zones && wd.zones.length)
+      lines.push('🎯 needs will flag it in: ' + wd.zones.map(g => g.zone).filter(Boolean).join(', '));
     return lines.length ? lines.join('\n') : 'no known source yet — click the name and Update from wiki';
   }
 
@@ -2915,9 +2981,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     for (const e of Object.values(wishList)) {
       const key = verdictKey(e.name);
       const src = wishObservedSources(key).find(s => s.zone && zone.startsWith(s.zone.replace(/ \(.+\)$/, '')));
+      const wiki = wishWikiHere(key, [zone, zone === currentZone && zoneData ? zoneData.pageTitle : null]);
       const iq = questIndex && questIndex.quests &&
         questIndex.quests.find(q => q.title.toLowerCase() === key && q.zones.includes(zone));
       if (src) hits.push(e.name + ' (' + src.mob + ')');
+      else if (wiki) hits.push(e.name + (wiki.mobs.length ? ' (' + wiki.mobs[0] + ')' : ''));
       else if (/plane of sky/i.test(zone) && POS.quests.some(q => q.reward.toLowerCase() === key)) hits.push(e.name + ' (PoS quest)');
       else if (iq) hits.push(e.name + ' (quest here)');
     }
@@ -4468,10 +4536,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     for (const n of (zoneData && zoneData.named) || [])
       for (const d of n.drops || []) addSrc(d.item, n.mob === '(zone drops)' ? '' : n.mob);
     const rows = [];
+    const wishShown = new Set();
     for (const { item, mobs } of sources.values()) {
       const key = verdictKey(item);
       if (wishList[key]) {                                  // ⭐ starred gear
-        if (!invHas(item)) rows.push({ g: 'wish', item, mobs: [...mobs] });
+        if (!invHas(item)) { rows.push({ g: 'wish', item, mobs: [...mobs] }); wishShown.add(key); }
         continue;
       }
       const d = epicDemand(item);                           // ⚔ epic pieces
@@ -4485,6 +4554,13 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       if (g && (!g.total || g.have < g.total))
         rows.push({ g: 'unlock', item, have: g.have, need: g.total || 0,
                     left: g.left, faction: g.faction, mobs: [...mobs] });
+    }
+    // ⭐ wished items the item's OWN wiki page places in this zone — even when
+    // the zone guide and your loot history don't know the drop yet
+    for (const [key, e] of Object.entries(wishList)) {
+      if (wishShown.has(key) || invHas(e.name)) continue;
+      const hit = wishWikiHere(key, [currentZone, zoneData && zoneData.pageTitle, ...wikiCandidates(currentZone)]);
+      if (hit) rows.push({ g: 'wish', item: e.name, mobs: hit.mobs.slice(0, 4) });
     }
     rows.push(...spellQuestNeeds(currentZone)); // 🧙 tracked spell-quest pieces here
     const order = { wish: 0, epic: 1, unlock: 2, spellq: 3 };
@@ -4683,6 +4759,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   // ---------- buffs chip: live buffs + trio lineup ----------
   function plannerModel(trio) {
+    const lvl = myLevel();
+    applyEffLevel(lvl); // stat values at YOUR level, not a baked-in 50
     const pool = [];
     for (const recs of spellByName.values()) {
       let best = null;
@@ -4690,7 +4768,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         if (!r.cls) continue;
         for (const c of trio) {
           const lv = r.cls[c];
-          if (lv && lv <= 50 && (!best || lv < best.lv)) best = { sp: r, cls: c, lv };
+          if (lv && lv <= lvl && (!best || lv < best.lv)) best = { sp: r, cls: c, lv };
         }
       }
       if (best) pool.push(best);
@@ -4719,16 +4797,80 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   };
 
   // ---------- loadout builder: "I have N gems, focus hp/sta/dex" ----------
+  // focus options are STATS only — utility effects (invis, levitate, vision…)
+  // live in their own list below and never spend a gem
   const BUFF_STATS = [['hp', 'HP'], ['hpregen', 'HP regen'], ['mana', 'Mana'], ['manaregen', 'Mana regen'],
     ['ac', 'AC'], ['atk', 'ATK'], ['str', 'STR'], ['sta', 'STA'], ['agi', 'AGI'], ['dex', 'DEX'],
     ['wis', 'WIS'], ['int', 'INT'], ['cha', 'CHA'], ['haste', 'Haste'], ['ds', 'Dmg shield'],
     ['rune', 'Rune'], ['proc', 'Weapon proc'], ['acc', 'Accuracy'], ['meleedmg', 'Melee dmg'],
-    ['hate', 'Aggro'], ['move', 'Run speed'], ['vision', 'Vision'], ['seeinvis', 'See invis'],
-    ['invis', 'Invisibility'], ['lev', 'Levitate'], ['eb', 'Water breathing'], ['res', 'Resists (all 5)']];
+    ['hate', 'Aggro'], ['move', 'Run speed'], ['res', 'Resists (all 5)']];
+  // utility = presence effects, cast on demand: kept OUT of the gem lineup.
+  // Illusions are NOT utility here — EQL illusions carry real stats (Ogre
+  // Pirate HP +500), so they compete for gems like any buff, and the illusion
+  // key stays a knockout key: you can only ever wear ONE illusion.
+  const UTIL_KEYS = [['invis', 'Invisibility'], ['seeinvis', 'See invisible'], ['lev', 'Levitate'],
+    ['eb', 'Water breathing'], ['vision', 'Night vision']];
+  const UTIL_SET = new Set(UTIL_KEYS.map(u => u[0]));
+  // no focus chosen -> "best overall": every stat counts, weighted for fighting
+  const COMBAT_W = { hp: 1, ac: 1, haste: 1, atk: .9, acc: .9, meleedmg: .9, hpregen: .8,
+    manaregen: .8, ds: .7, rune: .6, proc: .6, sta: .6, mana: .6, str: .5, dex: .5, agi: .4,
+    svF: .4, svC: .4, svM: .4, svD: .4, svP: .4, wis: .3, int: .3, hate: .3, move: .2, cha: .1 };
+  const statKeys = (sp) => Object.keys(sp.eff || {}).filter(k => !UTIL_SET.has(k));
+  // the game's REAL stacking rule: two buffs block each other only when the
+  // same slot number carries the same effect. Buff lines are slot-offset on
+  // purpose (Grim Aura's ATK in slot 1, Dark Temptation's in slot 2) so same
+  // stat ≠ conflict — those values ADD when both are up.
+  const slotClash = (a, b) => {
+    if (!a.slots || !b.slots) return statKeys(a).some(k => (b.eff || {})[k]); // old heuristic as fallback
+    for (const s in a.slots) if (b.slots[s] !== undefined && b.slots[s] === a.slots[s]) return true;
+    return false;
+  };
+
+  // effect values re-scaled at the character's REAL level (spelldb ships the
+  // raw slot formulas; flags and procs don't scale, so they carry over)
+  function calcSlotValue(base, calc, max, level) {
+    let v = Math.abs(base);
+    switch (+calc) {
+      case 0: case 100: break;
+      case 101: v += Math.floor(level / 2); break;
+      case 102: v += level; break;
+      case 103: v += level * 2; break;
+      case 104: v += level * 3; break;
+      case 105: v += level * 4; break;
+      case 108: v += Math.floor(level / 3); break;
+      case 109: v += Math.floor(level / 4); break;
+      default: v = Math.max(v, Math.abs(max) || v);
+    }
+    if (max) v = Math.min(v, Math.abs(max));
+    return v;
+  }
+  const FLAG_KEYS = new Set(['proc', 'seeinvis', 'eb', 'lev', 'vision', 'invis', 'illusion']);
+  let effLevelApplied = 0;
+  function applyEffLevel(lvl) {
+    if (!spellDB || effLevelApplied === lvl) return;
+    effLevelApplied = lvl;
+    for (const recs of spellByName.values()) for (const sp of recs) {
+      if (!sp.effRaw || !sp.eff) continue;
+      const eff = {}, cost = {};
+      for (const k of Object.keys(sp.eff)) if (FLAG_KEYS.has(k)) eff[k] = sp.eff[k];
+      for (const [k, b, c, m, isCost] of sp.effRaw) {
+        let v = calcSlotValue(b, c, m, lvl);
+        if (k === 'haste') { if (v <= 100) continue; v -= 100; }
+        if (!v) continue;
+        if (isCost) cost[k] = Math.max(cost[k] || 0, v);
+        else eff[k] = Math.max(eff[k] || 0, v);
+      }
+      sp.eff = eff;
+      if (Object.keys(cost).length) sp.cost = cost; else delete sp.cost;
+    }
+  }
   const EFF_LABEL = { hp: 'HP', hpregen: 'HP regen', mana: 'Mana', manaregen: 'Mana regen', ac: 'AC', atk: 'ATK',
     str: 'STR', sta: 'STA', agi: 'AGI', dex: 'DEX', wis: 'WIS', int: 'INT', cha: 'CHA', haste: 'Haste%',
     ds: 'DS', rune: 'Rune', move: 'Run%', acc: 'Accuracy%', meleedmg: 'Melee dmg%', hate: 'Aggro',
-    svF: 'svFire', svC: 'svCold', svM: 'svMagic', svD: 'svDis', svP: 'svPoi' };
+    svF: 'svFire', svC: 'svCold', svM: 'svMagic', svD: 'svDis', svP: 'svPoi',
+    mit: 'Mitigation%', crit: 'Crit%', cripp: 'Crippling blow%', avoid: 'Avoidance', riposte: 'Riposte%',
+    dodge: 'Dodge%', parry: 'Parry%', dualwield: 'Dual wield%', doubleatk: 'Double attack%',
+    mlifetap: 'Melee lifetap', delay: 'Atk speed%', hitchance: 'Hit%', mindmg: 'Min dmg%', slayundead: 'Slay undead' };
   // flag effects: the presence is the point, a number would be noise
   const EFF_FLAGS = { seeinvis: 'See invis', lev: 'Levitate', eb: 'Water breathing', invis: 'Invisibility', illusion: 'Illusion' };
   const RES_KEYS = ['svF', 'svC', 'svM', 'svD', 'svP'];
@@ -4738,15 +4880,27 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (key === 'res') return Math.max(e.svF || 0, e.svC || 0, e.svM || 0, e.svD || 0, e.svP || 0);
     return e[key] || 0;
   }
-  const effText = (sp) => Object.entries(sp.eff || {})
-    .map(([k, v]) => k === 'proc'
-        ? 'Proc: ' + (sp.procInfo
-            ? sp.procInfo.n + ' (' + (sp.procInfo.kind === 'AE' ? 'hits nearby mobs' : sp.procInfo.kind) +
-              (sp.procInfo.amt ? ' ~' + sp.procInfo.amt : '') + ')'
-            : 'weapon proc')
-      : EFF_FLAGS[k] ? EFF_FLAGS[k]
-      : k === 'vision' ? (v >= 2 ? 'Ultravision' : 'Infravision')
-      : (EFF_LABEL[k] || k) + ' +' + v).join(' · ');
+  const effEntryText = (sp, k, v) => k === 'proc'
+      ? 'Proc: ' + (sp.procInfo
+          ? sp.procInfo.n + ' (' + (sp.procInfo.kind === 'AE' ? 'hits nearby mobs' : sp.procInfo.kind) +
+            (sp.procInfo.amt ? ' ~' + sp.procInfo.amt : '') + ')'
+          : 'weapon proc')
+    : EFF_FLAGS[k] ? EFF_FLAGS[k]
+    : k === 'vision' ? (v >= 2 ? 'Ultravision' : 'Infravision')
+    : v >= 10000 ? (EFF_LABEL[k] || k).replace(/%$/, '') + ' 100%' // 10000 = guaranteed
+    : (EFF_LABEL[k] || k) + ' +' + v;
+  const costText = (sp) => Object.entries(sp.cost || {})
+    .map(([k, v]) => (k === 'hpregen' ? 'HP/tick' : EFF_LABEL[k] || k) + ' −' + v).join(' · ');
+  const effText = (sp) => [Object.entries(sp.eff || {}).map(([k, v]) => effEntryText(sp, k, v)).join(' · '),
+    costText(sp)].filter(Boolean).join(' · ');
+  // short form for the lineup: the strongest few, the rest on hover
+  const effTextShort = (sp, n) => {
+    const ents = Object.entries(sp.eff || {})
+      .sort((a, b) => (COMBAT_W[b[0]] || 0) * b[1] - (COMBAT_W[a[0]] || 0) * a[1]);
+    const shown = ents.slice(0, n).map(([k, v]) => effEntryText(sp, k, v));
+    const extra = ents.length - n;
+    return [shown.join(' · '), costText(sp)].filter(Boolean).join(' · ') + (extra > 0 ? ' (+' + extra + ')' : '');
+  };
 
   // group=the whole party, single=one target, self=caster only
   const tgtLabel = (sp) => [3, 40, 41].includes(sp.tgt) ? 'group'
@@ -4755,6 +4909,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // bard songs are BRD-only spells: they stack with regular buffs (the classic
   // rule), so they never knock spells out of the lineup — and vice versa
   const isSong = (sp) => !!(sp.cls && sp.cls.BRD && Object.keys(sp.cls).length === 1);
+  // disciplines are /disc combat abilities — activated, short, one at a time.
+  // They never occupy a spell gem, so they get their own list, not the lineup.
+  const isDisc = (sp) => /\bdiscipline\b/i.test(sp.n);
 
   // greedy pick: best marginal coverage of the chosen stats. A pick knocks out
   // candidates that share its stacking group, or — among NON-songs, and among
@@ -4763,26 +4920,46 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // mode: 'both' = one fighting set (songs capped at what Symphonic Aura can
   // run) · 'spells' = a pure buff set, cast-and-swap, songs excluded ·
   // 'songs' = ONLY the songs Symphonic Aura keeps running (budget 1–5)
-  function buildLoadout(trio, focus, gems, mode, songCap) {
+  // ⏳ long-buff preference: discount short buffs so a slightly weaker buff
+  // that lasts an hour beats a stronger one you'd re-cast every few minutes.
+  // Songs are exempt — Symphonic Aura keeps them running either way.
+  const durFactor = (sp) => {
+    if (isSong(sp)) return 1;
+    const s = buffDurS(sp, myLevel());
+    if (s == null) return 1;                       // permanent until cancelled
+    return Math.min(1, Math.pow(s / 3600, 0.4));   // 1h+ counts full; 10m ≈ half
+  };
+
+  function buildLoadout(trio, focus, gems, mode, songCap, longPref) {
     const model = plannerModel(trio);
     const cands = [];
     for (const list of model.groups.values()) cands.push(list[0]); // group winners
     cands.push(...model.solo);
-    const lvl = myLevel();
-    let rem = cands.filter(e => e.sp.eff && e.lv <= lvl);
+    // utility-only spells (invis, levitate…) never spend a gem — see the
+    // utility list — and /disc abilities live in the disciplines list;
+    // a spell must bring at least one STAT to compete here
+    let rem = cands.filter(e => e.sp.eff && statKeys(e.sp).length && !isDisc(e.sp));
     if (mode === 'spells') rem = rem.filter(e => !isSong(e.sp));
     else if (mode === 'songs') rem = rem.filter(e => isSong(e.sp));
     // "Resists" means ALL FIVE: each resist is its own goal, so the builder
     // keeps picking until fire/cold/magic/disease/poison are each covered
     // (multi-resist buffs cover several in one gem and rank accordingly)
-    const fkeys = [...new Set(focus.flatMap(f => f === 'res' ? RES_KEYS : [f]))];
+    // No focus -> best overall set: every stat counts at its combat weight.
+    // Focus chosen -> emphasis, not a gate: focused stats dominate, the rest
+    // still count a little, so spare gems go to the next-best buffs.
+    const fset = new Set(focus.flatMap(f => f === 'res' ? RES_KEYS : [f]));
+    const w = {};
+    for (const k of Object.keys(COMBAT_W)) w[k] = fset.size ? (fset.has(k) ? 1 : 0.05) : COMBAT_W[k];
+    const fkeys = Object.keys(w);
     const top = {};
     for (const f of fkeys) top[f] = Math.max(1, ...rem.map(e => effVal(e.sp, f)));
     const picked = [];
-    const covered = new Map(); // focus key -> the best amount already in the set
+    // every candidate still in `rem` stacks with every pick (clashes are pruned
+    // below), so values ADD — a buff scores its full weighted worth, no discount
     while (picked.length < gems && rem.length) {
       for (const e of rem)
-        e._s = fkeys.reduce((s, f) => s + Math.max(0, effVal(e.sp, f) - (covered.get(f) || 0)) / top[f], 0);
+        e._s = fkeys.reduce((s, f) => s + w[f] * effVal(e.sp, f) / top[f], 0) *
+          (longPref ? durFactor(e.sp) : 1);
       rem.sort((a, b) => b._s - a._s);
       // in a mixed fighting set, Symphonic Aura can only run so many songs
       if (mode === 'both' && songCap != null) {
@@ -4799,23 +4976,22 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       if (bg) {
         const mates = model.groups.get(bg.g) || [];
         best.alts = mates
-          .filter(e => e.sp.n !== best.sp.n && e.lv <= lvl)
+          .filter(e => e.sp.n !== best.sp.n) // pool is already level-filtered
           .slice(0, 2)
           .map(e => ({ n: e.sp.n, t: [tgtLabel(e.sp), e.sp.procInfo
               ? (e.sp.procInfo.kind === 'AE' ? 'AE proc' : e.sp.procInfo.kind + ' proc') + (e.sp.procInfo.amt ? ' ~' + e.sp.procInfo.amt : '')
               : ''].filter(Boolean).join(', ') }));
       }
       picked.push(best);
-      const bestKeys = new Set(Object.keys(best.sp.eff));
       const bestSong = isSong(best.sp);
-      for (const f of fkeys) covered.set(f, Math.max(covered.get(f) || 0, effVal(best.sp, f)));
       const bumped = []; // candidates this pick knocks out — the best become visible alternates
       rem = rem.filter(e => {
         if (e === best) return false;
         const eg = spellDB.stacking[e.sp.id];
         if (bg && eg && eg.g === bg.g) { bumped.push(e); return false; } // game says: same group
         if (isSong(e.sp) !== bestSong) return true;           // song + spell coexist
-        if (Object.keys(e.sp.eff).some(k => bestKeys.has(k))) { bumped.push(e); return false; }
+        if ((e.sp.eff || {}).illusion && (best.sp.eff || {}).illusion) { bumped.push(e); return false; } // one illusion at a time
+        if (slotClash(e.sp, best.sp)) { bumped.push(e); return false; } // same slot, same effect: blocks
         return true;
       });
       bumped.sort((a, b) => b._s - a._s);
@@ -4875,7 +5051,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     // --- loadout builder: gems + focus stats -> what to memorize ---
     const bh = document.createElement('div');
     bh.className = 'l-divider';
-    bh.textContent = '🎛 LOADOUT BUILDER — pick focus stats, fit your gems';
+    bh.textContent = '🎛 YOUR LINEUP — the strongest set your trio can keep up';
+    bh.title = 'Built from the game\'s own spell data for your classes and level, honoring the stacking table. Balanced for fighting by default — use 🎯 Focus to steer it.';
     root.appendChild(bh);
     if (spellDB && trio) {
       const ctl = document.createElement('div');
@@ -4922,77 +5099,182 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           renderClassTab();
         });
       }
-      ctl.append(glab, gin);
       const focus = (settings && settings.buffStats) || [];
-      for (const [k, label] of BUFF_STATS) {
-        const chip = document.createElement('span');
-        chip.className = 'qview-chip' + (focus.includes(k) ? ' active' : '');
-        chip.textContent = label;
-        chip.title = 'Focus the lineup on ' + label;
-        chip.addEventListener('click', () => {
-          const next = focus.includes(k) ? focus.filter(x => x !== k) : [...focus, k];
-          save({ buffStats: next });
-          settings.buffStats = next;
-          renderClassTab();
-        });
-        ctl.appendChild(chip);
-      }
+      // focus is optional emphasis, and the 22 stat chips hide behind one toggle
+      const ft = document.createElement('span');
+      const fOpen = !!(settings && settings.buffFocusOpen);
+      ft.className = 'qview-chip' + (focus.length ? ' active' : '');
+      ft.textContent = '🎯 Focus' + (focus.length ? ': ' + focus.map(f => (BUFF_STATS.find(b => b[0] === f) || [f, f])[1]).join(', ') : '');
+      ft.title = focus.length ? 'The build leans toward these stats — click to change' : 'Optional: lean the build toward specific stats';
+      ft.addEventListener('click', () => { save({ buffFocusOpen: !fOpen }); settings.buffFocusOpen = !fOpen; renderClassTab(); });
+      const longOn = !!(settings && settings.buffLong);
+      const lt = document.createElement('span');
+      lt.className = 'qview-chip' + (longOn ? ' active' : '');
+      lt.textContent = '⏳ Long buffs';
+      lt.title = 'Prefer buffs that LAST: trade a little stat strength for durations you don\'t have to babysit. Songs are unaffected — Symphonic Aura keeps them running.';
+      lt.addEventListener('click', () => { save({ buffLong: !longOn }); settings.buffLong = !longOn; renderClassTab(); });
+      ctl.append(glab, gin, ft, lt);
       root.appendChild(ctl);
-      if (focus.length) {
+      if (fOpen) {
+        const frow2 = document.createElement('div');
+        frow2.style.cssText = 'display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:2px 0';
+        for (const [k, label] of BUFF_STATS) {
+          const chip = document.createElement('span');
+          chip.className = 'qview-chip' + (focus.includes(k) ? ' active' : '');
+          chip.textContent = label;
+          chip.title = 'Lean the lineup toward ' + label;
+          chip.addEventListener('click', () => {
+            const next = focus.includes(k) ? focus.filter(x => x !== k) : [...focus, k];
+            save({ buffStats: next });
+            settings.buffStats = next;
+            renderClassTab();
+          });
+          frow2.appendChild(chip);
+        }
+        root.appendChild(frow2);
+      }
+      {
         const songCap = Math.max(1, Math.min(5, (settings && settings.buffSongs) || 3));
         const gems = mode === 'songs' ? songCap : Math.min(14, (settings && settings.buffGems) || 8);
-        const picked = buildLoadout(trio, focus, gems, mode, songCap);
+        const picked = buildLoadout(trio, focus, gems, mode, songCap, !!(settings && settings.buffLong));
         if (!picked.length) {
           const d = document.createElement('div');
           d.className = 'q-npc';
-          d.textContent = 'Nothing castable at your level gives ' + focus.map(f => (BUFF_STATS.find(b => b[0] === f) || [f, f])[1]).join(' / ') + ' yet.';
+          d.textContent = 'Nothing castable at your level fits this set yet.';
           root.appendChild(d);
         } else {
-          picked.forEach((e, i) => {
+          const row = (e, label) => {
             const d = document.createElement('div');
             d.className = 'q-it';
             d.style.cursor = 'default';
             d.innerHTML = '<span class="box"></span><span class="nm"></span><span class="loc" style="flex:none"></span>';
-            d.querySelector('.box').textContent = (i + 1) + '.';
+            d.querySelector('.box').textContent = label;
             const tl = tgtLabel(e.sp);
-            let nm = e.sp.n + (tl ? ' (' + tl + ')' : '') + '  — ' + effText(e.sp);
-            if (e.alts && e.alts.length)
-              nm += '   ·   or: ' + e.alts.map(a => a.n + ' (' + a.t + ')').join(', ');
-            d.querySelector('.nm').textContent = nm;
+            d.querySelector('.nm').textContent = e.sp.n + (tl === 'single' ? ' (single)' : tl === 'self' ? ' (self)' : '') +
+              ' — ' + effTextShort(e.sp, 3);
             d.querySelector('.nm').style.whiteSpace = 'normal';
             d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
-            if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
+            // the detail lives on hover: full effects, and the swaps if you'd rather
+            const tip = [effText(e.sp)];
+            if (e.alts && e.alts.length) tip.push('Or: ' + e.alts.map(a => a.n + (a.t ? ' (' + a.t + ')' : '')).join(', '));
+            if (spellDB.desc[e.sp.id]) tip.push(spellDB.desc[e.sp.id]);
+            d.title = tip.join('\n');
             root.appendChild(d);
-          });
+          };
+          // spells first; bard songs go to the bottom as the optional block
+          const spells = mode === 'songs' ? picked : picked.filter(e => !isSong(e.sp));
+          const songs = mode === 'songs' ? [] : picked.filter(e => isSong(e.sp));
+          spells.forEach((e, i) => row(e, (i + 1) + '.'));
+          if (songs.length) {
+            const sh = document.createElement('div');
+            sh.className = 'q-npc';
+            sh.textContent = '♪ Optional — if your bard runs Symphonic Aura (' + songs.length + ' of ' + songCap + ' song slots):';
+            root.appendChild(sh);
+            songs.forEach((e) => row(e, '♪'));
+          }
+          // ⏳ on: say what the longer set costs you vs the strongest one
+          if (settings && settings.buffLong) {
+            const strongest = buildLoadout(trio, focus, gems, mode, songCap, false);
+            const totals = (lo) => {
+              const t = {};
+              for (const e of lo) for (const k of statKeys(e.sp)) t[k] = (t[k] || 0) + e.sp.eff[k];
+              return t;
+            };
+            const a = totals(picked), b = totals(strongest);
+            const diffs = [...new Set([...Object.keys(a), ...Object.keys(b)])]
+              .map(k => [k, (a[k] || 0) - (b[k] || 0)]).filter(([, d]) => d !== 0)
+              .sort((x, y) => Math.abs(y[1]) - Math.abs(x[1])).slice(0, 6);
+            const md = (lo) => {
+              const ds = lo.filter(e => !isSong(e.sp)).map(e => buffDurS(e.sp, myLevel())).map(s => s == null ? 7200 : s);
+              return ds.length ? ds.reduce((s, v) => s + v, 0) / ds.length : 0;
+            };
+            const fm = (s) => s >= 3600 ? Math.round(s / 360) / 10 + 'h' : Math.round(s / 60) + 'm';
+            const tr = document.createElement('div');
+            tr.className = 'q-npc';
+            tr.textContent = '⏳ ' + (diffs.length
+              ? 'Trade vs strongest set: ' + diffs.map(([k, d]) => (EFF_LABEL[k] || k) + ' ' + (d > 0 ? '+' : '−') + Math.abs(d)).join(' · ')
+              : 'No stat lost — the long set is just as strong') +
+              ' — avg spell duration ' + fm(md(strongest)) + ' → ' + fm(md(picked)) + '.';
+            root.appendChild(tr);
+          }
           const note = document.createElement('div');
           note.className = 'q-npc';
           note.textContent =
             (mode === 'songs'
-              ? picked.length + ' of ' + gems + ' Symphonic Aura song slots. These live in your FIGHTING loadout — they only play while the aura runs them. '
+              ? picked.length + '/' + gems + ' Symphonic Aura song slots.'
               : mode === 'spells'
-                ? picked.length + ' of ' + gems + ' gems, all castable with long timers — cast the set, then swap to your fighting loadout. ' +
-                  (gems - picked.length > 0 ? (gems - picked.length) + ' gems to spare. ' : '')
-                : picked.length + ' of ' + gems + ' gems (songs capped at ' + songCap + ' for Symphonic Aura) — ' +
-                  (gems - picked.length > 0 ? (gems - picked.length) + ' left for nukes, heals and utility. ' : 'budget full. ')) +
-            'Spells sharing an effect type are assumed NOT to stack (one HP buff, one haste…) — but bard songs stack WITH spells. ' +
-            'Values are at level 50; song stat values are WITHOUT instruments (instruments raise everything except haste and mana regen).';
+                ? picked.length + '/' + gems + ' gems, songs excluded — cast the set, then swap loadouts.'
+                : picked.length + '/' + gems + ' gems, songs capped at ' + songCap + '.') +
+            ' Values at level ' + myLevel() + '. Hover a buff for details and swaps.';
+          note.title = 'Stacking is checked the way the game does it — slot by slot, plus the stacking-group table — so same-stat buffs that genuinely stack (slot-offset lines like Grim Aura + Dark Temptation) are BOTH picked and their values add. Bard songs stack with spells. Song stat values are WITHOUT instruments (instruments raise everything except haste and mana regen).';
           root.appendChild(note);
         }
-      } else {
-        const d = document.createElement('div');
-        d.className = 'q-npc';
-        d.textContent = 'Pick one or more stats above — e.g. HP + STA + DEX — and SEQO builds the strongest non-conflicting buff set your trio can memorize in that many gems.';
-        root.appendChild(d);
+        // --- utility: presence effects, cast on demand, no gem spent ---
+        const model = plannerModel(trio);
+        const utilRows = [];
+        for (const [k, label] of UTIL_KEYS) {
+          let best = null;
+          for (const e of model.pool) {
+            const v = (e.sp.eff || {})[k];
+            if (!v) continue;
+            if (!best || v > (best.sp.eff[k] || 0) || (v === best.sp.eff[k] && e.lv > best.lv)) best = e;
+          }
+          if (best) utilRows.push([k, label, best]);
+        }
+        if (utilRows.length) {
+          const uh = document.createElement('div');
+          uh.className = 'l-divider';
+          uh.textContent = '🧰 UTILITY — cast when needed, no gem to keep';
+          root.appendChild(uh);
+          for (const [k, label, e] of utilRows) {
+            const d = document.createElement('div');
+            d.className = 'q-it';
+            d.style.cursor = 'default';
+            d.innerHTML = '<span class="box">·</span><span class="nm"></span><span class="loc" style="flex:none"></span>';
+            d.querySelector('.nm').textContent = label + ' — ' + e.sp.n +
+              (k === 'vision' && e.sp.eff.vision >= 2 ? ' (ultravision)' : '');
+            d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
+            if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
+            root.appendChild(d);
+          }
+        }
+        // --- disciplines: /disc combat abilities — activated, one at a time ---
+        const discs = model.pool.filter(e => isDisc(e.sp))
+          .sort((a, b) => a.cls.localeCompare(b.cls) || b.lv - a.lv);
+        if (discs.length) {
+          const dh = document.createElement('div');
+          dh.className = 'l-divider';
+          dh.textContent = '⚔ DISCIPLINES — /disc, one at a time, no gem';
+          dh.title = 'Activated combat abilities on the discipline reuse timer. They never spend a spell gem, so every one you can use is listed.';
+          root.appendChild(dh);
+          for (const e of discs) {
+            const d = document.createElement('div');
+            d.className = 'q-it';
+            d.style.cursor = 'default';
+            d.innerHTML = '<span class="box">·</span><span class="nm"></span><span class="loc" style="flex:none"></span>';
+            d.querySelector('.nm').textContent = e.sp.n.replace(/\s*Discipline$/i, '') +
+              (e.sp.eff ? ' — ' + effText(e.sp) : '');
+            d.querySelector('.nm').style.whiteSpace = 'normal';
+            d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
+            if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
+            root.appendChild(d);
+          }
+        }
       }
     }
 
-    // --- planner: trio lineup ---
-    const hd = document.createElement('div');
-    hd.className = 'l-divider';
-    hd.textContent = '📋 BUFF LINEUP — ' + (trio ? trio.join('/') : 'pick a trio above');
-    root.appendChild(hd);
+    // --- the full list, out of the way: collapsed unless you open it ---
     if (!spellDB || !trio) return;
     const model = plannerModel(trio);
+    const open = !!(settings && settings.buffListOpen);
+    const hd = document.createElement('div');
+    hd.className = 'l-divider';
+    hd.style.cursor = 'pointer';
+    hd.textContent = (open ? '▾' : '▸') + ' 📋 ALL ' + model.pool.length + ' BUFFS — ' + trio.join('/');
+    hd.title = open ? 'Click to collapse' : 'Click to browse everything your trio can cast, with the stacking conflicts';
+    hd.addEventListener('click', () => { save({ buffListOpen: !open }); settings.buffListOpen = !open; renderClassTab(); });
+    root.appendChild(hd);
+    if (!open) return;
     // conflicts first: stacking groups with 2+ different spells
     const conflicts = [...model.groups.values()].filter(l => new Set(l.map(e => e.sp.n)).size > 1);
     if (conflicts.length) {
@@ -5598,6 +5880,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       setTab('loot');
       return;
     }
+    if (tab.startsWith('qview:')) { // dev-only: open a Quests sub-view for screenshots
+      setTab('quests');
+      setQuestView(tab.slice(6));
+      renderQuests();
+      return;
+    }
     if (tab === 'logindemo') { // dev-only: the fresh-session outputfile reminder
       loginAt = Date.now();
       reminderAt = loginAt;
@@ -5786,11 +6074,17 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         ok('song haste level-scaled (McVaxius 20, not its 33 cap)', !!(mcv && mcv.eff && mcv.eff.haste === 20), mcv && mcv.eff);
         const lo = buildLoadout(['SHD', 'SHM', 'ENC'], ['hp', 'sta', 'dex'], 10);
         ok('loadout builder fills the gem budget', lo.length > 0 && lo.length <= 10, lo.map(e => e.sp.n + ' [' + effText(e.sp) + ']').slice(0, 6));
-        const seen = new Set();
-        let overlap = false;
-        for (const e of lo) for (const k of Object.keys(e.sp.eff)) { if (seen.has(k)) overlap = true; seen.add(k); }
-        ok('no effect-type overlap between picks', !overlap);
-        ok('every pick serves a focus stat', lo.every(e => ['hp', 'sta', 'dex'].some(f => effVal(e.sp, f) > 0)));
+        let clash = false;
+        for (let a = 0; a < lo.length; a++) for (let b = a + 1; b < lo.length; b++)
+          if (!isSong(lo[a].sp) === !isSong(lo[b].sp) && slotClash(lo[a].sp, lo[b].sp)) clash = true;
+        ok('no slot clash between picks (true stacking)', !clash);
+        ok('focus stats each get covered', ['hp', 'sta', 'dex'].every(f => lo.some(e => effVal(e.sp, f) > 0)), lo.map(e => e.sp.n).slice(0, 6));
+        ok('focused build leads with a focus stat', lo.length > 0 && ['hp', 'sta', 'dex'].some(f => effVal(lo[0].sp, f) > 0), lo[0] && lo[0].sp.n);
+        ok('at most one illusion in a set', lo.filter(e => (e.sp.eff || {}).illusion).length <= 1, lo.filter(e => (e.sp.eff || {}).illusion).map(e => e.sp.n));
+        // focus is optional now: no focus -> combat-weighted best overall set
+        const lo0 = buildLoadout(['SHD', 'SHM', 'ENC'], [], 10);
+        ok('no-focus default builds a full set', lo0.length > 0 && lo0.length <= 10, lo0.map(e => e.sp.n).slice(0, 6));
+        ok('utility-only buffs never spend a gem', lo0.every(e => statKeys(e.sp).length > 0));
         // Ed's real trio: songs must coexist with spells, Item Benefits stay out
         const lo2 = buildLoadout(['SHD', 'DRU', 'BRD'], ['hp', 'haste', 'dex', 'ac'], 14);
         ok('SHD/DRU/BRD: songs AND spells both picked',
@@ -5812,6 +6106,16 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         ok('proc buffs parse (Scream of Death)', !!(sod && sod.eff && sod.eff.proc), sod && sod.eff);
         const dt = (spellByName.get('dark temptation') || [])[0];
         ok('Dark Temptation in pool with ATK 25', !!(dt && dt.eff && dt.eff.atk === 25), dt && dt.eff);
+        ok('mixed spells keep their price (DT −3 HP/tick)', !!(dt && dt.cost && dt.cost.hpregen === 3), dt && dt.cost);
+        ok('cost shows beside the gain', !!dt && /ATK \+25.*HP\/tick −3/.test(effText(dt)), dt && effText(dt));
+        // slot-true stacking: Grim Aura's ATK (slot 1) stacks with DT's (slot 2)
+        const ga = (spellByName.get('grim aura') || [])[0];
+        ok('Grim Aura parses (SHD 16, ATK 10 capped)', !!(ga && ga.cls && ga.cls.SHD === 16 && ga.eff && ga.eff.atk === 10), ga && ga.eff);
+        ok('slot-offset ATK buffs do NOT clash (Grim Aura + DT)', !!(ga && dt && !slotClash(ga, dt)), ga && dt && [ga.slots, dt.slots]);
+        const loGA = buildLoadout(['SHD', 'ROG', 'BRD'], ['atk'], 14, 'both', 3);
+        ok('SK/ROG/BRD ATK build takes Grim Aura AND Dark Temptation',
+          loGA.some(e => e.sp.n === 'Grim Aura') && loGA.some(e => e.sp.n === 'Dark Temptation'),
+          loGA.map(e => (isSong(e.sp) ? '♪' : '') + e.sp.n).slice(0, 8));
         // loadout modes: buff set has no songs, songs-only is all songs ≤ 5
         const loSp = buildLoadout(['SHD', 'DRU', 'BRD'], ['hp', 'haste', 'str', 'ac'], 14, 'spells', 3);
         ok('buff set (spells mode) excludes songs', loSp.length > 0 && loSp.every(e => !isSong(e.sp)), loSp.map(e => e.sp.n).slice(0, 5));
@@ -5833,6 +6137,96 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         const withEff = poolAll.filter(sp => sp.eff).length;
         ok('pool-wide effect coverage ≥ 85%', withEff / poolAll.length >= 0.85,
           withEff + '/' + poolAll.length + ' buffs parse effects (' + Math.round(withEff / poolAll.length * 100) + '%)');
+        const withSlots = poolAll.filter(sp => sp.eff && sp.slots).length;
+        ok('slot maps parse for every statful buff', withSlots === withEff, withSlots + '/' + withEff);
+        // FULL-COVERAGE audit, every class: with unlimited gems, every castable
+        // stat buff is either PICKED or provably BLOCKED by a pick (same slot,
+        // same stacking group, or the one-illusion rule). Nothing silently drops.
+        const accountable = (trio) => {
+          const model = plannerModel(trio);
+          const cands = [];
+          for (const list of model.groups.values()) cands.push(list[0]);
+          cands.push(...model.solo);
+          const statful = cands.filter(e => e.sp.eff && statKeys(e.sp).some(k => COMBAT_W[k]) && !isDisc(e.sp));
+          const lo = buildLoadout(trio, [], 99, 'both', null);
+          const pickedN = new Set(lo.map(e => e.sp.n));
+          const missing = [];
+          for (const c of statful) {
+            if (pickedN.has(c.sp.n)) continue;
+            const cg = spellDB.stacking[c.sp.id];
+            const blocked = lo.some(p => {
+              const pg = spellDB.stacking[p.sp.id];
+              if (cg && pg && cg.g === pg.g) return true;
+              if ((c.sp.eff || {}).illusion && (p.sp.eff || {}).illusion) return true;
+              if (isSong(p.sp) !== isSong(c.sp)) return false;
+              return slotClash(c.sp, p.sp);
+            });
+            if (!blocked) missing.push(c.sp.n);
+          }
+          return missing;
+        };
+        let dropped = [];
+        for (const c of spellDB.classes) dropped.push(...accountable([c, c, c]).map(n => c + ':' + n));
+        ok('ALL 16 classes: every stat buff picked or provably blocked', dropped.length === 0,
+          dropped.length ? dropped.slice(0, 8) : 'all accounted for');
+        // and per stat: focusing a stat always lands its strongest castable source
+        let badFocus = [];
+        for (const trio of [['SHD', 'ROG', 'BRD'], ['SHD', 'SHM', 'ENC']]) {
+          const model = plannerModel(trio);
+          const cands = [];
+          for (const list of model.groups.values()) cands.push(list[0]);
+          cands.push(...model.solo);
+          for (const f of Object.keys(COMBAT_W)) {
+            const max = Math.max(0, ...cands.map(e => effVal(e.sp, f)));
+            if (!max) continue;
+            const lo = buildLoadout(trio, [f], 99, 'both', null);
+            const got = Math.max(0, ...lo.map(e => effVal(e.sp, f)));
+            if (got < max) badFocus.push(trio.join('/') + ' ' + f + ': got ' + got + ' < best ' + max);
+          }
+        }
+        ok('every stat\'s strongest source is picked when focused', badFocus.length === 0,
+          badFocus.length ? badFocus.slice(0, 6) : 'all ' + Object.keys(COMBAT_W).length + ' stats × 2 trios');
+        // ⏳ long-buff preference: average spell duration must not get WORSE
+        const meanDur = (lo) => {
+          const ds = lo.filter(e => !isSong(e.sp)).map(e => buffDurS(e.sp, myLevel())).map(s => s == null ? 7200 : s);
+          return ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : 0;
+        };
+        const loShort = buildLoadout(['SHD', 'SHM', 'ENC'], [], 10, 'both', 3, false);
+        const loLong = buildLoadout(['SHD', 'SHM', 'ENC'], [], 10, 'both', 3, true);
+        ok('⏳ long-buff toggle raises average duration', loLong.length > 0 && meanDur(loLong) >= meanDur(loShort),
+          Math.round(meanDur(loShort) / 60) + 'm → ' + Math.round(meanDur(loLong) / 60) + 'm');
+        // disciplines: parsed, listed per class, never in the gem lineup
+        const fw = (spellByName.get('focused will discipline') || [])[0];
+        ok('Focused Will Discipline parses (ROG 10, HP/tick +3)',
+          !!(fw && fw.cls && fw.cls.ROG === 10 && fw.cls.WAR === 10 && fw.eff && fw.eff.hpregen === 3), fw && [fw.cls, fw.eff]);
+        const rogModel = plannerModel(['SHD', 'ROG', 'BRD']);
+        const rogDiscs = rogModel.pool.filter(e => isDisc(e.sp));
+        ok('ROG trio discipline list includes Focused Will', rogDiscs.some(e => e.sp.n === 'Focused Will Discipline'),
+          rogDiscs.map(e => e.cls + ':' + e.sp.n).slice(0, 8));
+        const loD = buildLoadout(['SHD', 'ROG', 'BRD'], [], 99, 'both', null);
+        ok('disciplines never spend a gem', !loD.some(e => isDisc(e.sp)));
+        // whole-file: every player-castable Discipline shows in its class list
+        const discAll = poolAll.filter(sp => isDisc(sp) && sp.ben);
+        const discMiss = [];
+        for (const sp of discAll) {
+          for (const c of Object.keys(sp.cls || {})) {
+            if (sp.cls[c] > myLevel()) continue;
+            const m = plannerModel([c, c, c]);
+            if (!m.pool.some(e => e.sp.n === sp.n && isDisc(e.sp))) discMiss.push(c + ':' + sp.n);
+          }
+        }
+        ok('ALL ' + discAll.length + ' disciplines listed for their classes', discMiss.length === 0,
+          discMiss.length ? discMiss.slice(0, 6) : 'every discipline accounted for');
+        const evasive = (spellByName.get('evasive discipline') || [])[0];
+        ok('disc combat SPAs decode (Evasive: avoidance, melee-dmg cost)',
+          !!(evasive && evasive.eff && evasive.eff.avoid === 50 && evasive.cost && evasive.cost.acc === 33), evasive && [evasive.eff, evasive.cost]);
+        ok('durFactor: songs exempt, short spells discounted', (() => {
+          const breeze2 = (spellByName.get('breeze') || [])[0]; // 27m -> partial credit
+          const mcv2 = (spellByName.get("mcvaxius' berserker crescendo") || [])[0]; // song -> exempt
+          const f = breeze2 && durFactor(breeze2);
+          return mcv2 && durFactor(mcv2) === 1 && f > 0.6 && f < 0.85 &&
+            Math.abs(Math.pow(600 / 3600, 0.4) - 0.488) < 0.01;
+        })());
         ok('audit spot-checks (Daring HP, HoT, accuracy, aggro)', (() => {
           const d = (spellByName.get('daring') || [])[0];
           const ch = (spellByName.get('celestial healing') || [])[0];
@@ -5899,6 +6293,32 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       ok('achievements + factions reminder ON for slayer users', outfileWanted('achievements') && outfileWanted('factions'));
       ok('inventory reminder always on', outfileWanted('inventory'));
       settings.usedSlayer = savedUS; settings.posClasses = savedPC; settings.usedUnlocks = savedUU;
+      // ⭐ wish list + the item page's own "Drops From" -> zone needs
+      {
+        const wk = verdictKey('Bow of the Underfoot');
+        const savedZone = currentZone, savedZD = zoneData;
+        wishList[wk] = { name: 'Bow of the Underfoot', added: Date.now() };
+        wishDropCache.set(wk, { zones: [{ zone: 'The Hole', mobs: ['a rock golem'] }] });
+        currentZone = 'The Hole'; zoneData = null;
+        const zn = buildZoneNeeds();
+        const row = zn.rows.find(r => r.g === 'wish' && r.item === 'Bow of the Underfoot');
+        ok('wished item placed by ITS OWN wiki page (The Hole)', !!row && row.mobs.includes('a rock golem'), row);
+        // Ed's exact field case: game name ≠ wiki name, bridged by the zone
+        // guide's resolved page title
+        currentZone = 'The Ruins of Old Paineel'; zoneData = { pageTitle: 'The Hole', named: [] };
+        const znA = buildZoneNeeds();
+        ok('game zone name bridges to wiki name (Ruins of Old Paineel = The Hole)',
+          znA.rows.some(r => r.g === 'wish' && r.item === 'Bow of the Underfoot'), znA.rows.filter(r => r.g === 'wish'));
+        currentZone = 'Lavastorm Mountains'; zoneData = null;
+        const zn2 = buildZoneNeeds();
+        ok('…and stays zone-scoped (not shown elsewhere)', !zn2.rows.some(r => r.g === 'wish' && r.item === 'Bow of the Underfoot'));
+        ok('instance zones still match (The Hole (instance))', !!wishWikiHere(wk, ['The Hole (instance)']));
+        // the exact cached shape on Ed's machine: dropsfrom TEXT, no sections
+        const pz = parseDropsfromText('The Hole\n* a rock golem');
+        ok('dropsfrom text parses (zone + mob)', pz.length === 1 && pz[0].zone === 'The Hole' && pz[0].mobs[0] === 'a rock golem', pz);
+        ok('prose dropsfrom is not mistaken for a zone', parseDropsfromText('Rare drop off any rock golem in the depths.').length === 0);
+        delete wishList[wk]; wishDropCache.delete(wk); currentZone = savedZone; zoneData = savedZD;
+      }
       console.log('VERIFY25|DONE');
       return;
     }
@@ -7885,6 +8305,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     posDone = await window.overlay.getPosQuests() || {};
     itemVerdicts = await window.overlay.getItemVerdicts() || {};
     wishList = await window.overlay.getWishList() || {};
+    refreshWishDrops();
     if (activeTab === 'quests') renderQuests();
     // refill the shared pet set in place (the tracker holds a reference to it)
     const freshPets = await window.overlay.getPets() || [];

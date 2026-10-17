@@ -1,19 +1,21 @@
 # SEQO — Simple EQ Overlay
 
 **A log-powered companion overlay for EverQuest Legends on Windows 11.**
-Live DPS meter · group & session breakdowns · loot tracking with real drop rates · a zone-needs tab AND pop-out that watch for what you're hunting · race/class/deity unlock tracking · 💀 Slayer achievement tracker with hunting routes and faction warnings · optional class spell quest checklists · epic checklists that understand turn-ins · an experimental ⚔ Class tab: trio gear advisor + a buff lab running on the game's own spell data · item/zone/quest lookup with in-app guide pages · world travel routing · learned camp timers with spawn windows · rare-spawn, charm-break, exact buff-fade & AFK alerts · cross-computer sync with honest status · built-in help on every feature.
+
+SEQO reads the log file the game already writes and turns it into the stuff you actually want while playing. A live DPS meter. Loot tracking with real drop rates from your own kills. A needs list for the zone you're standing in. Camp timers it learns from your kills instead of a spreadsheet. Your Slayer and unlock progress straight from the game's own export files. And an experimental Class tab that builds gear and buff recommendations for your trio from the game's own data, not guesses. There's a lookup tab, a world map that routes you, alerts for the things you'd miss while staring at the fight, and everything syncs between your computers.
+
+![The meter mid-fight](docs/images/seqo-meter.png)
 
 > ### New in v2.5 — [release notes](https://github.com/RealMaeel/seqo/releases/latest)
-> **💀 Slayer achievements**: all four groups from your achievements export with live progress bars, closest-to-done first, meta-chains you can click through — and a 🧭 route read-out per target that tells you where that family hunts and what the kills COST you in faction, checked against your own standings and the unlocks you're grinding.
-> **⚔ Class tab** *(experimental — see below)*: your trio auto-detected from /who, a per-slot **gear advisor** scored for YOUR three classes with editable stat weights and an upgrade-tier compare, and a **buff lab** running on the game's own spell files — live buffs with countdowns, exact fade identification, "didn't take hold" explained by name, and a loadout builder that fits your focus stats into your spell gems.
-> **🧙 Spell quests**: Tashania, Ice Comet, Divine Might, Life Leech and Call of Flame as tracked checklists — ⭐ one and its hunted pieces join the zone-needs list.
-> **🎯 Needs is a tab now** too — same list as the pop-out, pick your flavor. Spell-quest pieces included.
-> **📂 Login popup**: a fresh login (or starting SEQO mid-session) brings up the /outputfile commands as copy buttons that tick themselves off as the files land.
-> **Nine tabs, reordered** — inactive tabs shrink to icons so everything fits. Scrolling no longer snaps to the top when live data updates. Wiki lookups batch 50 pages per request and catalog updates only re-read what changed.
+> The big ones this round:
+> **💀 Slayer tracker.** All four achievement groups from your export, live progress bars, closest-to-done on top. Every target gets a route read-out that tells you where that family hunts — and warns you first when those kills would torch a faction you're grinding.
+> **⚔ Class tab** *(experimental)*. Your trio comes from your own /who. The gear advisor scores every item in the game for your three classes together. The buff planner runs on the game's actual spell files and checks stacking the way the game does — slot by slot — so it knows Grim Aura and Dark Temptation stack and picks both. No setup: open it and the lineup is already built for your level. Disciplines and utility get their own lists so nothing wastes a gem.
+> **🧙 Spell quests.** Tashania, Ice Comet, Divine Might, Life Leech and Call of Flame as tracked checklists. Star one and its pieces join the needs list.
+> **🎯 Needs is a tab now** as well as the pop-out. Same list, pick your flavor. Wish-listed items show up in the zone they actually drop in — SEQO reads the item's own wiki page to know where that is.
+> **📂 Login popup** lists your /outputfile commands with copy buttons and ticks them off as the files land.
+> Plus nine reordered tabs that shrink to icons, scrolling that stays put during live updates, and batched wiki lookups.
 
 SEQO never touches the game. It reads the log file EverQuest Legends already writes to disk — the same technique GamParse and nParse used safely for two decades of classic EQ. **No injection, no memory reading, no automation. Nothing for anti-cheat to object to.**
-
-![Session view](docs/images/seqo-session-pets.png)
 
 ---
 
@@ -102,6 +104,8 @@ Lives under the Meter tab now: the **⚔ Fight / Σ Session** buttons switch bet
 
 **🎯 Zone needs** (2.4, a full tab since 2.5): the same list lives in two places — the **🎯 Needs tab** in the overlay, and the **Needs** button's slim pop-out strip under the overlay listing everything you still need **from the zone you're standing in** — ⭐ starred gear, ⚔ epic pieces (true remaining counts), 🔓 unlock turn-ins with live counters that tick the moment the loot line hits your log — each row naming the mobs that drop it, click-through to full item details — and since 2.5, 🧙 pieces of any spell quest you're tracking. It's persistent (follows you between zones, reopens after a restart), **minimizable to a one-line "🎯 4 needed here" bar**, scrollable, and height-draggable. Rows flash when their item just dropped, so a glance tells you what mattered.
 
+![The Needs tab](docs/images/seqo-needs-tab.png)
+
 Every kill and every looted item is recorded automatically to a permanent database.
 
 - **Recent drops** as they happen (with an on-screen toast), session coin earned.
@@ -113,9 +117,7 @@ Every kill and every looted item is recorded automatically to a permanent databa
 - **Wiki export** (the button appears once a wiki account is configured in ⚙ Advanced) generates a full, ready-to-paste contribution document, organized by zone. Each mob's entry includes: the pooled drop table with rates and sample size, a **strength-by-difficulty table** (level from your /con, max hit, average hit, sample, and casts seen per tier — higher tiers add classes to mobs, and your data shows it), and **measured respawn times** from your camp cycles. Everything is phrased in the wiki's own terminology (`[[Difficulty Level]]`, D-labels) so editors can use it verbatim.
 - With an eqlwiki account configured you can **submit directly**: to your personal sandbox page (default, zero risk) or to each mob's talk page. What you see in the export window is exactly what gets posted.
 
-![Loot verdicts](docs/images/seqo-loot-verdicts.png)
-
-![Wiki export](docs/images/seqo-wiki-submit.png)
+![Loot tab — recent drops and all-time rates](docs/images/seqo-loot.png)
 
 ## 🔎 Lookup (was Data)
 
@@ -133,7 +135,6 @@ Every item detail also has a **"Look up on"** row — one credited button per co
 
 - **🌟 Wish list:** open any item or spell and click **☆ Wish**. The Data tab keeps your wish list pinned up top, each entry showing how to get it: mobs you've personally seen drop it (with your measured rates), its PoS quest recipe if it's a quest reward, and the wiki's "drops from" data. Zone into somewhere a wished item drops and SEQO toasts you; when it actually drops, you get a loud **WISH** alert and badge. Synced across computers.
 
-![Wish list](docs/images/seqo-wishlist.png)
 
 ## 🗺 Map
 
@@ -154,13 +155,12 @@ The map matches EQ Legends' actual world: **New Sebilis Expedition** (door in NW
 - **Placeholders:** click **+PH** on a camp, then click the placeholder's row. Any linked PH death resets and teaches the shared spawn cycle — proper classic camp mechanics. Links persist per zone.
 - **UP NOW:** if a tracked mob shows any combat activity, its timer flips to ⚔ UP NOW instead of a stale countdown, and resets when it dies.
 
-![Camp timers with PH](docs/images/seqo-ph-timers.png)
+![Camp timers](docs/images/seqo-camp-timers.png)
 
 **Manual timers:** on the Timers tab, type an optional label and a time — `90`, `1:30`, `5m`, or `2h` — and hit ⏱ **Start**. The countdown chip shows at the bottom of the overlay **on every tab**, goes red at 6 seconds, and pings at zero. Click a manual chip to cancel it. Start as many as you like.
 
 **Spell timers:** Settings → Alerts → *Spell timers*, one per line: `Mesmerization = 42` (or `m:ss`). For spells with landing lines (mez: "X has been mesmerized."), chips are **per mob, by name** — "Mesmerization · spiroc revolter 0:39". AE mez landing on three mobs makes three named chips; re-mezzing one refreshes its chip; a mob breaking mez (worn off, or "awakened by") retires **only that mob's chip**; the expiry ping tells you *which* mob is waking. Spells without landing lines get a generic per-cast chip; interrupts and resists cancel only the just-cast chip. Ranks match automatically — "Mesmerization" covers Mesmerization VII. Red at 6 seconds, sorted soonest-first: the leftmost chip is your next re-mez.
 
-![Manual and spell timer chips](docs/images/seqo-manual-timers.png)
 
 ## 📜 Quests
 
@@ -185,7 +185,6 @@ Click any item name in a quest to open its full details in the dock; the ☐ box
 
 PoS quest data comes from the excellent [eqlegendstools.com](https://eqlegendstools.com/plane-of-sky-quests/) — and since 2.2 it re-reads their live list on every quest-data update, so changes on their site reach your tracker without a new SEQO build.
 
-![Plane of Sky quest tracker](docs/images/seqo-quests.png)
 
 ### 🔓 Unlocks
 
@@ -200,6 +199,8 @@ The 🔓 chip shows every **race, class and deity unlock** with live progress fr
 ### 💀 Slayer achievements (new in 2.5)
 
 Your whole Slayer grind from `/outputfile achievements`, live: **General** (the meta-achievements, as clickable chains — tap a requirement and jump straight to it), **Conquest** (the big family counters, "We Are the Dead! 6,765/10,000" with progress bars), **Special** and **Skill**. Everything sorts closest-to-done first, so the next cheap achievement is always on top.
+
+![Slayer tracker](docs/images/seqo-slayer.png)
 
 The part that saves real heartache: the **🧭 route read-out** on every target. It opens in the attached window with where that creature family actually hunts — and for race targets (killing Barbarians, gnomes' clockworks, and so on) it lists the exact factions those kills tank, **checked against your own faction file and the race unlocks you're working**. If you've got positive progress on a faction the route would burn, SEQO says so in plain text before you commit to the camp. Run `/outputfile achievements` after a hunt and the counters update. Zone suggestions are classic-era knowledge — Legends remixes things, so treat them as starting points.
 
@@ -233,6 +234,8 @@ Your **trio fills in automatically** from your own `/who` row (type `/who` once 
 
 ### 🛡 Gear (experimental)
 
+![Gear advisor](docs/images/seqo-class-gear.png)
+
 A best-in-slot advisor scored for **your three classes together**. Per slot: 👤 what you wear, 🎒 the best you own, 🌍 the best obtainable with its source — and ☆ on any 🌍 row stars it onto your wish list so zone needs flags where it drops.
 
 - **Purpose presets** — Balanced, Tank, Melee ST, AoE, Caster DPS, Healer — are just stat-weight tables, and **⚙ weights** lets you edit every number (saved per purpose).
@@ -242,12 +245,14 @@ A best-in-slot advisor scored for **your three classes together**. Per slot: �
 
 ### 🧪 Buffs (experimental)
 
+![Buff planner](docs/images/seqo-class-buffs.png)
+
 This runs on the **game's own spell files**, read straight from your install and re-parsed automatically each patch — not wiki guesses.
 
 - **On you now**: every lasting effect tracked the moment its landing line hits your log, with countdowns — exact for your own casts, ~estimated when someone else's level decides the duration.
 - **Exact fades**: fade lines match the game's string table, so the alert names the actual spell — no more guessing which "strength" dropped.
 - **"Didn't take hold", explained**: a blocked cast names the buff that blocked it (from the game's own stacking table) and says whether yours was stronger.
-- **🎛 Loadout builder**: set your spell-gem count (up to 14 with AAs), tap focus stats — HP, STA, resists, haste, weapon procs, whatever — and SEQO picks the strongest non-conflicting set your trio can memorize in that budget. Resists means **all five**. Proc buffs show what the proc actually does ("Scream of Death Strike — hits nearby mobs ~30" vs "Vampiric Embrace — lifetap ~62"), every pick shows its real numbers from the game data, and knocked-out runners-up appear as "or:" alternates so the choice stays yours.
+- **🎛 Your lineup**: set your spell-gem count (up to 14 with AAs) and SEQO builds the strongest non-conflicting set your trio can memorize at your level — balanced for fighting out of the box, no setup. Want to steer it? Tap 🎯 Focus and pick stats — HP, STA, resists, haste, weapon procs, whatever (Resists means **all five**). Every pick shows its real numbers from the game data, mixed spells show their price too (Dark Temptation: ATK +25 · HP/tick −3), and hovering a pick shows the full effect list and the runner-up swaps. Stacking is checked slot by slot, the way the game actually does it — so slot-offset lines that genuinely stack (Grim Aura + Dark Temptation, both ATK) are **both** picked. And if you'd rather not babysit timers, the **⏳ Long buffs** toggle trades a little stat strength for durations that last — and tells you exactly what the trade cost (STA −5 · DEX −1, avg duration 12m → 40m). Bard songs sit at the bottom as the optional Symphonic Aura block, and **⚔ Disciplines** get their own list — every /disc ability your trio can use, real effects decoded, no gem spent. Utility like invisibility, levitate and night vision sits in its own list — cast when needed, never a wasted gem.
 - **Three modes** for the two-loadout life: **⚡ Fighting set** (spells + songs, songs capped at what your Symphonic Aura can run), **✦ Buff set** (spells only — cast everything, then swap loadouts), **♪ Songs only** (the 1–5 songs the aura keeps running).
 - **Buff lineup** below lists everything your trio can cast and calls out the groups that DON'T stack — cast the ✔ one.
 
@@ -268,6 +273,8 @@ Every alert type has its own sound, so you know what happened without looking:
 - **"Did not take hold" is explained** (new in 2.5): when your buff bounces, SEQO names the buff that blocked it and whether yours was stronger — click the old one off, or save the mana.
 - **Muted alerts:** every buff/fade alert seen this session appears in Settings → Alerts with a checkbox — tick to silence the spammy ones forever, unmute anytime.
 - **Volume:** a dedicated slider with live preview, independent of game and system volume. **Test all alerts 🔔** plays the full set.
+
+![Login popup](docs/images/seqo-login.png)
 
 **📂 Login popup** (upgraded in 2.5): on a fresh login — or when you start SEQO with the game already running — a popup lists each `/outputfile` command your features actually use, with a 📋 Copy button and the file's age. Paste each in game and the lines tick themselves ✅ off as the new files land; when everything's fresh it closes itself. Dismiss anytime, off switch in ⚙ Alerts & Sounds, and it only asks for the exports your features need (no Slayer use, no achievements nag).
 

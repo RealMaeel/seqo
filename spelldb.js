@@ -59,7 +59,7 @@ function spellFiles(gameRoot) {
 function cacheKeyFor(gameRoot) {
   const f = spellFiles(gameRoot);
   // the leading token is a parser version: bump it and every cache rebuilds
-  return ['v7', fileKey(f.spells), fileKey(f.strs), fileKey(f.stacking)].join('|');
+  return ['v10', fileKey(f.spells), fileKey(f.strs), fileKey(f.stacking)].join('|');
 }
 
 // ---------------------------------------------------------------------------
@@ -80,12 +80,28 @@ const SPA_MAP = {
   185: 'meleedmg', // melee damage % (disciplines)
   114: 'hate',     // aggro modifier % (Voice of… line)
   78: 'rune', 161: 'rune', 162: 'rune', // absorb family: spell/melee wards
-  12: 'invis', 58: 'illusion'
+  12: 'invis', 58: 'illusion',
+  // discipline round: the melee-combat SPAs the /disc abilities run on
+  168: 'mit',       // melee mitigation (negative base = take less damage)
+  169: 'crit',      // chance to critical hit
+  171: 'cripp',     // crippling blow chance
+  172: 'avoid',     // avoidance (Voiddance)
+  173: 'riposte',   // riposte chance (Whirlwind)
+  174: 'dodge',     // dodge chance (Nimble)
+  175: 'parry',     // parry chance
+  176: 'dualwield', // dual wield chance
+  177: 'doubleatk', // double attack chance
+  178: 'mlifetap',  // melee lifetap (Leechcurse)
+  182: 'delay',     // weapon delay (negative = faster, Hundred Fists)
+  183: 'hitchance', // chance to hit
+  186: 'mindmg',    // minimum damage modifier (Innerflame)
+  219: 'slayundead' // Holyforge
 };
 // flag-type effects: presence matters, the number is an id or a 0/1 marker
 const SPA_FLAG = { 13: 1, 14: 1, 57: 1, 65: 1, 66: 2, 85: 1, 12: 1, 58: 1 }; // ultravision(66) outranks infravision(65)
-// damage-dealing beneficial slots store the damage as a NEGATIVE base
-const SPA_NEG_OK = new Set([59, 55]);
+// damage-dealing beneficial slots store the damage as a NEGATIVE base —
+// likewise mitigation (168) and weapon delay (182), where negative is the gain
+const SPA_NEG_OK = new Set([59, 55, 168, 182]);
 
 // slot values scale with caster level through a calc formula (classic table),
 // capped at max. Values are computed at the Legends level cap (50) — that is
@@ -110,12 +126,19 @@ function calcSlotValue(base, calc, max, level) {
 
 function parseEffects(field) {
   if (!field || !field.includes('|')) return null;
-  const eff = {};
+  const eff = {};   // beneficial stat values at EFF_LEVEL (the overlay re-scales from raw)
+  const cost = {};  // detrimental components of mixed spells (Dark Temptation's HP drain)
+  const raw = [];   // scalable slots as [key, base, calc, max, isCost] for level-true values
+  const slots = {}; // slot# -> SPA: the game's REAL stacking unit. Two buffs block
+                    // each other only when the SAME slot carries the SAME effect —
+                    // buff lines are slot-offset on purpose so Grim Aura (ATK in
+                    // slot 1) stacks with Dark Temptation (ATK in slot 2).
   let procId = 0;
   for (const part of field.split('$')) {
     const p = part.split('|');
     if (p.length < 3) continue;
-    const spa = +p[1], base = +p[2] || 0, calc = +(p[4] || 0) || 0, max = +(p[5] || 0) || 0;
+    const slot = +p[0], spa = +p[1], base = +p[2] || 0, calc = +(p[4] || 0) || 0, max = +(p[5] || 0) || 0;
+    if (slot && spa !== 254 && (base || max) && !(spa === 10 && base === 0)) slots[slot] = spa;
     const key = SPA_MAP[spa];
     if (!key) continue;
     if (SPA_FLAG[spa]) {                         // presence flag (proc, vision…)
@@ -123,18 +146,25 @@ function parseEffects(field) {
       if (spa === 85 && base > 0 && !procId) procId = base; // the proc IS a spell
       continue;
     }
-    if (base < 0 && max <= 0 && !SPA_NEG_OK.has(spa)) continue; // detrimental component
     if (spa === 10 && base === 0) continue;      // CHA 0 = filler slot
+    const isCost = base < 0 && max <= 0 && !SPA_NEG_OK.has(spa);
     let val = calcSlotValue(base, calc, max, EFF_LEVEL);
     if (!val) continue;
     if (spa === 11) {                            // haste stored as 1xx%
       if (val <= 100) continue;
       val -= 100;
     }
-    eff[key] = Math.max(eff[key] || 0, val);
+    raw.push([key, base, calc, max, isCost ? 1 : 0]);
+    if (isCost) cost[key] = Math.max(cost[key] || 0, val);
+    else eff[key] = Math.max(eff[key] || 0, val);
   }
   if (!Object.keys(eff).length) return null;
-  return procId ? { eff, procId } : { eff };
+  const out = { eff };
+  if (raw.length) out.raw = raw;
+  if (Object.keys(cost).length) out.cost = cost;
+  if (Object.keys(slots).length) out.slots = slots;
+  if (procId) out.procId = procId;
+  return out;
 }
 
 async function eachLine(file, fn) {
@@ -175,7 +205,13 @@ async function parseSpellFiles(gameRoot) {
     };
     if (ben && castable) { // planner pool spells carry their parsed effects
       const pe = parseEffects(c[c.length - 1]);
-      if (pe) { rec.eff = pe.eff; if (pe.procId) rec._procId = pe.procId; }
+      if (pe) {
+        rec.eff = pe.eff;
+        if (pe.raw) rec.effRaw = pe.raw;   // the overlay re-scales these at the real level
+        if (pe.cost) rec.cost = pe.cost;   // mixed spells: the price shown next to the gain
+        if (pe.slots) rec.slots = pe.slots; // slot map for true stacking checks
+        if (pe.procId) rec._procId = pe.procId;
+      }
     }
     spells.set(+c[COL.ID], rec);
   });

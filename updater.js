@@ -414,6 +414,33 @@ function parseMobPage(wikitext) {
 
 // Mob/boss pages keep loot in "Loot"/"Drops"/"Treasure" sections as links -
 // extract them so the overlay can render a clickable loot table.
+// structured "Drops From": a non-bullet zone link heads a group, the bullets
+// under it are that zone's mobs — [{ zone, mobs: [...] }]
+function parseDropZones(wikitext) {
+  const out = [];
+  const walk = (chunk) => {
+    let cur = null;
+    for (const line of String(chunk || '').split('\n')) {
+      const links = extractLinks(line);
+      if (!links.length) continue;
+      if (/^\s*[*#]/.test(line)) { // bullet: mobs under the current zone header
+        if (!cur) out.push(cur = { zone: '', mobs: [] });
+        for (const l of links) if (cur.mobs.length < 12 && !cur.mobs.includes(l.label)) cur.mobs.push(l.label);
+      } else { // plain link line: a zone header
+        cur = { zone: links[0].label, mobs: [] };
+        out.push(cur);
+      }
+    }
+  };
+  // most item pages keep their drops in the template's dropsfrom param
+  // ("[[The Hole]]" + "* [[a rock golem]]"); some use a page section instead
+  walk(extractTemplateParam(wikitext, 'dropsfrom'));
+  const sections = String(wikitext || '').split(/^(=+[^=\n]+=+)\s*$/m);
+  for (let i = 1; i < sections.length - 1; i += 2)
+    if (/loot|drops|dropped by|treasure/i.test(sections[i])) walk(sections[i + 1]);
+  return out.filter(g => g.zone || g.mobs.length).slice(0, 10);
+}
+
 function parseDropSections(wikitext) {
   const out = new Set();
   const sections = String(wikitext || '').split(/^(=+[^=\n]+=+)\s*$/m);
@@ -669,6 +696,7 @@ async function fetchItemData(itemName) {
     .trim();
   const dropsfrom = wikitextToText(extractTemplateParam(page.wikitext, 'dropsfrom')).slice(0, 300);
   const dropsList = parseDropSections(page.wikitext);
+  const dropZones = parseDropZones(page.wikitext); // zone -> mobs, for zone needs
   // mob/god pages: the whole page is a template; recover its data
   const mob = parseMobPage(page.wikitext);
   let mobsheet = '';
@@ -712,6 +740,7 @@ async function fetchItemData(itemName) {
 
   return {
     dropsList,
+    dropZones,
     mobsheet,
     name: itemName,
     pageTitle: page.title,
@@ -896,6 +925,6 @@ module.exports = {
   parseZoneDrops, parseZoneQuestSections, wikitextToText, extractTemplateParam,
   wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE,
   getCategoryMembers, fetchPagesContent, fetchExaltIndex, fetchEffectItems,
-  fetchEqlToolsPages, searchEqlTools, parseDropSections, EQLTOOLS_PAGES,
+  fetchEqlToolsPages, searchEqlTools, parseDropSections, parseDropZones, EQLTOOLS_PAGES,
   parseMobPage, parseTemplateParams
 };
