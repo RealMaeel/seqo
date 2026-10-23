@@ -220,6 +220,47 @@
     '*': 'Future placeholder — no requirements exist in game yet (bypassable with a Deity Unlock Token).'
   };
 
+  // Key quests, keyed by the EXACT achievement name in the game's
+  // "General: Keys" section. The section itself (which keys exist, done or
+  // not) comes from /outputfile achievements; this only adds the walkthrough.
+  // step.item = an item you hold during that step (checked against your
+  // inventory + live loot), step.zone = where it happens.
+  // Keys that are key-ring items rather than achievements carry keyItem:
+  // the walkthrough counts as done once that item is on your key ring.
+  // step.unverified marks a step taken from player reports, not a logged run.
+  const KEY_QUESTS = {
+    'Be Our Guest': {
+      opens: 'Nektropos Castle',
+      task: 'Hate, Betrayal, and Trust',
+      giver: 'Retainer Ozval',
+      zone: 'Lake Nerius',
+      steps: [
+        { zone: 'Lake Nerius', text: 'Hail Retainer Ozval, then say "dark times" and "peril" to get the task Hate, Betrayal, and Trust.' },
+        { zone: 'Lake Nerius', item: 'Ancient Signet Ring of House Everling', text: 'Kill Corrupted Kedgespawn in the lake for the Ancient Signet Ring of House Everling, and hand it to Ozval.' },
+        { zone: "Ak'Anon", item: 'Exquisite Gem Setter', text: 'Say "Ozval" to Rylin Coil, the tinker, for the Exquisite Gem Setter.' },
+        { zone: 'Northern Felwithe', item: 'Peerless Sapphire', text: 'In the Shop of All Holos, say "Ozval sent me" to Merchant Tyslin for the Peerless Sapphire.' },
+        { zone: 'Lake Nerius', text: 'Hand the Peerless Sapphire and Exquisite Gem Setter to Ozval.' },
+        { zone: 'The Plane of Hate', item: 'Blessing of the Betrayer', text: 'Find the High Priestess of Ulkorruuk, hail her and say "swear" for the Blessing of the Betrayer. Stay out of the void-touched Plane of Hate.' },
+        { zone: 'Lake Nerius', text: 'Hand the Blessing of the Betrayer to Ozval. That completes Be Our Guest; follow the road north to Nektropos Castle.' }
+      ],
+      source: 'Walked through in full on the Oct 22 2026 launch day (SEQO maintainer run)'
+    },
+    'Nektropos Library Key': {
+      keyItem: 'Nektropos Library Key',
+      opens: 'the Nektropos library',
+      task: 'The Tragic Tale of House Everling',
+      giver: 'Lord Ollix Everling',
+      zone: 'Nektropos Castle',
+      steps: [
+        { zone: 'Nektropos Castle', text: 'Hail Lord Ollix Everling inside the castle for the task The Tragic Tale of House Everling.' },
+        { zone: 'Nektropos Castle', item: 'Harpsichord Plectrum', text: 'Find the ruined harpsichord and gather its four missing pieces (a black key, a white key, a string and a Harpsichord Plectrum). They are glowing pickups on the first floor.' },
+        { zone: 'Nektropos Castle', text: 'Put all four pieces into the harpsichord. The hammer strikes, a hidden panel opens and the Nektropos Library Key goes onto your key ring.' },
+        { zone: 'Nektropos Castle', unverified: true, text: 'Take the key up to the library on the second floor.' }
+      ],
+      source: 'Harpsichord steps from the Oct 22 2026 launch-night run (SEQO maintainer log); library location from player reports'
+    }
+  };
+
   // Every farmable grind turn-in, for loot KEEP verdicts / "still needed" toasts
   const GRIND_ITEMS = (() => {
     const s = new Set();
@@ -230,5 +271,5 @@
   // for the data-freshness check
   const META = { captured: '2026-09-22', sources: ["Alanna's Race Unlock Guide"] };
 
-  return { CREDITS, FACTION_GRINDS, RACE_NOTES, DEITY_NOTES, GRIND_ITEMS, META };
+  return { CREDITS, FACTION_GRINDS, RACE_NOTES, DEITY_NOTES, GRIND_ITEMS, META, KEY_QUESTS };
 });

@@ -38,6 +38,7 @@
     oot: 'Ocean of Tears', erudsxing: "Erud's Crossing",
     fearplane: 'Plane of Fear', hateplane: 'Plane of Hate', airplane: 'Plane of Sky',
     growthplane: 'Plane of Growth', mischiefplane: 'Plane of Mischief',
+    nektropos: 'Nektropos Castle',
     cazicthule: 'Cazic Thule (Zone)', highpass: 'Highpass Hold', highkeep: 'High Keep',
     neriaka: 'Neriak', neriakb: 'Neriak', neriakc: 'Neriak',
     beholder: 'Gorge of King Xorbb',
@@ -75,6 +76,18 @@
     'Neriak - Foreign Quarter': 'neriaka', 'Neriak - Commons': 'neriakb',
     'Neriak - Third Gate': 'neriakc', 'Neriak Foreign Quarter': 'neriaka',
     'Neriak Commons': 'neriakb', 'Neriak Third Gate': 'neriakc',
+    // Oct 22 2026 patch: Nektropos (names from Resources/ZoneNames.txt,
+    // short names from the zone + map files the patch shipped)
+    'Lake Nerius': 'lakenerius', 'Nektropos Castle': 'nektropos',
+    'Castle Nektropos': 'nektropos', 'Nektropos Undercrofts': 'nektrunder',
+    // exact "You have entered ..." names seen in real Legends logs (Oct 2026)
+    // that the shorter names above didn't match
+    'The Northern Desert of Ro': 'nro', 'The Southern Desert of Ro': 'sro',
+    'The Castle of Mistmoore': 'mistmoore', 'The Rathe Mountains': 'rathemtn',
+    'Clan Crushbone': 'crushbone', 'Permafrost Keep': 'permafrost',
+    'The Northern Plains of Karana': 'northkarana', 'The Southern Plains of Karana': 'southkarana',
+    'The Western Plains of Karana': 'qey2hh1', 'The Eastern Plains of Karana': 'eastkarana',
+    'Northern Felwithe': 'felwithea', 'Southern Felwithe': 'felwitheb',
     'Befallen': 'befallen', 'Upper Guk': 'guktop', 'Lower Guk': 'gukbottom',
     'The Ruins of Old Guk': 'gukbottom',
     'Nagafen\'s Lair': 'soldungb', 'Solusek\'s Eye': 'soldunga',

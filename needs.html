@@ -2,6 +2,9 @@
 <html>
 <head>
 <meta charset="utf-8">
+<!-- Everything SEQO shows is local: no remote scripts, frames or fetches from the page.
+     Network access stays in the main process. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>SEQO — Zone needs</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }

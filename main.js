@@ -2,7 +2,7 @@
 // Creates a transparent, frameless, always-on-top overlay window that can be
 // toggled between Edit mode (interactive) and Locked mode (click-through).
 
-const { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, screen, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, screen, dialog, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const spelldb = require('./spelldb.js');
@@ -49,10 +49,25 @@ const DEFAULT_SETTINGS = {
   text: 'Notes: click to edit.'
 };
 
+// The wiki bot password is encrypted at rest with Windows DPAPI (Electron
+// safeStorage): on disk it lives as wikiPassEnc, only this Windows account can
+// decrypt it, and in memory it stays plain wikiPass so nothing else changes.
+// A pre-2.5.2 plaintext wikiPass is migrated on the next save. If encryption
+// is unavailable, it falls back to the old plaintext behaviour.
+function canEncrypt() {
+  try { return safeStorage.isEncryptionAvailable(); } catch { return false; }
+}
+
 function loadSettings() {
   try {
     const raw = fs.readFileSync(settingsPath(), 'utf8');
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const s = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (s.wikiPassEnc) {
+      try { s.wikiPass = safeStorage.decryptString(Buffer.from(s.wikiPassEnc, 'base64')); }
+      catch { s.wikiPass = ''; } // e.g. settings copied from another PC/account
+    }
+    delete s.wikiPassEnc;
+    return s;
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
@@ -61,7 +76,12 @@ function loadSettings() {
 function saveSettings(s) {
   try {
     fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
-    fs.writeFileSync(settingsPath(), JSON.stringify(s, null, 2));
+    const out = { ...s };
+    if (out.wikiPass && canEncrypt()) {
+      out.wikiPassEnc = safeStorage.encryptString(out.wikiPass).toString('base64');
+      out.wikiPass = '';
+    }
+    fs.writeFileSync(settingsPath(), JSON.stringify(out, null, 2));
   } catch (e) {
     console.error('Failed to save settings:', e);
   }
@@ -429,8 +449,9 @@ function syncOnePair(local, shared, label, results) {
       const lm = fs.statSync(local).mtimeMs, sm = fs.statSync(shared).mtimeMs;
       if (Math.abs(lm - sm) < 2000) { results.push(label + ': in sync'); return; }
       if (lm > sm) {
+        fs.copyFileSync(shared, shared + '.seqo.bak');
         copyPreservingTime(local, shared);
-        results.push(label + ': → shared (local was newer)');
+        results.push(label + ': → shared (local was newer, backup kept)');
       } else {
         fs.copyFileSync(local, local + '.seqo.bak');
         copyPreservingTime(shared, local);
@@ -1586,7 +1607,7 @@ async function fetchEpicsFromWiki() {
   const title = DATA_SOURCES[0].meta.sources[0];
   const url = 'https://eqlwiki.com/api.php?action=parse&prop=wikitext&format=json&redirects=1&page=' +
               encodeURIComponent(title);
-  const res = await fetch(url, { headers: { 'User-Agent': 'SEQO-overlay' } });
+  const res = await fetch(url, { headers: { 'User-Agent': updater.UA } });
   if (!res.ok) throw new Error('wiki answered HTTP ' + res.status);
   const j = await res.json();
   const text = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
@@ -1607,7 +1628,7 @@ async function checkDataSources() {
   const url = 'https://eqlwiki.com/api.php?action=query&prop=revisions&rvprop=timestamp' +
               '&format=json&redirects=1&titles=' + encodeURIComponent(titles.join('|'));
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'SEQO-overlay' } });
+    const res = await fetch(url, { headers: { 'User-Agent': updater.UA } });
     if (!res.ok) return { error: 'wiki answered HTTP ' + res.status };
     const j = await res.json();
     const revByTitle = {};
@@ -1698,7 +1719,7 @@ function wikitextToText(src) {
 async function fetchGuidePage(title) {
   const url = 'https://eqlwiki.com/api.php?action=parse&prop=wikitext|revid&format=json&redirects=1&page=' +
               encodeURIComponent(title);
-  const res = await fetch(url, { headers: { 'User-Agent': 'SEQO-overlay' } });
+  const res = await fetch(url, { headers: { 'User-Agent': updater.UA } });
   if (!res.ok) throw new Error('wiki answered HTTP ' + res.status);
   const j = await res.json();
   const wikitext = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
@@ -1788,7 +1809,7 @@ async function fetchUnlocksFromWiki() {
   const title = DATA_SOURCES[1].meta.sources[0];
   const url = 'https://eqlwiki.com/api.php?action=parse&prop=wikitext&format=json&redirects=1&page=' +
               encodeURIComponent(title);
-  const res = await fetch(url, { headers: { 'User-Agent': 'SEQO-overlay' } });
+  const res = await fetch(url, { headers: { 'User-Agent': updater.UA } });
   if (!res.ok) throw new Error('wiki answered HTTP ' + res.status);
   const j = await res.json();
   const text = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
@@ -1852,7 +1873,7 @@ function parsePosText(text) {
 
 async function fetchPosFromSite() {
   const res = await fetch('https://eqlegendstools.com/plane-of-sky-quests/',
-                          { headers: { 'User-Agent': 'SEQO-overlay' } });
+                          { headers: { 'User-Agent': updater.UA } });
   if (!res.ok) throw new Error('eqlegendstools answered HTTP ' + res.status);
   const rows = parsePosText(htmlToTextStream(await res.text()));
   const classes = new Set(rows.map(r => r[0]));

@@ -12,24 +12,24 @@
   const RE_TS = /^\[\w{3} (\w{3}) (\d{2}) (\d{2}):(\d{2}):(\d{2}) (\d{4})\] (.*)$/;
 
   // ---------- combat lines ----------
-  const VERBS = '(?:hits?|slash(?:es)?|pierc(?:es|e)|crush(?:es)?|bash(?:es)?|kick(?:s)?|punch(?:es)?|backstab(?:s)?|bit(?:es|e)|claw(?:s)?|gor(?:es|e)|maul(?:s)?|reav(?:es|e)|cleav(?:es|e)|sting(?:s)?|strik(?:es|e)|smash(?:es)?|slic(?:es|e)|rend(?:s)?|frenz(?:ies|y)(?: on)?)';
+  const VERBS = '(?:hits?|slash(?:es)?|pierc(?:es|e)|crush(?:es)?|bash(?:es)?|kick(?:s)?|punch(?:es)?|backstab(?:s)?|bit(?:es|e)|claw(?:s)?|gor(?:es|e)|maul(?:s)?|reav(?:es|e)|cleav(?:es|e)|sting(?:s)?|strik(?:es|e)|shoot(?:s)?|smit(?:es|e)|smash(?:es)?|slic(?:es|e)|rend(?:s)?|frenz(?:ies|y)(?: on)?)';
 
   // "You hit Drelzna for 222 points of magic damage by Spirit Tap." (Critical)
   const RE_SPELL = new RegExp('^(.+?) hit (.+?) for (\\d+) points? of ([\\w-]+) damage by (.+?)\\.(?: \\((.+?)\\))?$');
   // "You slash Drelzna for 49 points of damage." / "Drelzna pierces YOU for 28 points of damage." (Critical)
   const RE_MELEE = new RegExp('^(.+?) ' + VERBS + ' (.+?) for (\\d+) points? of damage\\.(?: \\((.+?)\\))?$');
   // "Drelzna has taken 22 damage from Tainted Breath by Gabn."
-  const RE_DOT = /^(.+?) has taken (\d+) damage from (.+?) by (.+?)\.$/;
+  const RE_DOT = /^(.+?) has taken (\d+) damage from (.+?) by (.+?)\.(?: \((.+?)\))?$/;
   // "A shin ghoul knight has taken 25 damage from your Heart Flutter."
-  const RE_DOT_YOURS = /^(.+?) has taken (\d+) damage from your (.+?)\.$/;
+  const RE_DOT_YOURS = /^(.+?) has taken (\d+) damage from your (.+?)\.(?: \((.+?)\))?$/;
   // "You have taken 15 damage from Blood Claw by Drelzna."
-  const RE_DOT_ON_YOU = /^You have taken (\d+) damage from (.+?) by (.+?)\.$/;
+  const RE_DOT_ON_YOU = /^You have taken (\d+) damage from (.+?) by (.+?)\.(?: \((.+?)\))?$/;
   // "YOU are burned by a skeleton's flames for 7 points of non-melee damage!"
   const RE_NONMELEE = /^(.+?) (?:is|are) \w+ by (.+?) for (\d+) points? of non-melee damage[.!]$/;
   // "You healed Maeel for 222 hit points by Spirit Tap." / "... for 0 (20) hit points by Courage."
   const RE_HEAL = /^(.+?) healed (.+?) for (\d+)(?: \((\d+)\))? hit points?(?: by (.+?))?\.$/;
   // misses: "You try to reave Drelzna, but miss!" / "Drelzna tries to pierce YOU, but YOU parry!"
-  const RE_MISS = new RegExp('^(.+?) tr(?:ies|y) to ' + VERBS.replace('(?: on)?', '') + ' (.+?), but .+[.!]$');
+  const RE_MISS = new RegExp('^(.+?) tr(?:ies|y) to ' + VERBS.replace('(?: on)?', '') + ' (.+?), but .+?[.!](?: \\((.+?)\\))?$');
   const RE_SLAIN_BY_YOU = /^You have slain (.+?)!$/;
   const RE_SLAIN = /^(.+?) ha(?:s|ve) been slain by (.+?)!$/;
   const RE_YOU_SLAIN = /^You have been slain by (.+?)!$/;
@@ -55,6 +55,10 @@
   const RE_DESTROYED = /^You successfully destroyed (\d+) (.+?)\.$/;
   // "Fright scowls at you, ready to attack -- looks like it would wipe the floor with you! (Lvl: 55)"
   const RE_CONSIDER = /^(.+?) (?:scowls|glares|glowers|regards|looks|judges|scoffs|considers)\b.*\(Lvl: (\d+)\)[.!]?$/;
+
+  // Hit suffixes stack modifiers: "(Riposte Critical)", "(Critical Double Bow Shot)",
+  // "(Finishing Blow)"... Only the word Critical makes it a crit.
+  const isCrit = (mods) => !!mods && /\bCritical\b/.test(mods);
 
   const COIN_VALUES = { platinum: 1000, gold: 100, silver: 10, copper: 1 };
   function parseCoins(str) {
@@ -87,7 +91,7 @@
         return { type: 'selfdamage', when, attacker: isYou(m[1]) ? YOU : m[1],
                  amount: +m[3], spell: m[5], kind: 'spell' };
       return { type: 'damage', when, attacker: isYou(m[1]) ? YOU : m[1], target: isYou(m[2]) ? YOU : m[2],
-               amount: +m[3], spell: m[5], crit: !!m[6], kind: 'spell' };
+               amount: +m[3], spell: m[5], crit: isCrit(m[6]), kind: 'spell' };
     }
 
     if ((m = RE_MELEE.exec(msg))) {
@@ -95,24 +99,24 @@
         return { type: 'selfdamage', when, attacker: isYou(m[1]) ? YOU : m[1],
                  amount: +m[3], kind: 'melee' };
       return { type: 'damage', when, attacker: isYou(m[1]) ? YOU : m[1], target: isYou(m[2]) ? YOU : m[2],
-               amount: +m[3], crit: !!m[4], kind: 'melee' };
+               amount: +m[3], crit: isCrit(m[4]), mods: m[4] || '', kind: 'melee' };
     }
 
     if ((m = RE_DOT_ON_YOU.exec(msg)))
-      return { type: 'damage', when, attacker: m[3], target: YOU, amount: +m[1], spell: m[2], kind: 'dot' };
+      return { type: 'damage', when, attacker: m[3], target: YOU, amount: +m[1], spell: m[2], crit: isCrit(m[4]), kind: 'dot' };
 
     if ((m = RE_DOT_YOURS.exec(msg)))
-      return { type: 'damage', when, attacker: YOU, target: isYou(m[1]) ? YOU : m[1], amount: +m[2], spell: m[3], kind: 'dot' };
+      return { type: 'damage', when, attacker: YOU, target: isYou(m[1]) ? YOU : m[1], amount: +m[2], spell: m[3], crit: isCrit(m[4]), kind: 'dot' };
 
     if ((m = RE_DOT.exec(msg)))
       return { type: 'damage', when, attacker: isYou(m[4]) ? YOU : m[4], target: isYou(m[1]) ? YOU : m[1],
-               amount: +m[2], spell: m[3], kind: 'dot' };
+               amount: +m[2], spell: m[3], crit: isCrit(m[5]), kind: 'dot' };
 
     // "A spiroc banisher has taken 188 damage by Drifting Death."  (no caster named)
     // "You have taken 188 damage by Drifting Death."
-    if ((m = /^(.+?) ha(?:s|ve) taken (\d+) damage by (.+?)\.$/.exec(msg)))
+    if ((m = /^(.+?) ha(?:s|ve) taken (\d+) damage by (.+?)\.(?: \((.+?)\))?$/.exec(msg)))
       return { type: 'damage', when, attacker: '(unknown)', target: isYou(m[1]) ? YOU : m[1],
-               amount: +m[2], spell: m[3], kind: 'dot' };
+               amount: +m[2], spell: m[3], crit: isCrit(m[4]), kind: 'dot' };
 
     if ((m = RE_NONMELEE.exec(msg))) {
       // "... burned by YOUR flames ..." = your damage shield;
@@ -126,6 +130,14 @@
     if ((m = RE_HEAL.exec(msg)))
       return { type: 'heal', when, healer: isYou(m[1]) ? YOU : m[1], target: isYou(m[2]) ? YOU : m[2],
                amount: +m[3], potential: m[4] ? +m[4] : +m[3], spell: m[5] };
+
+    // "The Nektropos Library Key has been added to your key ring."
+    if ((m = /^(?:The )?(.+?) has been added to your key ring\.$/.exec(msg)))
+      return { type: 'keyring', when, item: m[1] };
+
+    // "You have completed achievement: Be Our Guest"
+    if ((m = /^You have completed achievement: (.+?)\.?$/.exec(msg)))
+      return { type: 'achievement', when, name: m[1] };
 
     if ((m = RE_MISS.exec(msg)))
       return { type: 'miss', when, attacker: isYou(m[1]) ? YOU : m[1], target: isYou(m[2]) ? YOU : m[2] };

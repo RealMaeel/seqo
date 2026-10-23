@@ -2,6 +2,9 @@
 <html>
 <head>
 <meta charset="utf-8">
+<!-- Everything SEQO shows is local: no remote scripts, frames or fetches from the page.
+     Network access stays in the main process. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>SEQO — Simple EQ Overlay</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1147,6 +1150,18 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         if (ev.pct !== undefined) { xp.pct += ev.pct; if (xp.dingSeen) xp.sinceDing += ev.pct; }
         else xp.noPct++;
         renderXpStrip();
+      } else if (ev.type === 'keyring') {
+        // counts as held right away, like live loot
+        const kk = normItemName(ev.item);
+        lootedLive.set(kk, (lootedLive.get(kk) || 0) + 1);
+        const kq = UNL.KEY_QUESTS && Object.values(UNL.KEY_QUESTS).find(q => q.keyItem && normItemName(q.keyItem) === kk);
+        if (kq) toast('🔑 ' + ev.item + ' — ' + kq.opens + ' is open to you!');
+        if (activeTab === 'quests' && qView === '__unlocks') renderQuests();
+      } else if (ev.type === 'achievement') {
+        achDoneLive.add(ev.name);
+        const kq = UNL.KEY_QUESTS && UNL.KEY_QUESTS[ev.name];
+        if (kq) toast('🔑 ' + ev.name + ' complete — ' + kq.opens + ' is open to you!');
+        if (activeTab === 'quests' && qView === '__unlocks') renderQuests();
       } else if (ev.type === 'levelup') {
         xp.level = ev.level;
         xp.dingSeen = true;
@@ -3612,7 +3627,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   // ---------- 🔓 Unlocks view ----------
   const unlExpanded = new Set();
-  const unlGroupOpen = { races: true, classes: true, deity: true };
+  const unlGroupOpen = { keys: true, races: true, classes: true, deity: true };
+  // achievements completed THIS session, from the log line — the export file
+  // only catches up at the next /outputfile achievements
+  const achDoneLive = new Set();
+  let keyAutoOpened = false;
 
   function unlBar(pctRaw) {
     const pct = Math.max(0, Math.min(100, Math.round(pctRaw * 100)));
@@ -4050,10 +4069,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (ofU) list.appendChild(ofU);
     if (!achSections().length) {
       setQuestEmpty('No achievements data yet.\n\nIn game, type  /outputfile achievements\n(and /outputfile faction for progress bars).\nSEQO reads the files automatically — no clicks needed.');
+      renderKeyQuests(list, null);
       list.appendChild(creditLine(UNL.CREDITS[0]));
       return;
     }
     setQuestEmpty('');
+    renderKeyQuests(list, achSection(/^General: Keys$/i));
 
     const groups = [
       { key: 'races', title: '🧬 Races', re: /Untapped Potential: Race/i, strip: /^Race Unlock - /i },
@@ -4226,6 +4247,105 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     bypass.textContent = 'Every unlock can also be bypassed with the matching Unlock Token from the store.';
     list.appendChild(bypass);
     list.appendChild(creditLine(UNL.CREDITS[0]));
+  }
+
+  // ---------- 🔑 Keys group (Unlocks view) ----------
+  // Structure from the game's "General: Keys" achievements; walkthroughs for
+  // the ones SEQO knows from unlocks.js KEY_QUESTS. Known walkthroughs show
+  // even without an export, so new players can find them.
+  function renderKeyQuests(list, sec) {
+    const KQ = UNL.KEY_QUESTS || {};
+    const achs = sec ? sec.achievements.slice() : [];
+    for (const name of Object.keys(KQ))
+      if (!achs.some(a => a.name === name)) achs.push({ name, done: false, objectives: [], unknown: !KQ[name].keyItem });
+    if (!achs.length) return;
+    const isDone = (a) => !!(a.done || achDoneLive.has(a.name) ||
+      (KQ[a.name] && KQ[a.name].keyItem && invHas(KQ[a.name].keyItem)));
+    // walkthroughs first, then the ones still to do
+    achs.sort((a, b) => (!!KQ[b.name] - !!KQ[a.name]) || (isDone(a) - isDone(b)));
+    if (!keyAutoOpened) {           // open an unfinished walkthrough once, so it's seen
+      keyAutoOpened = true;
+      for (const a of achs) if (KQ[a.name] && !isDone(a)) unlExpanded.add('keys|' + a.name);
+    }
+
+    const hdr = document.createElement('div');
+    hdr.className = 'l-divider';
+    hdr.style.cursor = 'pointer';
+    const doneN = achs.filter(isDone).length;
+    hdr.textContent = (unlGroupOpen.keys ? '▾ ' : '▸ ') + '🔑 Keys' + (sec ? ' — ' + doneN + '/' + achs.length + ' done' : '');
+    hdr.addEventListener('click', () => { unlGroupOpen.keys = !unlGroupOpen.keys; renderQuests(); });
+    list.appendChild(hdr);
+    if (!unlGroupOpen.keys) return;
+
+    for (const ach of achs) {
+      const kq = KQ[ach.name];
+      const done = isDone(ach);
+      const key = 'keys|' + ach.name;
+      const card = document.createElement('div');
+      card.className = 'q-quest' + (done ? ' done' : '');
+      const head = document.createElement('div');
+      head.className = 'q-head';
+      head.innerHTML = '<span>' + (unlExpanded.has(key) ? '▾' : '▸') + '</span><span class="rw"></span><span class="st"></span>';
+      head.querySelector('.rw').textContent = ach.name + (kq ? ' — opens ' + kq.opens : '');
+      const held = kq ? kq.steps.filter(st => st.item && invHas(st.item)).length : 0;
+      head.querySelector('.st').textContent = done ? 'DONE' : ach.unknown && !sec ? '' : kq ? 'guide' : '';
+      head.addEventListener('click', () => {
+        unlExpanded.has(key) ? unlExpanded.delete(key) : unlExpanded.add(key);
+        renderQuests();
+      });
+      card.appendChild(head);
+
+      if (unlExpanded.has(key)) {
+        const box = document.createElement('div');
+        box.className = 'q-items';
+        if (kq) {
+          const meta = document.createElement('div');
+          meta.className = 'q-npc';
+          meta.textContent = '📜 Task “' + kq.task + '” from ' + kq.giver + ' in ' + kq.zone + '.' +
+            (done ? '' : kq.keyItem ? '  Done once the key is on your key ring.'
+              : ach.unknown && !sec ? '  (Run /outputfile achievements to see whether you have it.)' : '');
+          box.appendChild(meta);
+          // the chain is sequential: holding a later step's item means every
+          // step before it is already behind you
+          let reached = -1;
+          kq.steps.forEach((st, i) => { if (st.item && invHas(st.item)) reached = i; });
+          kq.steps.forEach((st, i) => {
+            const have = done || i <= reached;
+            const row = document.createElement('div');
+            row.className = 'q-it' + (have ? ' have' : '');
+            row.innerHTML = '<span class="box">' + (have ? '☑' : '☐') + '</span><span class="nm"></span><span class="loc"></span>';
+            row.querySelector('.nm').textContent = (i + 1) + '. ' + st.text + (st.unverified ? ' (player reports — unverified)' : '');
+            row.querySelector('.loc').textContent = st.zone || '';
+            row.style.whiteSpace = 'normal';
+            if (st.item) row.title = invHas(st.item) && !done ? 'You hold ' + st.item : 'Item for this step: ' + st.item;
+            box.appendChild(row);
+          });
+          if (!done && held) {
+            const h = document.createElement('div');
+            h.className = 'q-npc';
+            h.textContent = '🎒 You hold ' + held + ' of the quest items right now.';
+            box.appendChild(h);
+          }
+          if (kq.source) {
+            const src = document.createElement('div');
+            src.style.cssText = 'color:#777;font-size:9.5px;margin-top:3px';
+            src.textContent = 'Route: ' + kq.source + '.';
+            box.appendChild(src);
+          }
+        } else {
+          // no walkthrough yet: the game's own objective text
+          for (const o of ach.objectives.filter(o => !/^This achievement/i.test(o.text))) {
+            const row = document.createElement('div');
+            row.className = 'q-it' + (o.done || done ? ' have' : '');
+            row.innerHTML = '<span class="box">' + (o.done || done ? '☑' : '☐') + '</span><span class="nm"></span>';
+            row.querySelector('.nm').textContent = o.text;
+            box.appendChild(row);
+          }
+        }
+        card.appendChild(box);
+      }
+      list.appendChild(card);
+    }
   }
 
   function selectPosQuest(reward) {
@@ -4803,18 +4923,25 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     ['ac', 'AC'], ['atk', 'ATK'], ['str', 'STR'], ['sta', 'STA'], ['agi', 'AGI'], ['dex', 'DEX'],
     ['wis', 'WIS'], ['int', 'INT'], ['cha', 'CHA'], ['haste', 'Haste'], ['ds', 'Dmg shield'],
     ['rune', 'Rune'], ['proc', 'Weapon proc'], ['acc', 'Accuracy'], ['meleedmg', 'Melee dmg'],
-    ['hate', 'Aggro'], ['move', 'Run speed'], ['res', 'Resists (all 5)']];
+    ['hate', 'Aggro'], ['move', 'Run speed'], ['spellhaste', 'Cast speed'], ['meleeheal', 'Heal per hit'],
+    ['haste2', 'Extra haste'], ['spelldmg', 'Spell dmg'], ['reflect', 'Spell reflect'], ['songmod', 'Song power'],
+    ['fizzle', 'Fewer fizzles'], ['res', 'Resists (all 5)']];
   // utility = presence effects, cast on demand: kept OUT of the gem lineup.
   // Illusions are NOT utility here — EQL illusions carry real stats (Ogre
   // Pirate HP +500), so they compete for gems like any buff, and the illusion
   // key stays a knockout key: you can only ever wear ONE illusion.
-  const UTIL_KEYS = [['invis', 'Invisibility'], ['seeinvis', 'See invisible'], ['lev', 'Levitate'],
-    ['eb', 'Water breathing'], ['vision', 'Night vision']];
+  const UTIL_KEYS = [['invis', 'Invisibility'], ['ivu', 'Invis vs undead'], ['iva', 'Invis vs animals'],
+    ['seeinvis', 'See invisible'], ['lev', 'Levitate'], ['eb', 'Water breathing'], ['vision', 'Night vision'],
+    ['magnify', 'Far sight'], ['bindsight', 'Bind sight'], ['scout', 'Scouting eye'],
+    ['sustenance', 'No food/drink needed'], ['magicweapon', 'Magic weapons'], ['faction', 'Faction song'],
+    ['fearimmune', 'Fear immunity'], ['hatedown', 'Lower aggro'], ['invuln', 'Invulnerability (emergency)'],
+    ['ward', 'Divine ward']];
   const UTIL_SET = new Set(UTIL_KEYS.map(u => u[0]));
   // no focus chosen -> "best overall": every stat counts, weighted for fighting
   const COMBAT_W = { hp: 1, ac: 1, haste: 1, atk: .9, acc: .9, meleedmg: .9, hpregen: .8,
     manaregen: .8, ds: .7, rune: .6, proc: .6, sta: .6, mana: .6, str: .5, dex: .5, agi: .4,
-    svF: .4, svC: .4, svM: .4, svD: .4, svP: .4, wis: .3, int: .3, hate: .3, move: .2, cha: .1 };
+    svF: .4, svC: .4, svM: .4, svD: .4, svP: .4, wis: .3, int: .3, hate: .3, move: .2, cha: .1,
+    spellhaste: .5, meleeheal: .5, haste2: .9, spelldmg: .5, reflect: .4, songmod: .4, fizzle: .1 };
   const statKeys = (sp) => Object.keys(sp.eff || {}).filter(k => !UTIL_SET.has(k));
   // the game's REAL stacking rule: two buffs block each other only when the
   // same slot number carries the same effect. Buff lines are slot-offset on
@@ -4839,12 +4966,15 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       case 105: v += level * 4; break;
       case 108: v += Math.floor(level / 3); break;
       case 109: v += Math.floor(level / 4); break;
+      case 110: v += Math.floor(level / 6); break;
       default: v = Math.max(v, Math.abs(max) || v);
     }
     if (max) v = Math.min(v, Math.abs(max));
     return v;
   }
-  const FLAG_KEYS = new Set(['proc', 'seeinvis', 'eb', 'lev', 'vision', 'invis', 'illusion']);
+  const FLAG_KEYS = new Set(['proc', 'seeinvis', 'eb', 'lev', 'vision', 'invis', 'illusion',
+    'ivu', 'iva', 'magnify', 'bindsight', 'scout', 'sustenance', 'magicweapon', 'faction', 'fearimmune',
+    'hatedown', 'invuln', 'ward']);
   let effLevelApplied = 0;
   function applyEffLevel(lvl) {
     if (!spellDB || effLevelApplied === lvl) return;
@@ -4855,7 +4985,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       for (const k of Object.keys(sp.eff)) if (FLAG_KEYS.has(k)) eff[k] = sp.eff[k];
       for (const [k, b, c, m, isCost] of sp.effRaw) {
         let v = calcSlotValue(b, c, m, lvl);
-        if (k === 'haste') { if (v <= 100) continue; v -= 100; }
+        if (k === 'haste' || k === 'haste2') { if (v <= 100) continue; v -= 100; }
         if (!v) continue;
         if (isCost) cost[k] = Math.max(cost[k] || 0, v);
         else eff[k] = Math.max(eff[k] || 0, v);
@@ -4870,14 +5000,22 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     svF: 'svFire', svC: 'svCold', svM: 'svMagic', svD: 'svDis', svP: 'svPoi',
     mit: 'Mitigation%', crit: 'Crit%', cripp: 'Crippling blow%', avoid: 'Avoidance', riposte: 'Riposte%',
     dodge: 'Dodge%', parry: 'Parry%', dualwield: 'Dual wield%', doubleatk: 'Double attack%',
-    mlifetap: 'Melee lifetap', delay: 'Atk speed%', hitchance: 'Hit%', mindmg: 'Min dmg%', slayundead: 'Slay undead' };
+    mlifetap: 'Melee lifetap', delay: 'Atk speed%', hitchance: 'Hit%', mindmg: 'Min dmg%', slayundead: 'Slay undead',
+    meleeheal: 'Heal per hit', spellhaste: 'Cast speed%', haste2: 'Extra haste%', spelldmg: 'Spell dmg%',
+    reflect: 'Spell reflect%', songmod: 'Song power%', fizzle: 'Fewer fizzles%' };
   // flag effects: the presence is the point, a number would be noise
-  const EFF_FLAGS = { seeinvis: 'See invis', lev: 'Levitate', eb: 'Water breathing', invis: 'Invisibility', illusion: 'Illusion' };
+  const EFF_FLAGS = { seeinvis: 'See invis', lev: 'Levitate', eb: 'Water breathing', invis: 'Invisibility', illusion: 'Illusion',
+    ivu: 'Invis vs undead', iva: 'Invis vs animals', magnify: 'Far sight', bindsight: 'Bind sight', scout: 'Scouting eye',
+    sustenance: 'No food/drink', magicweapon: 'Magic weapons', faction: 'Faction', fearimmune: 'Fear immunity',
+    hatedown: 'Lower aggro', invuln: 'Invulnerable', ward: 'Divine ward' };
   const RES_KEYS = ['svF', 'svC', 'svM', 'svD', 'svP'];
 
   function effVal(sp, key) {
     const e = sp.eff || {};
     if (key === 'res') return Math.max(e.svF || 0, e.svC || 0, e.svM || 0, e.svD || 0, e.svP || 0);
+    // cast speed only helps spells up to its level limit: Piety (≤39) is worth
+    // less than Faith (≤61) once your own spells outgrow it
+    if (key === 'spellhaste' && e.spellhaste && sp.hasteLv) return e.spellhaste * Math.min(1, sp.hasteLv / Math.max(1, myLevel()));
     return e[key] || 0;
   }
   const effEntryText = (sp, k, v) => k === 'proc'
@@ -4930,6 +5068,26 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     return Math.min(1, Math.pow(s / 3600, 0.4));   // 1h+ counts full; 10m ≈ half
   };
 
+  const POISON_CAP = { combat: 3, utility: 1 };
+  // rogue poisons, classified from the game's own descriptions: up to 3 combat
+  // poisons at once (one per stacking line — Cobra replaces Asp) + 1 utility
+  // poison picked for the fight (snare, slow, stun… — situational, so all listed)
+  function poisonPlan(model) {
+    const all = model.pool.filter(e => e.sp.poison);
+    if (!all.length) return null;
+    const procAmt = (e) => (e.sp.procInfo && e.sp.procInfo.amt) || 0;
+    const line = new Map();
+    for (const e of all.filter(x => x.sp.poison === 'combat')) {
+      const g = spellDB.stacking[e.sp.id];
+      const key = g ? 'g' + g.g : 'id' + e.sp.id;
+      const cur = line.get(key);
+      const rank = (x) => (spellDB.stacking[x.sp.id] || {}).r || 0;
+      if (!cur || rank(e) > rank(cur) || (rank(e) === rank(cur) && procAmt(e) > procAmt(cur))) line.set(key, e);
+    }
+    const combat = [...line.values()].sort((a, b) => procAmt(b) - procAmt(a) || b.lv - a.lv).slice(0, POISON_CAP.combat);
+    const utility = all.filter(x => x.sp.poison === 'utility').sort((a, b) => b.lv - a.lv || a.sp.n.localeCompare(b.sp.n));
+    return { combat, utility };
+  }
   function buildLoadout(trio, focus, gems, mode, songCap, longPref) {
     const model = plannerModel(trio);
     const cands = [];
@@ -4938,7 +5096,9 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     // utility-only spells (invis, levitate…) never spend a gem — see the
     // utility list — and /disc abilities live in the disciplines list;
     // a spell must bring at least one STAT to compete here
-    let rem = cands.filter(e => e.sp.eff && statKeys(e.sp).length && !isDisc(e.sp));
+    // rogue poisons are applied to the weapon, not memorized: they get their own
+    // section (poisonPlan) and never spend a gem here
+    let rem = cands.filter(e => e.sp.eff && statKeys(e.sp).length && !isDisc(e.sp) && !e.sp.poison);
     if (mode === 'spells') rem = rem.filter(e => !isSong(e.sp));
     else if (mode === 'songs') rem = rem.filter(e => isSong(e.sp));
     // "Resists" means ALL FIVE: each resist is its own goal, so the builder
@@ -5215,6 +5375,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         for (const [k, label] of UTIL_KEYS) {
           let best = null;
           for (const e of model.pool) {
+            if (isDisc(e.sp)) continue;            // /disc abilities have their own list
             const v = (e.sp.eff || {})[k];
             if (!v) continue;
             if (!best || v > (best.sp.eff[k] || 0) || (v === best.sp.eff[k] && e.lv > best.lv)) best = e;
@@ -5258,6 +5419,34 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
             d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
             if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
             root.appendChild(d);
+          }
+        }
+        // --- rogue poisons: applied to the weapon, never a gem ---
+        const pz = poisonPlan(model);
+        if (pz) {
+          const ph = document.createElement('div');
+          ph.className = 'l-divider';
+          ph.textContent = '🧪 POISONS — applied, no gem: up to ' + POISON_CAP.combat + ' combat + ' + POISON_CAP.utility + ' utility at once';
+          ph.title = 'Read from each poison\'s own description: combat poisons stack with each other (one per line — Cobra replaces Asp), utility poisons are one at a time.';
+          root.appendChild(ph);
+          const row = (e, tag) => {
+            const d = document.createElement('div');
+            d.className = 'q-it';
+            d.style.cursor = 'default';
+            d.innerHTML = '<span class="box">·</span><span class="nm"></span><span class="loc" style="flex:none"></span>';
+            d.querySelector('.nm').textContent = tag + e.sp.n + (e.sp.eff ? ' — ' + effText(e.sp) : '');
+            d.querySelector('.nm').style.whiteSpace = 'normal';
+            d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
+            if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
+            root.appendChild(d);
+          };
+          for (const e of pz.combat) row(e, '⚔ ');
+          if (pz.utility.length) {
+            const uh = document.createElement('div');
+            uh.className = 'q-npc';
+            uh.textContent = 'Utility — pick 1 for the fight:';
+            root.appendChild(uh);
+            for (const e of pz.utility) row(e, '🛠 ');
           }
         }
       }
@@ -6147,7 +6336,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           const cands = [];
           for (const list of model.groups.values()) cands.push(list[0]);
           cands.push(...model.solo);
-          const statful = cands.filter(e => e.sp.eff && statKeys(e.sp).some(k => COMBAT_W[k]) && !isDisc(e.sp));
+          // poisons are accounted for by their own section (poisonPlan), not gems
+          const statful = cands.filter(e => e.sp.eff && statKeys(e.sp).some(k => COMBAT_W[k]) && !isDisc(e.sp) && !e.sp.poison);
           const lo = buildLoadout(trio, [], 99, 'both', null);
           const pickedN = new Set(lo.map(e => e.sp.n));
           const missing = [];
@@ -6227,12 +6417,57 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           return mcv2 && durFactor(mcv2) === 1 && f > 0.6 && f < 0.85 &&
             Math.abs(Math.pow(600 / 3600, 0.4) - 0.488) < 0.01;
         })());
-        ok('audit spot-checks (Daring HP, HoT, accuracy, aggro)', (() => {
+        ok('audit spot-checks (Daring HP, accuracy, aggro)', (() => {
           const d = (spellByName.get('daring') || [])[0];
-          const ch = (spellByName.get('celestial healing') || [])[0];
           const he = (spellByName.get('hawk eye') || [])[0];
           const vd = (spellByName.get('voice of darkness') || [])[0];
-          return d && d.eff.hp > 0 && ch && ch.eff.hpregen > 0 && he && he.eff.acc > 0 && vd && vd.eff.hate > 0;
+          return d && d.eff.hp > 0 && he && he.eff.acc > 0 && vd && vd.eff.hate > 0;
+        })());
+        ok('heals are not buffs: HoTs + Echo heals stay out of the planner pool', (() => {
+          const heals = ['celestial healing', 'celestial elixir', 'echo of health', 'sacred echo', 'blooming heal'];
+          return heals.every(n => !((spellByName.get(n) || []).some(sp => sp.cls)));
+        })());
+        ok('invulnerability spells are not mistaken for heals (Harmshield, Divine Barrier)', (() => {
+          return ['harmshield', 'divine barrier', 'divine aura'].every(n => (spellByName.get(n) || []).some(sp => sp.cls));
+        })());
+        ok('audit decodes: extra haste, song power, spell dmg, reflect, all resists, fizzle', (() => {
+          const g = (n) => (spellByName.get(n) || []).find(sp => sp.cls) || {};
+          const e = (n) => g(n).eff || {};
+          return e('melody of ervaj').haste2 === 5 && e('amplification').songmod > 0 && e("rizlona's embers").spelldmg === 15 &&
+            e('bounce').reflect === 40 && e('resistant discipline').svM === 20 && e('resistant discipline').svP === 20 &&
+            e('intellectual superiority').fizzle === 6;
+        })());
+        ok('utility spells land in utility keys, mob-calming spells leave the pool', (() => {
+          const g = (n) => (spellByName.get(n) || []).find(sp => sp.cls);
+          const e = (n) => (g(n) || {}).eff || {};
+          return e('invisibility versus undead').ivu && e('invisibility versus animals').iva && e('eye of zomm').scout &&
+            e('divine aura').invuln && e('calming visage').hatedown &&
+            ['calm', 'lull', 'pacify', 'soothe', 'harmony of nature', 'promised renewal'].every(n => !g(n));
+        })());
+        ok('rogue poisons: classified from descriptions, no gems, ≤3 combat (Cobra over Asp) + utility list', (() => {
+          const g = (n) => (spellByName.get(n) || []).find(sp => sp.cls) || {};
+          if (g('cobra venom').poison !== 'combat' || g('paralytic poison').poison !== 'utility') return false;
+          const lo = buildLoadout(['ROG', '', ''], [], 20, 'both', 3, false);
+          if (lo.some(p => p.sp.poison)) return false;               // poisons never spend gems
+          const pz = poisonPlan(plannerModel(['ROG', '', '']));
+          const names = pz ? pz.combat.map(e => e.sp.n) : [];
+          return names.length >= 1 && names.length <= 3 && names.includes('Cobra Venom') && !names.includes('Asp Venom') &&
+            pz.utility.length >= 1;
+        })());
+        ok('cleric Blessing lines decode (heal per hit, cast speed)', (() => {
+          const g = (n) => (spellByName.get(n) || []).find(sp => sp.cls && sp.cls.CLR);
+          const pg = g('blessing of the page'), lc = g('blessing of the lord commander'), pi = g('blessing of piety'), fa = g('blessing of faith');
+          return pg && pg.eff && pg.eff.meleeheal === 1 && lc && lc.eff && lc.eff.meleeheal === 6 &&
+            pi && pi.eff && pi.eff.spellhaste === 10 && fa && fa.eff && fa.eff.spellhaste === 10 &&
+            pi.hasteLv === 39 && fa.hasteLv === 61;
+        })());
+        ok('regen BUFFS still count (Regeneration, Chloroplast)', (() => {
+          const r = (spellByName.get('regeneration') || [])[0], c = (spellByName.get('chloroplast') || [])[0];
+          return r && r.eff && r.eff.hpregen > 0 && c && c.eff && c.eff.hpregen > 0;
+        })());
+        ok('not-yet-in-Legends spells stay out of the pool (Temperance)', (() => {
+          const t = (spellByName.get('temperance') || [])[0], b = (spellByName.get('blessing of temperance') || [])[0];
+          return !(t && t.cls) && !(b && b.cls);
         })());
         console.log('SPELLVERIFY|DONE');
       })();

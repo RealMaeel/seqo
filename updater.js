@@ -4,6 +4,7 @@
 // when the user explicitly clicks Update (or enables auto-update on zone entry).
 
 const WIKI_API = 'https://eqlwiki.com/api.php';
+const UA = 'SEQO/' + require('./package.json').version + ' (personal overlay tool; https://github.com/RealMaeel/seqo)';
 const WIKI_PAGE = (title) => 'https://eqlwiki.com/' + encodeURIComponent(title.replace(/ /g, '_'));
 
 async function api(params) {
@@ -11,7 +12,7 @@ async function api(params) {
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   u.searchParams.set('format', 'json');
   const res = await fetch(u, {
-    headers: { 'User-Agent': 'SEQO/0.9 (personal overlay tool)' }
+    headers: { 'User-Agent': UA }
   });
   if (!res.ok) throw new Error('Wiki returned HTTP ' + res.status);
   return res.json();
@@ -349,7 +350,7 @@ async function fetchEqlToolsPages() {
   const out = { _updated: Date.now() };
   for (const [name, url] of EQLTOOLS_PAGES) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'SEQO/1.1 (personal overlay tool)' } });
+      const res = await fetch(url, { headers: { 'User-Agent': UA } });
       if (res.ok) out[name] = { url, lines: htmlToLines(await res.text()), updated: Date.now() };
     } catch { /* offline or page moved - skip */ }
     await new Promise(r => setTimeout(r, 400)); // be polite
@@ -605,7 +606,7 @@ async function fetchForgeRares(zoneName, aliases = []) {
   for (const slug of forgeSlugs(zoneName, aliases)) {
     try {
       const res = await fetch('https://eqlforge.com/zone/' + slug,
-                              { headers: { 'User-Agent': 'SEQO/2.2 (personal overlay tool)' } });
+                              { headers: { 'User-Agent': UA } });
       if (!res.ok) continue;
       let html = await res.text();
       // scope to the notable-NPC region when the heading is findable;
@@ -833,7 +834,6 @@ async function searchWiki(query) {
 // rates. MediaWiki auth is cookie-based, so we keep a small cookie jar.
 // ---------------------------------------------------------------------------
 const cookieJar = {};
-const UA = 'SEQO/1.1 (personal overlay tool; drop-rate contributions)';
 
 function cookieHeader() {
   return Object.entries(cookieJar).map(([k, v]) => k + '=' + v).join('; ');
@@ -923,7 +923,7 @@ module.exports = {
   getAllCategoryMembers, parseStatsBlock, classifyObtain, getEraBannerNames, getEraBanners, pageEraBanner,
   getRecentChangeTitles, parseGearPage,
   parseZoneDrops, parseZoneQuestSections, wikitextToText, extractTemplateParam,
-  wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE,
+  wikiLogin, getCsrfToken, wikiEdit, WIKI_PAGE, UA,
   getCategoryMembers, fetchPagesContent, fetchExaltIndex, fetchEffectItems,
   fetchEqlToolsPages, searchEqlTools, parseDropSections, parseDropZones, EQLTOOLS_PAGES,
   parseMobPage, parseTemplateParams

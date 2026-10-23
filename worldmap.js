@@ -52,6 +52,10 @@
     neriaka:     { name: 'Neriak Foreign Q.',  x: 950, y: 200 },
     neriakb:     { name: 'Neriak Commons',     x: 1010, y: 215 },
     neriakc:     { name: 'Neriak Third Gate',  x: 1010, y: 170 },
+    // Oct 22 2026 patch: Lake Nerius off Nektulos, Castle Nektropos beyond it
+    lakenerius:  { name: 'Lake Nerius',        x: 820, y: 195 },
+    nektropos:   { name: 'Nektropos Castle',   x: 775, y: 140 },
+    nektrunder:  { name: 'Nektropos Undercrofts', x: 855, y: 165 },
     lavastorm:   { name: 'Lavastorm',          x: 950, y: 145 },
     soldunga:    { name: "Solusek's Eye",      x: 1010, y: 105 },
     soldungb:    { name: "Nagafen's Lair",     x: 950, y: 85 },
@@ -118,6 +122,7 @@
     ['highpass', 'kithicor'], ['kithicor', 'commons'], ['commons', 'befallen'],
     ['commons', 'ecommons'], ['ecommons', 'nektulos'], ['nektulos', 'neriaka'],
     ['neriaka', 'neriakb'], ['neriakb', 'neriakc'], ['nektulos', 'lavastorm'],
+    ['nektulos', 'lakenerius'], ['lakenerius', 'nektropos'], ['lakenerius', 'nektrunder', 2],
     ['lavastorm', 'soldunga'], ['lavastorm', 'soldungb'], ['lavastorm', 'najena'],
     ['lavastorm', 'soltemple'], ['ecommons', 'freportw'], ['freportw', 'freportn'],
     ['freportw', 'freporte'], ['freportn', 'freporte'], ['ecommons', 'nro'],
