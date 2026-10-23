@@ -258,6 +258,34 @@
         { zone: 'Nektropos Castle', unverified: true, text: 'Take the key up to the library on the second floor.' }
       ],
       source: 'Harpsichord steps from the Oct 22 2026 launch-night run (SEQO maintainer log); library location from player reports'
+    },
+    'Nektropos Great Room Key': {
+      keyItem: 'Nektropos Great Room Key',
+      opens: 'the Nektropos great room',
+      task: 'The Betrayer',
+      giver: 'Lady Sileniu Everling',
+      zone: 'Nektropos Castle',
+      steps: [
+        { zone: 'Nektropos Castle', text: 'Hail Lady Sileniu Everling, say "he", then "swear" to get the task The Betrayer (it continues The Tragic Tale of House Everling).' },
+        { zone: 'Nektropos Castle', text: 'Find Plimptos (locked away, won\'t fight you). Hail him, then say "crimes" and "brought back"; he gives you a sword hilt.' },
+        { zone: 'Nektropos Castle', item: 'Nektropos Great Room Key', text: 'With the hilt, kill the spirits of six sisters — Deirdre, Jenni, Melanie, Crysta, Sheila and Elise Everling. Each kill updates the task. Then hail Alexa`s Handmaiden for the Nektropos Great Room Key (goes on your key ring).' },
+        { zone: 'Nektropos Castle', unverified: true, text: 'Sister kills only counted in Nektropos Castle 1 (Awakened) in our run, not on the regular floor.' },
+        { zone: 'Nektropos Castle', item: 'Nektropos Private Chamber Key', text: 'Kill Alexa Everling in the great room, the seventh sister. The task updates and she drops the Nektropos Private Chamber Key.' },
+        { zone: 'Nektropos Castle', unverified: true, text: 'Next, per the hilt: "Go find the Lord of this house and soak the blade in his blood."' }
+      ],
+      source: 'Walked through on Oct 22–23 2026 (SEQO maintainer log)'
+    },
+    'Nektropos Private Chamber Key': {
+      keyItem: 'Nektropos Private Chamber Key',
+      opens: 'a private chamber in Nektropos Castle',
+      task: 'The Betrayer',
+      giver: 'Lady Sileniu Everling',
+      zone: 'Nektropos Castle',
+      steps: [
+        { zone: 'Nektropos Castle', item: 'Nektropos Private Chamber Key', text: 'Drops from Alexa Everling (dropped on both of our kills). It stays in your bags; it does not go on the key ring. See the Great Room Key steps for reaching her during The Betrayer.' },
+        { zone: 'Nektropos Castle', unverified: true, text: 'Which door it opens isn\'t confirmed yet.' }
+      ],
+      source: 'Looted Oct 23 2026 (SEQO maintainer log + inventory export)'
     }
   };
 

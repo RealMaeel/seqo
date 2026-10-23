@@ -59,7 +59,7 @@ function spellFiles(gameRoot) {
 function cacheKeyFor(gameRoot) {
   const f = spellFiles(gameRoot);
   // the leading token is a parser version: bump it and every cache rebuilds
-  return ['v13', fileKey(f.spells), fileKey(f.strs), fileKey(f.stacking)].join('|');
+  return ['v14', fileKey(f.spells), fileKey(f.strs), fileKey(f.stacking)].join('|');
 }
 
 // ---------------------------------------------------------------------------
@@ -313,7 +313,11 @@ async function parseSpellFiles(gameRoot) {
   // months of logs while the weaker Resolution (CLR 42) shows 362 — a cleric
   // who could get Temperance at 40 would be casting it. Remove an entry the
   // day the spell goes live.
-  const NOT_IN_LEGENDS = new Set(['Temperance', 'Blessing of Temperance']);
+  // The three sub-51 disciplines (Focused Will 10, Resistant 30, Fearless 40)
+  // don't exist in Legends either — its stances cover that ground (Ed, Oct 23
+  // 2026; zero uses in all logs vs 700+ stance changes).
+  const NOT_IN_LEGENDS = new Set(['Temperance', 'Blessing of Temperance',
+    'Focused Will Discipline', 'Resistant Discipline', 'Fearless Discipline']);
   const keep = new Set();
   const pool = new Set();
   for (const [id, sp] of spells) {

@@ -4302,7 +4302,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           const meta = document.createElement('div');
           meta.className = 'q-npc';
           meta.textContent = '📜 Task “' + kq.task + '” from ' + kq.giver + ' in ' + kq.zone + '.' +
-            (done ? '' : kq.keyItem ? '  Done once the key is on your key ring.'
+            (done ? '' : kq.keyItem ? '  Done once you have the key (bags or key ring).'
               : ach.unknown && !sec ? '  (Run /outputfile achievements to see whether you have it.)' : '');
           box.appendChild(meta);
           // the chain is sequential: holding a later step's item means every
@@ -6386,13 +6386,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         ok('⏳ long-buff toggle raises average duration', loLong.length > 0 && meanDur(loLong) >= meanDur(loShort),
           Math.round(meanDur(loShort) / 60) + 'm → ' + Math.round(meanDur(loLong) / 60) + 'm');
         // disciplines: parsed, listed per class, never in the gem lineup
-        const fw = (spellByName.get('focused will discipline') || [])[0];
-        ok('Focused Will Discipline parses (ROG 10, HP/tick +3)',
-          !!(fw && fw.cls && fw.cls.ROG === 10 && fw.cls.WAR === 10 && fw.eff && fw.eff.hpregen === 3), fw && [fw.cls, fw.eff]);
+        // Legends has stances instead of the three low-level disciplines
+        ok('Focused Will / Resistant / Fearless kept out (stances cover them)',
+          !Object.values(spellDB.spells).some(sp => sp.cls && /^(Focused Will|Resistant|Fearless) Discipline$/.test(sp.n)));
         const rogModel = plannerModel(['SHD', 'ROG', 'BRD']);
         const rogDiscs = rogModel.pool.filter(e => isDisc(e.sp));
-        ok('ROG trio discipline list includes Focused Will', rogDiscs.some(e => e.sp.n === 'Focused Will Discipline'),
-          rogDiscs.map(e => e.cls + ':' + e.sp.n).slice(0, 8));
+        ok('ROG trio at 50 has no discipline list', rogDiscs.length === 0, rogDiscs.map(e => e.cls + ':' + e.sp.n));
         const loD = buildLoadout(['SHD', 'ROG', 'BRD'], [], 99, 'both', null);
         ok('disciplines never spend a gem', !loD.some(e => isDisc(e.sp)));
         // whole-file: every player-castable Discipline shows in its class list
@@ -6434,7 +6433,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           const g = (n) => (spellByName.get(n) || []).find(sp => sp.cls) || {};
           const e = (n) => g(n).eff || {};
           return e('melody of ervaj').haste2 === 5 && e('amplification').songmod > 0 && e("rizlona's embers").spelldmg === 15 &&
-            e('bounce').reflect === 40 && e('resistant discipline').svM === 20 && e('resistant discipline').svP === 20 &&
+            e('bounce').reflect === 40 && e('savagery').svM === 50 && e('savagery').svP === 50 &&
             e('intellectual superiority').fizzle === 6;
         })());
         ok('utility spells land in utility keys, mob-calming spells leave the pool', (() => {
