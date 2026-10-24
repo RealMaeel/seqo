@@ -184,18 +184,23 @@
   }
   .mrow.you .bar, .mrow.gold .bar { background: linear-gradient(90deg, rgba(214,168,40,.85), rgba(214,168,40,.35)); }
   .mrow .lbl {
-    position: relative; display: flex; justify-content: space-between; gap: 6px;
+    position: relative; display: flex; justify-content: flex-start; gap: 6px;
     padding: 0 6px; font-size: 11.5px; line-height: 19px;
     text-shadow: 0 1px 2px rgba(0,0,0,.9); white-space: nowrap;
   }
   .mrow .lbl .nm { overflow: hidden; text-overflow: ellipsis; }
-  .mrow .lbl .nums { color: #eee; flex: none; }
+  .mrow .lbl .nums { color: #eee; flex: none; margin-left: auto; } /* numbers always flush right, one column */
   .mrow .petbtn {
     flex: none; margin-left: 4px; padding: 0 4px; border-radius: 3px; cursor: pointer;
     font-size: 11px; line-height: 15px; opacity: .45; background: rgba(255,255,255,.08);
   }
   .mrow .petbtn:hover { opacity: 1; background: rgba(255,215,102,.25); }
   .mrow .petbtn.ispet { opacity: .95; background: rgba(125,255,160,.2); }
+  /* the mark-as-pet paw shows on hover (or once marked) — every row keeps its
+     slot so the numbers line up whether or not a paw is showing */
+  .mrow .petbtn { visibility: hidden; }
+  .mrow:hover .petbtn, .mrow .petbtn.ispet { visibility: visible; }
+  .mrow .petbtn.spacer { visibility: hidden !important; }
   .msub { padding: 1px 8px 3px 14px; font-size: 10px; line-height: 1.5; color: #b9c2d0;
           background: rgba(255,255,255,.03); border-radius: 0 0 4px 4px; flex: none; }
   .msub .srow { display: flex; gap: 8px; }
@@ -236,6 +241,7 @@
 
   /* ------- quests view ------- */
   #view-quests { font-size: 11.5px; }
+  #view-class { font-size: 11.5px; } /* same base as the other list views — lineup rows were inheriting the big base size */
   .q-cls {
     padding: 1px 7px; border-radius: 9px; font-size: 10.5px; cursor: pointer;
     background: rgba(255,255,255,.07); color: #bbb; border: 1px solid transparent;
@@ -524,14 +530,22 @@
               <span style="flex:none;display:flex;gap:3px" data-interactive>
                 <button class="kbtn gold" id="c-mode-fight" style="font-size:10px;padding:1px 7px">⚔ Fight</button>
                 <button class="kbtn" id="c-mode-session" title="Your whole-session damage by source (the old Spells tab)" style="font-size:10px;padding:1px 7px">Σ Session</button>
+                <button class="kbtn" id="c-mode-heals" title="Healing: every healer's output, overhealing, who got healed" style="font-size:10px;padding:1px 7px">✚ Heals</button>
               </span>
               <span id="c-title">&#9876; Combat</span>
               <span id="c-live">LIVE</span>
               <span id="c-time"></span>
-              <span style="flex:none;display:flex;gap:3px;align-items:center;margin-left:auto" data-interactive>
-                <select id="c-topn" title="How many players the copied line includes" style="background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10px;padding:0 2px"></select>
-                <button class="kbtn" id="c-copy" style="font-size:10px;padding:1px 6px" title="Copy a one-line DPS summary for in-game chat">&#128203; chat</button>
-                <button class="kbtn" id="c-copyfull" style="font-size:10px;padding:1px 6px" title="Copy the full multi-line breakdown for Discord">&#128203; full</button>
+              <span id="c-stance" style="display:none;font-size:10px;color:#cfe3cf;background:rgba(125,255,160,.1);border:1px solid rgba(125,255,160,.3);border-radius:8px;padding:0 6px;flex:none"></span>
+              <span style="flex:none;display:flex;gap:3px;align-items:center;margin-left:auto;position:relative" data-interactive>
+                <button class="kbtn" id="c-copy" style="font-size:10px;padding:1px 6px" title="Copy a one-line DPS summary for in-game chat">&#128203;</button>
+                <button class="kbtn" id="c-more" style="font-size:11px;padding:0 7px;line-height:15px" title="More: recent fights, chart, copy options">⋯</button>
+                <div id="c-menu" style="display:none;position:absolute;right:0;top:20px;z-index:44;background:rgba(14,14,20,.98);border:1px solid rgba(255,215,102,.35);border-radius:6px;padding:5px;flex-direction:column;gap:4px;min-width:170px;box-shadow:0 6px 18px rgba(0,0,0,.5)">
+                  <button class="kbtn" id="c-fights" style="font-size:10.5px;text-align:left">🕘 Recent fights</button>
+                  <button class="kbtn" id="c-chart-btn" style="font-size:10.5px;text-align:left">📈 DPS chart</button>
+                  <button class="kbtn" id="c-copyfull" style="font-size:10.5px;text-align:left" title="Copy the full multi-line breakdown for Discord">📋 Copy full breakdown</button>
+                  <span style="display:flex;gap:4px;align-items:center;font-size:10px;color:#99a">📋 chat line shows
+                    <select id="c-topn" title="How many players the copied line includes" style="background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10px;padding:0 2px"></select></span>
+                </div>
               </span>
             </div>
             <div id="c-you">
@@ -542,6 +556,8 @@
               <div class="stat"><b id="s-taken">0</b><span>Taken</span></div>
               <div class="stat"><b id="s-healed">0</b><span>Healed</span></div>
             </div>
+            <div id="c-viewing" data-interactive style="display:none;font-size:10px;color:#ffd766;margin:-2px 0 3px;cursor:pointer"></div>
+            <div id="c-chart" style="display:none;height:74px;margin-bottom:4px"></div>
             <div id="c-rows"></div>
             <div class="emptymsg" id="c-empty">No combat yet.<br>Pick your log file in &#9881; Settings,<br>then go hit something.</div>
           </div>
@@ -552,12 +568,14 @@
               <span style="flex:none;display:flex;gap:3px" data-interactive>
                 <button class="kbtn" id="b-mode-fight" title="Back to the live meter" style="font-size:10px;padding:1px 7px">⚔ Fight</button>
                 <button class="kbtn gold" id="b-mode-session" style="font-size:10px;padding:1px 7px">Σ Session</button>
+                <button class="kbtn" id="b-mode-heals" style="font-size:10px;padding:1px 7px" title="Healing: every healer's output, overhealing, who got healed">✚ Heals</button>
               </span>
               <span id="b-title">Your damage by source</span>
               <span id="b-swings" style="font-size:11px;color:#999;font-weight:400"></span>
               <span style="flex:none;display:flex;gap:3px;align-items:center;margin-left:auto" data-interactive>
                 <button class="kbtn" id="b-copy" style="font-size:10px;padding:1px 6px" title="Copy a one-line WHOLE-SESSION group DPS summary for in-game chat (uses the meter's top-N setting)">&#128203; chat</button>
                 <button class="kbtn" id="b-copyfull" style="font-size:10px;padding:1px 6px" title="Copy the full whole-session group breakdown for Discord">&#128203; full</button>
+                <button class="kbtn" id="b-history" style="font-size:10px;padding:1px 6px" title="Past sessions and loot runs: compare, personal bests, export to CSV / Markdown">📚 History</button>
               </span>
             </div>
             <div style="font-size:9.5px;color:#777;margin:-3px 0 4px">badges are buttons — click to cycle cast &#8594; proc &#8594; ability</div>
@@ -713,6 +731,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           <div id="bottombar" data-interactive>
             <button id="bb-run" class="bbbtn" title="Track loot, coin, motes and rare kills between Start and End — instance clears, camps, farm sessions. Same run as the Loot tab.">&#9654; Start run</button>
             <span id="bb-xp"></span>
+            <span id="bb-chat" title="Recent tells & group chat (saved between sessions)" style="display:none;cursor:pointer;flex:none;color:#d9a6ff">💬<span id="chat-badge" style="display:none;margin-left:2px;background:#ff6b6b;color:#fff;border-radius:7px;padding:0 4px;font-size:9px;font-weight:700"></span></span>
+            <span id="bb-death" title="Death recap: what hit you in the seconds before you went down" style="display:none;cursor:pointer;color:#ff9d9d;flex:none">☠ recap</span>
             <span id="bb-reset" title="Reset the session XP/AA pace — kills, percent and per-hour start over. Your level position, level and AA total stay.">&#8634; reset</span>
           </div>
 
@@ -724,6 +744,67 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
             <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
               <span style="flex:1;color:#667;font-size:9.5px">comes back next login — turn it off in &#9881; Alerts &amp; Sounds</span>
               <button class="kbtn" id="login-close">Dismiss</button>
+            </div>
+          </div>
+
+          <!-- one-time offer (2.6): read the old logs so History + going rates start full -->
+          <div id="oldlogs-modal" data-interactive style="position:absolute;left:50%;top:44px;transform:translateX(-50%);width:min(380px,92%);background:rgba(14,14,20,.98);border:1px solid rgba(255,215,102,.45);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.6);display:none;flex-direction:column;padding:11px 12px;z-index:47">
+            <div style="color:#ffd766;font-weight:600;font-size:13px">📥 Read your old logs once?</div>
+            <div id="oldlogs-text" style="color:#aab;font-size:10.5px;margin:4px 0 9px">SEQO can read the logs already on your PC (Logs and Logs\archive) to fill 📚 History with your past play sessions and to learn the going rate of everything people have sold in chat. It takes about a minute and only reads — nothing is changed.</div>
+            <div style="display:flex;gap:6px;justify-content:flex-end">
+              <button class="kbtn" id="oldlogs-later">Not now</button>
+              <button class="kbtn gold" id="oldlogs-go">Read them</button>
+            </div>
+          </div>
+
+          <!-- recent tells & chat (from the bottom bar's 💬) -->
+          <div id="chat-modal" data-interactive style="position:absolute;inset:26px 6px 30px;background:rgba(14,14,20,.98);border:1px solid rgba(217,166,255,.4);border-radius:8px;display:none;flex-direction:column;padding:7px 9px;z-index:48">
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+              <span id="chat-filters" style="display:flex;gap:3px;flex-wrap:wrap"></span>
+              <input id="chat-search" placeholder="search…" style="flex:1;min-width:70px;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:1px 4px;font-size:10.5px">
+              <button class="kbtn" id="chat-clear" title="Forget the saved tells / group / guild history on this PC">🗑</button>
+              <button class="kbtn" id="chat-close">Close</button>
+            </div>
+            <div id="chat-rows" style="flex:1;min-height:0;overflow-y:auto;font-size:11px;padding-right:4px"></div>
+            <div style="color:#667;font-size:9.5px;margin-top:3px">Click a name to copy <b>/tell Name</b>. Tells, group, guild and raid are kept on this PC.</div>
+          </div>
+
+          <!-- /consider card -->
+          <div id="con-card" data-interactive style="position:absolute;right:8px;top:30px;width:min(270px,70%);background:rgba(14,14,20,.97);border:1px solid rgba(125,200,255,.45);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.55);display:none;flex-direction:column;padding:7px 9px;z-index:45;font-size:10.5px;color:#ccd"></div>
+
+          <!-- recent fights -->
+          <div id="fh-modal" data-interactive style="position:absolute;left:50%;top:30px;transform:translateX(-50%);width:min(440px,94%);max-height:calc(100% - 44px);background:rgba(14,14,20,.98);border:1px solid rgba(255,215,102,.4);border-radius:8px;display:none;flex-direction:column;padding:8px 10px;z-index:49">
+            <div style="display:flex;align-items:center;gap:6px"><span style="color:#ffd766;font-weight:600;font-size:13px;flex:1">🕘 Recent fights</span><button class="kbtn" id="fh-close">Close</button></div>
+            <div id="fh-rows" style="flex:1;min-height:0;overflow-y:auto;font-size:10.5px;margin-top:4px"></div>
+            <div style="color:#667;font-size:9.5px;margin-top:4px">Click a fight to show it on the meter (with its chart). The last 25 are kept until SEQO closes; the session totals live in 📚 History.</div>
+          </div>
+
+          <!-- session history: saved sessions + runs, compare, export -->
+          <div id="hist-modal" data-interactive style="position:absolute;inset:24px 6px 6px;background:rgba(14,14,20,.98);border:1px solid rgba(255,215,102,.4);border-radius:8px;display:none;flex-direction:column;padding:8px 10px;z-index:49">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <span style="color:#ffd766;font-weight:600;font-size:13px;flex:1">📚 History</span>
+              <span id="hist-filter" style="display:flex;gap:3px"></span>
+              <button class="kbtn" id="hist-import" title="Read your old logs (Logs and Logs\archive) and add every past play session to History, plus every WTS / WTB price ever posted — once is enough">📥 Old logs</button>
+              <button class="kbtn" id="hist-csv" title="Save the ticked entries (or all shown) as a CSV for Excel / Google Sheets">⬇ CSV</button>
+              <button class="kbtn" id="hist-md" title="Save the ticked entries (or all shown) as a Markdown report for Discord / notes">⬇ Markdown</button>
+              <button class="kbtn" id="hist-close">Close</button>
+            </div>
+            <div id="hist-best" style="font-size:10px;color:#aab;margin:4px 0"></div>
+            <div id="hist-compare" style="display:none;font-size:10.5px;color:#cfe3cf;background:rgba(125,255,160,.07);border-radius:6px;padding:4px 6px;margin-bottom:4px"></div>
+            <div id="hist-rows" style="flex:1;min-height:0;overflow-y:auto;font-size:10.5px"></div>
+            <div style="color:#667;font-size:9.5px;margin-top:4px">Saved on this PC as you play (every minute, and when SEQO closes). Tick two to compare.</div>
+          </div>
+
+          <!-- death recap: the last seconds before you went down -->
+          <div id="recap-modal" data-interactive style="position:absolute;left:50%;top:30px;transform:translateX(-50%);width:min(440px,94%);max-height:calc(100% - 44px);background:rgba(20,10,12,.98);border:1px solid rgba(255,110,110,.5);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.6);display:none;flex-direction:column;padding:10px 12px;z-index:48">
+            <div id="recap-title" style="color:#ff9d9d;font-weight:600;font-size:13px"></div>
+            <div id="recap-sum" style="color:#ccb;font-size:10.5px;margin:3px 0 6px"></div>
+            <div id="recap-src" style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10.5px;margin-bottom:6px"></div>
+            <div id="recap-rows" style="flex:1;min-height:0;overflow-y:auto;font-size:10.5px;font-family:Consolas,monospace;color:#ddd"></div>
+            <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+              <span style="flex:1;color:#776;font-size:9.5px">reopen with ☠ on the bottom bar · turn off in ⚙ Alerts &amp; Sounds</span>
+              <button class="kbtn" id="recap-copy">📋 Copy</button>
+              <button class="kbtn" id="recap-close">Close</button>
             </div>
           </div>
 
@@ -751,6 +832,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     <div id="grip"></div>
 
     <div id="settings">
+      <input id="set-search" placeholder="🔍 find a setting…" spellcheck="false" style="width:100%;box-sizing:border-box;margin:0 0 6px;background:#26262f;color:#eee;border:1px solid #444;border-radius:5px;padding:3px 6px;font-size:11px">
       <details open>
         <summary>⚙ General <small>character, log, updates</small></summary>
         <label>Character</label>
@@ -808,6 +890,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         <label>Alert volume <span class="val" id="alertvol-val"></span></label>
         <input type="range" id="alertvol" min="0" max="100" step="5">
         <div class="setrow"><span>Buff fade alerts<span class="sub">when your watched buffs wear off</span></span><input type="checkbox" id="buffalerts"></div>
+        <div class="setrow"><span>Mez &amp; slow alerts<span class="sub">a mez breaks, or your mez/slow wears off a mob</span></span><input type="checkbox" id="ccalerts"></div>
+        <div class="setrow"><span>Death recap<span class="sub">when you die or get knocked out: the last hits and heals that led to it</span></span><input type="checkbox" id="deathrecap"></div>
         <div class="setrow"><span>Login file popup<span class="sub">on a fresh login: a popup with the /outputfile commands to copy, ticking off as the files land</span></span><input type="checkbox" id="loginremind"></div>
         <div class="setrow"><span>Flag best-in-slot drops<span class="sub">off: BiS stays a view you browse. On: BiS drops for YOUR class toast and get KEEP verdicts</span></span><input type="checkbox" id="bisflag"></div>
         <div class="row" style="margin-top:4px">
@@ -818,17 +902,55 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         <div id="mutelist" style="font-size:11px;color:#bbb;max-height:110px;overflow-y:auto"></div>
         <div class="hint" style="margin-top:2px">Every buff/fade alert seen this session shows up here — check one to mute it permanently.</div>
 
+        <label>Buff fade watch (rename fades to spell names)</label>
+        <textarea id="buffwatch" rows="3" spellcheck="false"
+          style="width:100%;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:4px;font-size:10.5px;resize:vertical"
+          placeholder="Breeze = The cool breeze fades."></textarea>
+        <div class="hint" style="margin-top:2px">One per line: <b>Spell = exact fade line from your log</b>.</div>
+      </details>
+
+      <details>
+        <summary>⚔ Combat &amp; timers <small>cooldowns, spell timers, consider card</small></summary>
+        <div class="setrow"><span>Cooldown timers<span class="sub">when you cast a spell with a long reuse time (from the game's spell file), a ⏳ chip counts down and pings when it's ready</span></span><input type="checkbox" id="cdtimers"></div>
+        <div class="setrow"><span>Only reuse times of at least<span class="sub">seconds — shorter recasts stay quiet</span></span><input type="number" id="cdmin" min="20" max="3600" step="10" style="width:58px;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px"></div>
+        <div class="setrow"><span>Consider card<span class="sub">when you /consider a mob: what SEQO knows — drops, hits, spells, respawn, what you still need from it</span></span><input type="checkbox" id="concard"></div>
         <label>Spell timers (countdown on the Meter when you cast)</label>
         <textarea id="spelltimercfg" rows="3" spellcheck="false"
           style="width:100%;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:4px;font-size:10.5px;resize:vertical"
           placeholder="Mesmerization = 42&#10;Enthrall = 1:12"></textarea>
         <div class="hint" style="margin-top:2px">One per line: <b>Spell = seconds</b> (or m:ss). Casting starts the countdown; recasting restarts it. Red at 6s, ping at zero.</div>
 
-        <label>Buff fade watch (rename fades to spell names)</label>
-        <textarea id="buffwatch" rows="3" spellcheck="false"
-          style="width:100%;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:4px;font-size:10.5px;resize:vertical"
-          placeholder="Breeze = The cool breeze fades."></textarea>
-        <div class="hint" style="margin-top:2px">One per line: <b>Spell = exact fade line from your log</b>.</div>
+      </details>
+
+      <details id="ca-details">
+        <summary>🗣 Custom alerts</summary>
+        <div class="hint" style="margin:2px 0 6px">Your own rules: when a line shows up in your log, SEQO pops a message, plays a sound, can say it out loud, and can start a timer. Plain text matches anywhere in the line; GINA tokens work: <b>{S}</b> any text, <b>{N}</b> a number, <b>{C}</b> your name. Use them in the message too ({1}, {2}… for regex groups).</div>
+        <div class="setrow"><span>Speak alerts aloud<span class="sub">for rules with 🗣 on — Windows' own voices, alert volume applies</span></span><input type="checkbox" id="tts-on"></div>
+        <div class="row" style="gap:4px;align-items:center">
+          <select id="tts-voice" style="flex:1;min-width:0;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px"></select>
+          <label style="margin:0;font-size:10px">speed</label>
+          <input type="range" id="tts-rate" min="0.6" max="1.8" step="0.1" style="width:70px">
+          <button id="tts-test" title="Say a test line">🗣</button>
+        </div>
+        <div id="ca-list" style="margin-top:6px;font-size:11px"></div>
+        <div class="row" style="gap:4px;flex-wrap:wrap;margin-top:5px">
+          <button id="ca-new">+ New alert</button>
+          <button id="ca-starter" title="Tells, summoned, stunned, group invites — built from real EQ Legends log lines">⭐ Starter set</button>
+          <button id="ca-import-open" title="Paste a SEQO share code or GINA trigger XML">📥 Paste</button>
+          <button id="ca-gina" title="Import a GINA package (.gtp) or exported triggers (.xml)">📂 GINA file…</button>
+          <button id="ca-share" title="Copy a share code for the ticked alerts (or all) — friends paste it with 📥 Paste">📤 Share</button>
+        </div>
+        <div id="ca-import" style="display:none;margin-top:5px">
+          <textarea id="ca-import-text" rows="3" spellcheck="false" placeholder="SEQO-ALERTS:… or GINA &lt;Trigger&gt; XML"
+            style="width:100%;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:4px;font-size:10.5px;resize:vertical"></textarea>
+          <div class="row" style="gap:4px"><button id="ca-import-go" style="flex:1">Import</button><button id="ca-import-cancel">Cancel</button></div>
+        </div>
+        <div id="ca-edit" style="display:none;margin-top:6px;padding:6px;border:1px solid rgba(255,215,102,.3);border-radius:6px"></div>
+        <label>Test a line</label>
+        <input id="ca-test" placeholder="paste a log line, e.g. Inky tells you, 'hi'" style="width:100%;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 4px;font-size:10.5px">
+        <div id="ca-test-out" class="hint" style="margin-top:2px"></div>
+        <label>Fired this session</label>
+        <div id="ca-log" style="font-size:10px;color:#aab;max-height:90px;overflow-y:auto"></div>
       </details>
 
       <details>
@@ -917,6 +1039,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 <script src="buffs.js"></script>
 <script src="slayer.js"></script>
 <script src="spellquests.js"></script>
+<script src="alerts.js"></script>
+<script src="prices.js"></script>
 <script>
   const BASE_W = 480, BASE_H = 320, TOOLBAR_H = 30;
   let settings = null;
@@ -1015,6 +1139,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   function handleLogLines(lines) {
     for (const l of lines) {
       noteLogTime(l);   // login detection for the outputfile reminder
+      if (caCompiled.length) checkCustomAlerts(l);
       // fade-watch: exact-line matches rename a fade to its spell name and
       // take priority over the generic fade handler below
       if (fadeWatch.size) {
@@ -1037,8 +1162,21 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         else noteMobSpell(ev.caster, ev.spell);
       } else if (ev.type === 'castfail') {
         onCastFail(ev.spell);
+        if (ev.reason === 'interrupted' || ev.reason === 'fizzled') cancelCooldown(ev.spell || (lastYouCast && lastYouCast.spell));
       }
+      if (ev.type === 'cast' && ev.caster === 'You') startCooldown(ev.spell);
       tracker.feed(ev);
+      noteHeal(ev);
+      noteChat(ev);
+      notePrices(ev);
+      noteProgress(ev);
+      if (ev.type === 'consider') {
+        if (ev.rare && !isUserRare(ev.mob) && !isNotRare(mobKey(ev.mob))) setUserRare(ev.mob, true);
+        showConsiderCard(ev);
+      }
+      noteRecap(ev);
+      noteStance(ev);
+      noteHistory(ev);
       checkAfk(ev);
       // learn spell alignment from what spells actually do
       if (ev.type === 'damage' && ev.spell) learnSpellClass(ev.spell, 'detrimental');
@@ -1062,7 +1200,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         lastCorpse = { mob: ev.target, when: ev.when };
         if (lootRun) { // run tracker: named/rare kills checklist
           const rk = mobKey(ev.target);
-          if (isRareMob(rk)) {
+          if (isRunRare(rk)) {
             lootRun.rares.set(rk, (lootRun.rares.get(rk) || 0) + 1);
             toast('⭐ Rare down: ' + rk);
             if (activeTab === 'loot') renderRunBox();
@@ -1110,7 +1248,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         else if (itemVerdicts[verdictKey(ev.item)])
           toast((verdict.kind === 'junk' ? '🗑 ' : '⭐ ') + ev.item + ' — ' + verdict.label + ' (' + verdict.reason + ')');
         else
-          toast('\u{1F4B0} ' + ev.item + (mob ? '  —  ' + mob : ''));
+          toast('\u{1F4B0} ' + ev.item + (mob ? '  —  ' + mob : '') + (priceTag(ev.item) ? '  ·  sells ' + priceTag(ev.item) : ''));
         lootDirty = true;
       } else if (ev.type === 'destroyed') {
         // it left your bags: the cleanup window and live counts follow
@@ -1244,9 +1382,15 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       } else if (ev.type === 'mezzed') {
         // AE mez: one landing line per target -> one labeled chip per mob
         onSpellLanded(mobKey(ev.target), ev.when);
+        mezSeen.set(mobKey(ev.target), Date.now());
       } else if (ev.type === 'awakened') {
         // mez broken by damage: only THAT mob's chip retires
         onSpellBroken(mobKey(ev.target));
+        const mk = mobKey(ev.target);
+        if (Date.now() - (mezSeen.get(mk) || 0) < 10 * 60000) {   // a mez we saw land
+          mezSeen.delete(mk);
+          ccAlert(mk, 'mez', '😳 Mez broke: ' + mk + (ev.by && ev.by !== mk ? ' (woken by ' + ev.by + ')' : '') + '!');
+        }
       } else if (ev.type === 'charmed') {
         // direct charm landing line: bulletproof charm identity
         setActiveCharm(mobKey(ev.target));
@@ -1256,6 +1400,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         // a tracked spell wore off one mob: retire that mob's timer chip
         onSpellWornOff(ev.spell, ev.target);
         // a charm spell wearing off IS a break, whether or not the pet ever spoke
+        const ccK = ccKindOf(ev.spell);
+        if (ccK && !CHARM_SPELLS.has(ev.spell)) {
+          const mk = mobKey(ev.target);
+          if (ccK === 'mez') mezSeen.delete(mk);
+          ccAlert(mk, ccK, (ccK === 'mez' ? '😴 Mez wore off: ' : '🐢 Slow wore off: ') + mk + ' (' + ev.spell + ')');
+        }
         if (CHARM_SPELLS.has(ev.spell)) {
           alertFX('💔 Charm broke: ' + mobKey(ev.target) + '!', 'charm');
           if (activeCharm === mobKey(ev.target)) setActiveCharm(null);
@@ -1359,6 +1509,33 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   const OBJECT_RE = /\b(chest|coffer|cache|crate|barrel|box|urn|vase|sack|corpse)s?\b/i;
   let bossSet = new Set();         // wiki-confirmed bosses/named for current zone
   let notRares = {};               // gameDB.notRares: { zone: [mob, ...] } — synced
+  // mobs YOU marked as rare (or the game called "a rare creature" on /con), per zone
+  const rareAdds = () => (settings && settings.rareAdds) || {};
+  const isUserRare = (key) => !!(rareAdds()[currentZone || ''] || []).some(n => n.toLowerCase() === String(key).toLowerCase());
+  function setUserRare(name, on) {
+    const z = currentZone || '';
+    const all = { ...rareAdds() };
+    const set = new Set(all[z] || []);
+    const k = mobKey(name);
+    for (const n of [...set]) if (n.toLowerCase() === k.toLowerCase()) set.delete(n);
+    if (on) { set.add(k); if (isNotRare(k)) setNotRare(k, false); }
+    all[z] = [...set];
+    save({ rareAdds: all });
+  }
+  // a named mob you actually fought: no article, capitalised, not an object, and it
+  // was on the enemy side of the fight (keeps players who died out of the count)
+  function looksNamedEnemy(name) {
+    const k = mobKey(name);
+    if (!k || /^(a|an|the) /i.test(k) || !/^[A-Z#]/.test(k) || OBJECT_RE.test(k)) return false;
+    const f = tracker.current || tracker.last;
+    return !!(f && (f.enemies.has(k) || f.enemies.has(name)));
+  }
+  // counts as a rare for the run checklist
+  function isRunRare(name) {
+    const k = mobKey(name);
+    if (isNotRare(k)) return false;
+    return isRareMob(k) || isUserRare(k) || looksNamedEnemy(k);
+  }
   window.overlay.getNotRares().then((n) => { notRares = n || {}; });
   const isNotRare = (key) =>
     ((notRares[currentZone || ''] || []).some(n => n.toLowerCase() === key.toLowerCase()));
@@ -1539,8 +1716,945 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     afk:   [[1250, .16, .04], [820, .16, .04], [1250, .16, .04], [820, .16, 0]], // hi-lo siren
     invis: [[500, .11, .04], [700, .11, .04], [950, .2, 0]],                     // rising sweep
     buff:  [[720, .14, .05], [540, .22, 0]],                                     // soft falling "boop"
-    heads: [[700, .12, .05], [950, .2, 0]]                                       // rising "look!" (kill-time need)
+    heads: [[700, .12, .05], [950, .2, 0]],                                      // rising "look!" (kill-time need)
+    cc:    [[980, .09, .03], [980, .09, .03], [560, .26, 0]],                    // quick double + low thud (mez/slow gone)
+    death: [[520, .2, .06], [390, .2, .06], [260, .45, 0]]                       // three falling notes (you died)
   };
+
+  // ---- crowd control: a mez breaking or a mez/slow wearing off a mob ----
+  // cc spells come from the game's own spell file (SPA 31 mez, SPA 11 < 100 slow)
+  const mezSeen = new Map();   // mob -> when it was last seen mesmerized
+  let ccLastAlert = new Map(); // mob|kind -> when, so one event never double-alerts
+  // ---- 📈 market prices: WTS / WTB offers read from chat ----
+  const PR = window.SEQOPrices;
+  const MARKET_CH = new Set(['chan', 'auction', 'shout', 'ooc', 'say']);
+  let pricePending = [], priceMed = new Map();   // key -> 30-day median ask (for the consider card)
+  function notePrices(ev) {
+    if (!PR || ev.type !== 'chat' || !MARKET_CH.has(ev.channel) || ev.from === 'You') return;
+    for (const o of PR.parseOffers(ev.text)) pricePending.push({ ...o, t: ev.when || Date.now(), from: ev.from, raw: ev.text });
+  }
+  setInterval(() => {
+    if (!pricePending.length) return;
+    try { window.overlay.pricesAdd(pricePending); } catch { /* main not ready */ }
+    pricePending = [];
+  }, 4000);
+  let priceName = new Map();   // key -> display name, for Lookup search
+  async function refreshPriceMed() {
+    try {
+      const r = await window.overlay.pricesQuery({ days: 30, limit: 5000 });
+      priceMed = new Map(((r && r.rows) || []).map(x => [x.key, x.median]));
+      priceName = new Map(((r && r.rows) || []).map(x => [x.key, x.item]));
+    } catch { /* no store yet */ }
+  }
+  setTimeout(refreshPriceMed, 4000);
+  setInterval(refreshPriceMed, 10 * 60000);
+  const ppText = (pp) => pp == null ? '?' : pp >= 1000 ? (pp / 1000).toFixed(pp % 1000 && pp < 100000 ? 1 : 0).replace(/\.0$/, '') + 'k' : pp + 'pp';
+  // the going rate for an item: 30-day median asking price, "" when unknown
+  const priceTag = (item) => { if (!PR) return ''; const v = priceMed.get(PR.keyOf(item)); return v ? '~' + ppText(v) : ''; };
+
+  // ---- 📈 progress this session: skill-ups and faction changes ----
+  const progSkills = new Map();    // skill -> { from, to, n }
+  const progFactions = new Map();  // faction -> { net, n, capped }
+  function noteProgress(ev) {
+    if (ev.type === 'skillup') {
+      const e = progSkills.get(ev.skill) || { from: ev.value - 1, to: ev.value, n: 0 };
+      e.to = Math.max(e.to, ev.value); e.n++; progSkills.set(ev.skill, e);
+      if (activeTab === 'breakdown' && bMode === 'session') breakdownDirty = true;
+    } else if (ev.type === 'faction') {
+      const e = progFactions.get(ev.faction) || { net: 0, n: 0, capped: '' };
+      e.net += ev.delta; e.n++; if (ev.capped) e.capped = ev.capped; progFactions.set(ev.faction, e);
+      if (activeTab === 'breakdown' && bMode === 'session') breakdownDirty = true;
+    }
+  }
+  function progressRows() {
+    return {
+      skills: [...progSkills.entries()].map(([k, e]) => ({ k, from: e.from, to: e.to, n: e.n })).sort((a, b) => b.n - a.n),
+      factions: [...progFactions.entries()].map(([k, e]) => ({ k, net: e.net, n: e.n, capped: e.capped })).sort((a, b) => Math.abs(b.net) - Math.abs(a.net))
+    };
+  }
+  function renderProgress(rowsEl) {
+    const p = progressRows();
+    if (!p.skills.length && !p.factions.length) return;
+    const dv = document.createElement('div');
+    dv.className = 'l-divider'; dv.style.marginTop = '6px';
+    dv.textContent = '📈 Progress this session';
+    rowsEl.appendChild(dv);
+    const line = (txt, title, color) => { const d = document.createElement('div'); d.className = 'q-it'; d.style.cursor = 'default'; d.innerHTML = '<span class="nm" style="white-space:normal"></span>'; d.querySelector('.nm').textContent = txt; if (color) d.querySelector('.nm').style.color = color; if (title) d.title = title; rowsEl.appendChild(d); };
+    if (p.skills.length) line('Skills: ' + p.skills.map(s => s.k + ' ' + s.from + '→' + s.to).join(' · '), p.skills.reduce((a, s) => a + s.n, 0) + ' skill-ups');
+    for (const f of p.factions.slice(0, 12))
+      line((f.net > 0 ? '▲ ' : f.net < 0 ? '▼ ' : '■ ') + f.k + ' ' + (f.net > 0 ? '+' : '') + f.net + (f.capped ? ' (maxed ' + (f.capped === 'better' ? 'ally' : 'out') + ')' : ''),
+        f.n + ' changes this session', f.net > 0 ? '#7dffa0' : f.net < 0 ? '#ff9d9d' : '#aab');
+  }
+
+  // ---- 🔎 consider card: what SEQO knows about the mob you just /con'd ----
+  let conTimer = null;
+  function showConsiderCard(ev) {
+    if (!(settings && settings.considerCard === true)) return;   // off unless you turn it on
+    const card = $('con-card');
+    const mk = mobKey(ev.mob);
+    const low = mk.toLowerCase();
+    const recs = Object.values((lootDB && lootDB.mobs) || {}).filter(m => (m.name || '').toLowerCase() === low);
+    const here = recs.find(m => m.zone === lootZone()) || recs[0] || null;
+    const kills = recs.reduce((a, m) => a + (m.kills || 0), 0);
+    const drops = new Map();
+    for (const m of recs) for (const d of Object.values(m.drops || {})) drops.set(d.name, (drops.get(d.name) || 0) + (d.count || 0));
+    for (const n of (zoneData && zoneData.named) || [])
+      if (mobKey(n.mob).toLowerCase() === low) for (const d of n.drops || []) if (!drops.has(d.item)) drops.set(d.item, null);
+    const maxHit = recs.reduce((a, m) => Math.max(a, m.maxHit || 0), 0);
+    const hitAvg = recs.reduce((a, m) => a + (m.hitTotal || 0), 0) / (recs.reduce((a, m) => a + (m.hitCount || 0), 0) || 1);
+    const spells = [...new Set(recs.flatMap(m => m.spells || []))];
+    const resp = resolveRespawn(mk);
+    card.innerHTML = '';
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;gap:6px;align-items:baseline';
+    const nm = document.createElement('span'); nm.style.cssText = 'color:#ffd766;font-weight:600;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    nm.textContent = mk + (ev.level ? ' · L' + ev.level : '');
+    const x = document.createElement('span'); x.textContent = '✕'; x.style.cssText = 'cursor:pointer;color:#778';
+    x.addEventListener('click', () => { card.style.display = 'none'; });
+    head.append(nm, x);
+    card.appendChild(head);
+    const add = (txt, color) => { const d = document.createElement('div'); d.textContent = txt; if (color) d.style.color = color; d.style.marginTop = '2px'; card.appendChild(d); return d; };
+    const tags = [ev.rare || isRareMob(mk) ? '⭐ rare' : '', ev.aggro ? '⚠ aggressive' : '', ev.difficulty || ''].filter(Boolean);
+    if (tags.length) add(tags.join(' · '), ev.aggro ? '#ffb27d' : '#aab');
+    if (kills || maxHit) add('Seen: ' + [kills ? kills + ' kill' + (kills > 1 ? 's' : '') : '', maxHit ? 'max hit ' + fmt(maxHit) + (hitAvg > 1 ? ', avg ' + fmt(hitAvg) : '') : ''].filter(Boolean).join(' · '));
+    if (resp && resp.s) add('Respawn: ' + fmtDur(resp.s) + respMark(resp));
+    if (spells.length) add('Casts: ' + spells.slice(0, 6).join(', ') + (spells.length > 6 ? '…' : ''));
+    // drops, with what you still need flagged first
+    if (drops.size) {
+      const rows = [...drops.entries()].map(([item, n]) => {
+        const v = lootVerdict(item);
+        const need = (v.kind === 'wish' || v.kind === 'keep') && !invHas(item);
+        return { item, n, need, why: v.reason, pct: n != null && kills ? Math.round(n * 100 / kills) : null, pp: PR ? priceMed.get(PR.keyOf(item)) : null };
+      }).sort((a, b) => (b.need - a.need) || ((b.n || 0) - (a.n || 0)));
+      add('Drops' + (kills ? ' (your ' + kills + ' kills)' : ' (wiki)') + ':', '#99a');
+      for (const r of rows.slice(0, 7)) {
+        const d = add((r.need ? '🎯 ' : '· ') + r.item + (r.pct != null ? ' ' + r.pct + '%' : '') + (r.pp ? ' · ~' + ppText(r.pp) : ''), r.need ? '#7dffa0' : '#ccd');
+        d.style.cursor = 'pointer';
+        d.title = r.need ? 'You still need this — ' + r.why : 'Click for the item card';
+        d.addEventListener('click', () => openItem(r.item));
+      }
+    } else if (!kills) add('No kills or drops recorded for this mob yet.', '#778');
+    card.style.display = 'flex';
+    clearTimeout(conTimer);
+    conTimer = setTimeout(() => { if (!card.matches(':hover')) card.style.display = 'none'; }, 15000);
+  }
+
+  // ---- 💬 chat history ----
+  let chatMsgs = [], chatUnread = 0, chatFilter = 'personal', chatPending = [];
+  const CHAT_PERSONAL = new Set(['tell', 'group', 'guild', 'raid']);
+  window.overlay.chatList().then((list) => {
+    if (Array.isArray(list)) chatMsgs = list.map(m => ({ ...m, saved: true })).concat(chatMsgs);
+    try { renderChatBadge(); } catch { /* bar not built yet */ }
+    if (chatOpen()) renderChat();
+  }).catch(() => {});
+  function noteChat(ev) {
+    if (ev.type !== 'chat') return;
+    const m = { t: ev.when || Date.now(), channel: ev.channel, chan: ev.chan, from: ev.from, to: ev.to, text: ev.text, char: charName || undefined };
+    chatMsgs.push(m);
+    if (chatMsgs.length > 4000) chatMsgs.splice(0, chatMsgs.length - 3000);
+    if (CHAT_PERSONAL.has(m.channel)) {
+      chatPending.push(m);
+      if (m.from !== 'You' && !chatOpen()) {
+        chatUnread++; renderChatBadge();
+        // a tell pops a quiet toast — unless one of your custom alerts already called it out
+        if (m.channel === 'tell' && !(caLastText && caLastText.includes(m.text)))
+          toast('💬 ' + m.from + ': ' + (m.text.length > 90 ? m.text.slice(0, 88) + '…' : m.text));
+      }
+    }
+    if (chatOpen()) chatDirty = true;
+  }
+  let chatDirty = false;
+  const chatOpen = () => { const c = $('chat-modal'); return !!c && c.style.display !== 'none'; };
+  function openChat() { $('chat-modal').style.display = 'flex'; $('chat-rows').dataset.seen = ''; renderChat(); }
+  setInterval(() => {
+    if (chatPending.length) { try { window.overlay.chatAdd(chatPending); } catch { /* main not ready */ } chatPending = []; }
+    if (chatDirty && chatOpen()) { chatDirty = false; renderChat(); }
+  }, 1500);
+  function renderChatBadge() {
+    const b = $('chat-badge');
+    if (!b) return;
+    b.style.display = chatUnread ? '' : 'none';
+    b.textContent = chatUnread > 99 ? '99+' : String(chatUnread);
+    // the 💬 sits on the bottom bar once there is any personal chat to look at
+    const has = chatUnread || chatMsgs.some(x => CHAT_PERSONAL.has(x.channel));
+    $('bb-chat').style.display = has ? '' : 'none';
+    updateBottomBar();
+  }
+  const CHAT_FILTERS = [['personal', 'Tells & group'], ['tell', 'Tells'], ['all', 'Everything']];
+  const chatColor = { tell: '#d9a6ff', group: '#7dc8ff', guild: '#7dffa0', raid: '#ffb27d', chan: '#bbb', say: '#ddd', shout: '#ff9d7d', ooc: '#9fd', auction: '#9fd' };
+  function renderChat() {
+    chatUnread = 0; renderChatBadge();
+    const fb = $('chat-filters'); fb.innerHTML = '';
+    for (const [k, label] of CHAT_FILTERS) {
+      const c = document.createElement('span');
+      c.className = 'qview-chip' + (chatFilter === k ? ' active' : '');
+      c.style.fontSize = '10px';
+      c.textContent = label;
+      c.addEventListener('click', () => { chatFilter = k; renderChat(); });
+      fb.appendChild(c);
+    }
+    const q = ($('chat-search').value || '').trim().toLowerCase();
+    const want = (m) => (chatFilter === 'all' || (chatFilter === 'personal' ? CHAT_PERSONAL.has(m.channel)
+      : chatFilter === 'say' ? (m.channel === 'say' || m.channel === 'shout' || m.channel === 'ooc') : m.channel === chatFilter))
+      && (!q || (m.text + ' ' + m.from + ' ' + (m.to || '') + ' ' + (m.chan || '')).toLowerCase().includes(q));
+    const box = $('chat-rows');
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 30;
+    box.innerHTML = '';
+    const shown = chatMsgs.filter(want).slice(-400);
+    if (!shown.length) { box.innerHTML = '<div class="q-npc" style="padding:6px">Nothing here yet' + (q ? ' for “' + q.replace(/[<>&]/g, '') + '”' : '') + '.</div>'; return; }
+    let lastDay = '';
+    for (const m of shown) {
+      const d = new Date(m.t), day = d.toLocaleDateString();
+      if (day !== lastDay) {
+        lastDay = day;
+        const dv = document.createElement('div'); dv.style.cssText = 'color:#667;font-size:9.5px;text-align:center;margin:3px 0'; dv.textContent = '— ' + day + ' —';
+        box.appendChild(dv);
+      }
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:1px 0;color:' + (chatColor[m.channel] || '#ddd') + (m.saved ? ';opacity:.8' : '');
+      const ts = document.createElement('span'); ts.style.cssText = 'color:#667;font-size:9.5px;margin-right:4px';
+      ts.textContent = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const who = document.createElement('span');
+      who.style.cssText = 'font-weight:600;cursor:pointer';
+      const label = m.channel === 'tell' ? (m.from === 'You' ? '→ ' + m.to : m.from) : m.channel === 'chan' ? '[' + m.chan + '] ' + m.from
+        : m.channel === 'say' || m.channel === 'shout' || m.channel === 'ooc' || m.channel === 'auction' ? m.from : '[' + m.channel + '] ' + m.from;
+      who.textContent = label + ': ';
+      const tellTo = m.channel === 'tell' && m.from === 'You' ? m.to : m.from;
+      who.title = tellTo && tellTo !== 'You' ? 'Click to copy /tell ' + tellTo : '';
+      who.addEventListener('click', () => { if (tellTo && tellTo !== 'You') { window.overlay.copyText('/tell ' + tellTo + ' '); toast('📋 Copied /tell ' + tellTo + ' — paste it in game'); } });
+      const tx = document.createElement('span'); tx.textContent = m.text; tx.style.userSelect = 'text';
+      row.append(ts, who, tx);
+      box.appendChild(row);
+    }
+    if (atBottom || !box.dataset.seen) { box.scrollTop = box.scrollHeight; box.dataset.seen = '1'; }
+  }
+
+  // ---- ✚ healing meter: every healer, overhealing, who got healed ----
+  // Only heals inside "your" circle count — you, your pets, and anyone seen
+  // fighting your fights' mobs — so another group healing nearby stays out.
+  const healNorm = (n) => (n || '?').replace(/^(A|An|The) /, (m) => m.toLowerCase());
+  const allies = new Set();
+  const healSession = new Map();
+  const healByFight = new WeakMap();   // tracker fight object -> Map(healer -> agg)
+  let healScope = 'fight';
+  function healAgg(map, healer) {
+    let a = map.get(healer);
+    if (!a) map.set(healer, a = { total: 0, pot: 0, count: 0, spells: new Map(), targets: new Map() });
+    return a;
+  }
+  function noteHeal(ev) {
+    if (ev.type === 'damage' && tracker.current) {
+      const t = ev.target === 'You' ? 'You' : healNorm(ev.target);
+      const a = ev.attacker === 'You' ? 'You' : healNorm(ev.attacker);
+      if (a !== 'You' && tracker.current.enemies.has(t) && !tracker.current.enemies.has(a) && a !== '(unknown)') allies.add(a);
+      return;
+    }
+    if (ev.type !== 'heal') return;
+    const healer = ev.healer === 'You' ? 'You' : healNorm(ev.healer);
+    let target = ev.target === 'You' ? 'You' : healNorm(ev.target);
+    if (/^(?:him|her|it|your)self$/i.test(target)) target = healer;
+    const ours = (n) => n === 'You' || n === charName || petNames.has(n) || allies.has(n) || session.players.has(n);
+    if (!ours(healer) && !ours(target)) return;
+    const pot = Math.max(ev.potential || ev.amount || 0, ev.amount || 0);
+    const add = (map) => {
+      const a = healAgg(map, healer);
+      a.total += ev.amount || 0; a.pot += pot; a.count++;
+      const sp = ev.spell || 'heal';
+      const e = a.spells.get(sp) || { total: 0, pot: 0, count: 0 };
+      e.total += ev.amount || 0; e.pot += pot; e.count++; a.spells.set(sp, e);
+      a.targets.set(target, (a.targets.get(target) || 0) + (ev.amount || 0));
+    };
+    add(healSession);
+    const f = tracker.current;
+    if (f) { if (!healByFight.has(f)) healByFight.set(f, new Map()); add(healByFight.get(f)); }
+    if (activeTab === 'breakdown' && bMode === 'heals') breakdownDirty = true;
+  }
+  let breakdownDirty = false;
+  setInterval(() => { if (breakdownDirty && activeTab === 'breakdown') { breakdownDirty = false; renderBreakdown(); } }, 1000);
+  function renderHeals(rowsEl) {
+    const fightObj = viewFight || tracker.current || tracker.last;
+    const map = healScope === 'session' ? healSession : (fightObj && healByFight.get(fightObj)) || new Map();
+    const durS = healScope === 'session' ? Math.max(1, session.durS + (tracker.current ? (tracker.current.lastCombat - tracker.current.start) / 1000 : 0))
+      : fightObj ? Math.max(1, (fightObj.lastCombat - fightObj.start) / 1000) : 1;
+    $('b-title').textContent = '✚ Healing — ' + (healScope === 'session' ? 'this session' : viewFight ? 'that fight' : 'this fight');
+    const rows = [...map.entries()].map(([n, a]) => ({ n, ...a })).sort((x, y) => y.total - x.total);
+    const total = rows.reduce((s, r) => s + r.total, 0), pot = rows.reduce((s, r) => s + r.pot, 0);
+    $('b-swings').textContent = rows.length ? fmt(total) + ' healed · ' + fmt(total / durS) + ' HPS · ' + (pot ? Math.round((pot - total) * 100 / pot) : 0) + '% overheal' : '';
+    rowsEl.innerHTML = '';
+    const chips = document.createElement('div');
+    chips.style.cssText = 'display:flex;gap:4px;margin-bottom:4px';
+    for (const [k, label] of [['fight', viewFight ? 'That fight' : 'This fight'], ['session', 'Session']]) {
+      const c = document.createElement('span');
+      c.className = 'qview-chip' + (healScope === k ? ' active' : '');
+      c.textContent = label;
+      c.addEventListener('click', () => { healScope = k; renderBreakdown(); });
+      chips.appendChild(c);
+    }
+    rowsEl.appendChild(chips);
+    if (!rows.length) {
+      const d = document.createElement('div'); d.className = 'q-npc';
+      d.textContent = 'No heals yet ' + (healScope === 'session' ? 'this session' : 'in this fight') + ' — heal lines ("X healed Y for N hit points") show up here, yours and your group\'s.';
+      rowsEl.appendChild(d); return;
+    }
+    const top = rows[0].total || 1;
+    for (const r of rows.slice(0, 15)) {
+      const div = document.createElement('div');
+      div.className = 'mrow' + (r.n === 'You' ? ' you' : '');
+      div.style.cursor = 'pointer';
+      div.innerHTML = '<div class="bar" style="width:' + Math.max(2, r.total / top * 100) + '%;background:rgba(125,255,160,.35)"></div><div class="lbl"><span class="nm"></span><span class="nums"></span></div>';
+      div.querySelector('.nm').textContent = (sessExpanded.has('h|' + r.n) ? '▾ ' : '▸ ') + (r.n === 'You' ? (charName || 'You') : r.n);
+      const oh = r.pot ? Math.round((r.pot - r.total) * 100 / r.pot) : 0;
+      div.querySelector('.nums').textContent = fmt(r.total) + ' (' + fmt(r.total / durS) + ') · ' + oh + '% over';
+      div.title = r.count + ' heals · ' + fmt(r.pot) + ' potential, ' + fmt(r.total) + ' landed';
+      div.addEventListener('click', () => { const k = 'h|' + r.n; sessExpanded.has(k) ? sessExpanded.delete(k) : sessExpanded.add(k); renderBreakdown(); });
+      rowsEl.appendChild(div);
+      if (sessExpanded.has('h|' + r.n)) {
+        const box = document.createElement('div');
+        box.style.cssText = 'font-size:10px;color:#bbb;padding:1px 0 4px 14px';
+        const sp = [...r.spells.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 6)
+          .map(([n, e]) => n + ' ' + fmt(e.total) + ' ×' + e.count + (e.pot ? ' (' + Math.round((e.pot - e.total) * 100 / e.pot) + '% over)' : ''));
+        const tg = [...r.targets.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n, v]) => (n === 'You' ? (charName || 'you') : n) + ' ' + fmt(v));
+        box.textContent = 'Spells: ' + sp.join(' · ') + '\nOn: ' + tg.join(' · ');
+        box.style.whiteSpace = 'pre-wrap';
+        rowsEl.appendChild(box);
+      }
+    }
+    // what YOU received
+    let recv = 0; const from = new Map();
+    for (const r of rows) { const v = (r.targets.get('You') || 0) + (charName ? r.targets.get(charName) || 0 : 0); if (v) { recv += v; from.set(r.n, v); } }
+    if (recv) {
+      const d = document.createElement('div'); d.className = 'q-npc'; d.style.marginTop = '4px';
+      d.textContent = 'You received ' + fmt(recv) + ': ' + [...from.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n, v]) => (n === 'You' ? 'yourself' : n) + ' ' + fmt(v)).join(' · ');
+      rowsEl.appendChild(d);
+    }
+  }
+
+  // ---- 🕘 fight history + 📈 DPS chart ----
+  let viewFight = null;    // an older fight shown on the meter, or null = live/last
+  function openFightHistory() {
+    const box = $('fh-rows'); box.innerHTML = '';
+    const list = [...(tracker.current ? [tracker.current] : []), ...tracker.history];
+    if (!list.length) box.innerHTML = '<div class="q-npc">No fights yet.</div>';
+    for (const f of list) {
+      const s = tracker.summary(f === tracker.current ? undefined : f);
+      if (!s) continue;
+      const row = document.createElement('div');
+      row.className = 'q-it';
+      row.style.cssText = 'cursor:pointer;align-items:center;border-bottom:1px solid rgba(255,255,255,.05);padding:2px 0';
+      const nm = document.createElement('span'); nm.className = 'nm';
+      const grand = s.rows.reduce((a, r) => a + r.total, 0);
+      nm.textContent = new Date(f.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' · ' + fmtDur(s.durS) + ' · ' + s.title +
+        (f === tracker.current ? ' · LIVE' : '') + (viewFight === f ? ' · shown' : '');
+      const loc = document.createElement('span'); loc.className = 'loc'; loc.style.flex = 'none';
+      loc.textContent = 'you ' + fmt(s.you.dps) + ' · group ' + fmt(grand / s.durS) + ' DPS' + (s.kills ? ' · ' + s.kills + ' kill' + (s.kills > 1 ? 's' : '') : '');
+      row.append(nm, loc);
+      row.addEventListener('click', () => {
+        viewFight = f === tracker.current ? null : f;
+        $('fh-modal').style.display = 'none';
+        setTab('meter');
+      });
+      box.appendChild(row);
+    }
+    $('fh-modal').style.display = 'flex';
+  }
+  // per-second damage for you (+ pets when merged) and the top 3 others, 5s smoothing
+  function renderFightChart(fightObj, s) {
+    const el = $('c-chart');
+    const on = !!(settings && settings.meterChart);
+    $('c-chart-btn').classList.toggle('gold', on);
+    $('c-chart-btn').textContent = on ? '📈 Hide DPS chart' : '📈 Show DPS chart';
+    if (!on || !fightObj || !s) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const t0 = fightObj.start, secs = Math.max(2, Math.ceil((fightObj.lastCombat - t0) / 1000) + 1);
+    const merge = settings && settings.mergePets !== false;
+    const petSet = new Set((s.petRows || []).map(p => p.name));
+    const names = ['You', ...s.rows.map(r => r.name).filter(n => n !== 'You' && !(merge && petSet.has(n))).slice(0, 3)];
+    const series = new Map(names.map(n => [n, new Float64Array(secs)]));
+    for (const e of fightObj.events) {
+      if (e.target === 'You' || !fightObj.enemies.has(e.target) || e.t == null) continue;
+      const who = merge && petSet.has(e.attacker) ? 'You' : e.attacker;
+      const arr = series.get(who);
+      if (!arr) continue;
+      const i = Math.min(secs - 1, Math.max(0, Math.floor((e.t - t0) / 1000)));
+      arr[i] += e.amount;
+    }
+    const W = 400, H = 70, win = 5;
+    let peak = 1;
+    const smooth = new Map();
+    for (const [n, arr] of series) {
+      const out = new Float64Array(secs);
+      for (let i = 0; i < secs; i++) { let sum = 0, c = 0; for (let j = Math.max(0, i - win + 1); j <= i; j++) { sum += arr[j]; c++; } out[i] = sum / c; }
+      smooth.set(n, out);
+      for (const v of out) if (v > peak) peak = v;
+    }
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('preserveAspectRatio', 'none');
+    svg.style.cssText = 'width:100%;height:100%;background:rgba(255,255,255,.03);border-radius:5px';
+    const COLORS = ['#ffd766', '#7dc8ff', '#ff9d7d', '#b59dff'];
+    let k = 0;
+    for (const [n, out] of smooth) {
+      const pts = [];
+      for (let i = 0; i < secs; i++) pts.push((i / (secs - 1) * W).toFixed(1) + ',' + (H - 3 - out[i] / peak * (H - 14)).toFixed(1));
+      const pl = document.createElementNS(NS, 'polyline');
+      pl.setAttribute('points', pts.join(' ')); pl.setAttribute('fill', 'none');
+      pl.setAttribute('stroke', COLORS[k % 4]); pl.setAttribute('stroke-width', n === 'You' ? '2' : '1.2');
+      pl.setAttribute('vector-effect', 'non-scaling-stroke');
+      svg.appendChild(pl);
+      const lb = document.createElementNS(NS, 'text');
+      lb.setAttribute('x', 4 + k * 98); lb.setAttribute('y', 10); lb.setAttribute('fill', COLORS[k % 4]); lb.setAttribute('font-size', '9');
+      lb.textContent = (n === 'You' ? (charName || 'You') : n).slice(0, 16);
+      svg.appendChild(lb);
+      k++;
+    }
+    const pk = document.createElementNS(NS, 'text');
+    pk.setAttribute('x', W - 4); pk.setAttribute('y', H - 4); pk.setAttribute('fill', '#778'); pk.setAttribute('font-size', '9'); pk.setAttribute('text-anchor', 'end');
+    pk.textContent = 'peak ' + fmt(peak) + ' DPS (5s avg) · ' + fmtDur(secs);
+    svg.appendChild(pk);
+    el.innerHTML = '';
+    el.appendChild(svg);
+  }
+
+  // ---- custom alerts: your own "when this line shows up" rules ----
+  const CA = window.SEQOAlerts;
+  let caCompiled = [], caCompiledFor = '';
+  const caFired = new Map();     // rule id -> { n, last }
+  let caLog = [];                // [{ t, name, text }] newest first
+  let caEditing = null;          // rule being edited (copy) or null
+  let caLastText = '';           // the last line a custom alert fired on
+  const caRules = () => (settings && Array.isArray(settings.customAlerts)) ? settings.customAlerts : [];
+  const caNewId = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  function rebuildCustomAlerts() {
+    const key = JSON.stringify(caRules()) + '|' + (charName || '');
+    if (key === caCompiledFor) return;
+    caCompiledFor = key;
+    caCompiled = caRules().filter(r => r && r.on !== false).map(r => ({ r, c: CA ? CA.compileRule(r, { charName }) : null })).filter(x => x.c);
+  }
+  function checkCustomAlerts(l) {
+    const i = l.indexOf('] ');
+    if (i < 0) return;
+    const msg = l.slice(i + 2);
+    for (const { r, c } of caCompiled) {
+      const hit = CA.matchLine(c, msg);
+      if (!hit) continue;
+      const now = Date.now(), f = caFired.get(r.id) || { n: 0, last: 0 };
+      if (now - f.last < (r.cooldown != null ? +r.cooldown : 2) * 1000) continue;
+      f.n++; f.last = now; caFired.set(r.id, f);
+      const ctx = { charName };
+      const text = CA.fill(r.msg || r.name || msg, hit, ctx, msg);
+      if (r.sound === 'none') toast(text, true);
+      else alertFX(text, CA.SOUNDS.includes(r.sound) ? r.sound : 'heads');
+      if (r.speak) speak(CA.fill(r.say || r.msg || r.name, hit, ctx, msg));
+      if (+r.timer > 0) startManualTimer(CA.fill(r.timerName || r.name || 'Timer', hit, ctx, msg), +r.timer);
+      caLog.unshift({ t: now, name: r.name || r.pattern, text });
+      caLastText = msg;
+      caLog = caLog.slice(0, 30);
+      renderCaLog();
+    }
+  }
+  // text to speech: Chromium's speechSynthesis uses the Windows voices (offline)
+  function speak(text) {
+    if (!text || (settings && settings.ttsOn === false) || !window.speechSynthesis) return;
+    const clean = String(text).replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, '').replace(/\s+/g, ' ').trim();
+    if (!clean) return;
+    try {
+      if (speechSynthesis.pending && speechSynthesis.getVoices) speechSynthesis.cancel();  // never queue up a backlog
+      const u = new SpeechSynthesisUtterance(clean);
+      const vn = settings && settings.ttsVoice;
+      const v = vn && speechSynthesis.getVoices().find(x => x.name === vn);
+      if (v) u.voice = v;
+      u.rate = (settings && settings.ttsRate) || 1.1;
+      u.volume = Math.min(1, ((settings && settings.alertVolume !== undefined ? settings.alertVolume : 60) / 100) * 1.4);
+      speechSynthesis.speak(u);
+    } catch { /* no voices */ }
+  }
+  function fillVoices() {
+    const sel = $('tts-voice');
+    if (!sel || !window.speechSynthesis) return;
+    const vs = speechSynthesis.getVoices();
+    const cur = (settings && settings.ttsVoice) || '';
+    sel.innerHTML = '';
+    const d = document.createElement('option'); d.value = ''; d.textContent = vs.length ? 'Default voice' : 'Default voice (none listed yet)';
+    sel.appendChild(d);
+    for (const v of vs) { const o = document.createElement('option'); o.value = v.name; o.textContent = v.name + (v.lang ? ' · ' + v.lang : ''); sel.appendChild(o); }
+    sel.value = cur;
+  }
+  if (window.speechSynthesis) speechSynthesis.onvoiceschanged = fillVoices;
+  function saveRules(rules) { save({ customAlerts: rules }); }
+  function renderCaLog() {
+    const el = $('ca-log');
+    if (!el) return;
+    el.textContent = '';
+    if (!caLog.length) { el.textContent = 'nothing yet'; return; }
+    for (const e of caLog) { const d = document.createElement('div'); d.textContent = new Date(e.t).toLocaleTimeString() + '  ' + e.name + ' → ' + e.text; el.appendChild(d); }
+  }
+  const caSel = new Set();
+  function renderCustomAlertList() {
+    const box = $('ca-list');
+    if (!box) return;
+    if (document.activeElement && box.contains(document.activeElement)) return;
+    box.innerHTML = '';
+    const rules = caRules();
+    if ($('ca-test') && $('ca-test').value.trim()) caTest();   // keep the test result in step with the rules
+    if (!rules.length) { box.innerHTML = '<div class="hint">No custom alerts yet — try ⭐ Starter set, or + New alert.</div>'; return; }
+    let group = null;
+    for (const r of rules) {
+      if ((r.group || '') !== group) {
+        group = r.group || '';
+        if (group) { const g = document.createElement('div'); g.style.cssText = 'color:#ffd766;font-size:10px;margin-top:4px'; g.textContent = group; box.appendChild(g); }
+      }
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:5px;align-items:center;padding:1px 0';
+      const on = document.createElement('input'); on.type = 'checkbox'; on.checked = r.on !== false; on.title = 'On / off';
+      on.addEventListener('change', () => saveRules(caRules().map(x => x.id === r.id ? { ...x, on: on.checked } : x)));
+      const sel = document.createElement('input'); sel.type = 'checkbox'; sel.checked = caSel.has(r.id); sel.title = 'Tick to share';
+      sel.style.opacity = '.55';
+      sel.addEventListener('change', () => { sel.checked ? caSel.add(r.id) : caSel.delete(r.id); });
+      const nm = document.createElement('span');
+      nm.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' + (r.on === false ? ';opacity:.5' : '');
+      const bad = CA && !CA.compileRule(r, { charName });
+      nm.textContent = (bad ? '⚠ ' : '') + (r.name || r.pattern) + (r.speak ? ' 🗣' : '') + (+r.timer > 0 ? ' ⏱' + r.timer + 's' : '');
+      nm.title = (bad ? 'This pattern is not a valid regex — fix it in ✎. ' : '') + 'Matches: ' + r.pattern + (r.regex ? ' (regex)' : '') + '\nShows: ' + (r.msg || '');
+      const f = caFired.get(r.id);
+      const cnt = document.createElement('span'); cnt.style.cssText = 'color:#778;font-size:9.5px;flex:none'; cnt.textContent = f ? f.n + '×' : '';
+      const ed = document.createElement('span'); ed.textContent = '✎'; ed.style.cssText = 'cursor:pointer;flex:none;padding:0 3px'; ed.title = 'Edit';
+      ed.addEventListener('click', () => openCaEditor(r));
+      row.append(on, sel, nm, cnt, ed);
+      box.appendChild(row);
+    }
+  }
+  function openCaEditor(rule) {
+    caEditing = rule ? { ...rule } : { id: caNewId(), name: '', pattern: '', regex: false, msg: '', sound: 'heads', speak: false, say: '', timer: 0, cooldown: 2, group: '', on: true };
+    const ed = $('ca-edit');
+    ed.style.display = 'block';
+    ed.innerHTML = '';
+    const field = (label, key, ph, type) => {
+      const w = document.createElement('div'); w.style.cssText = 'display:flex;gap:4px;align-items:center;margin:2px 0';
+      const lb = document.createElement('span'); lb.style.cssText = 'width:62px;flex:none;color:#aab;font-size:10px'; lb.textContent = label;
+      const inp = document.createElement('input'); inp.type = type || 'text'; inp.placeholder = ph || '';
+      inp.style.cssText = 'flex:1;min-width:0;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:10.5px';
+      inp.value = caEditing[key] != null ? caEditing[key] : '';
+      inp.addEventListener('input', () => { caEditing[key] = type === 'number' ? +inp.value : inp.value; caPreview(); });
+      w.append(lb, inp); ed.appendChild(w); return w;
+    };
+    const check = (wrap, label, key) => {
+      const l = document.createElement('label'); l.style.cssText = 'display:flex;gap:3px;align-items:center;margin:0;font-size:10px;flex:none';
+      const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!caEditing[key];
+      c.addEventListener('change', () => { caEditing[key] = c.checked; caPreview(); });
+      l.append(c, document.createTextNode(label)); wrap.appendChild(l);
+    };
+    field('Name', 'name', 'e.g. Tell received');
+    check(field('Line has', 'pattern', "e.g. {S} tells you, '{S1}'"), 'regex', 'regex');
+    field('Message', 'msg', 'e.g. 💬 {S}: {S1}');
+    const sw = document.createElement('div'); sw.style.cssText = 'display:flex;gap:4px;align-items:center;margin:2px 0';
+    const sl = document.createElement('span'); sl.style.cssText = 'width:62px;flex:none;color:#aab;font-size:10px'; sl.textContent = 'Sound';
+    const ss = document.createElement('select'); ss.style.cssText = 'flex:1;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px';
+    const SN = { rare: 'triple ping', repop: 'double ping', heads: 'rising "look!"', charm: 'descending uh-oh', afk: 'siren', invis: 'rising sweep', buff: 'soft boop', cc: 'double + thud', death: 'falling notes', none: 'no sound (toast only)' };
+    for (const k of CA.SOUNDS) { const o = document.createElement('option'); o.value = k; o.textContent = SN[k] || k; ss.appendChild(o); }
+    ss.value = caEditing.sound || 'heads';
+    ss.addEventListener('change', () => { caEditing.sound = ss.value; playPattern(ss.value); });
+    sw.append(sl, ss); ed.appendChild(sw);
+    check(field('Say', 'say', 'spoken text (blank = the message)'), '🗣 speak', 'speak');
+    field('Timer (s)', 'timer', '0 = none', 'number');
+    field('Cooldown', 'cooldown', 'seconds between alerts', 'number');
+    field('Group', 'group', 'optional, e.g. Raid');
+    const pv = document.createElement('div'); pv.id = 'ca-preview'; pv.className = 'hint'; pv.style.margin = '3px 0'; ed.appendChild(pv);
+    const bar = document.createElement('div'); bar.className = 'row'; bar.style.gap = '4px';
+    const mk = (t, fn, gold) => { const b = document.createElement('button'); b.textContent = t; if (gold) b.style.flex = '1'; b.addEventListener('click', fn); bar.appendChild(b); return b; };
+    mk('💾 Save', () => {
+      if (!String(caEditing.pattern || '').trim()) { toast('A rule needs some text to match'); return; }
+      if (!CA.compileRule(caEditing, { charName })) { toast('That regex has an error — check brackets / backslashes'); return; }
+      const rules = caRules().slice();
+      const i = rules.findIndex(x => x.id === caEditing.id);
+      if (!caEditing.name) caEditing.name = String(caEditing.pattern).slice(0, 40);
+      if (i >= 0) rules[i] = caEditing; else rules.push(caEditing);
+      caEditing = null; ed.style.display = 'none'; saveRules(rules);
+    }, true);
+    mk('Cancel', () => { caEditing = null; ed.style.display = 'none'; });
+    if (rule) {
+      const del = mk('🗑', () => {
+        if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Delete?'; return; }
+        saveRules(caRules().filter(x => x.id !== rule.id)); caEditing = null; ed.style.display = 'none';
+      });
+    }
+    ed.appendChild(bar);
+    caPreview();
+  }
+  function caPreview() {
+    const pv = $('ca-preview');
+    if (!pv || !caEditing) return;
+    const c = CA.compileRule(caEditing, { charName });
+    const sample = $('ca-test').value.trim();
+    if (!String(caEditing.pattern || '').trim()) { pv.textContent = 'Type the part of the log line to watch for.'; return; }
+    if (!c) { pv.textContent = '⚠ Not a valid regex yet.'; pv.style.color = '#ff9d9d'; return; }
+    pv.style.color = '';
+    if (!sample) { pv.textContent = 'Paste a log line into "Test a line" below to try it.'; return; }
+    const msg = sample.replace(/^\[[^\]]*\]\s*/, '');
+    const hit = CA.matchLine(c, msg);
+    pv.textContent = hit ? '✔ Matches → ' + CA.fill(caEditing.msg || caEditing.name || msg, hit, { charName }, msg) : '✘ Does not match the test line.';
+  }
+  function caTest() {
+    const sample = $('ca-test').value.trim(), out = $('ca-test-out');
+    caPreview();
+    if (!sample) { out.textContent = ''; return; }
+    const msg = sample.replace(/^\[[^\]]*\]\s*/, '');
+    const hits = [];
+    for (const r of caRules()) {
+      const c = CA.compileRule(r, { charName }), h = c && CA.matchLine(c, msg);
+      if (h) hits.push((r.on === false ? '(off) ' : '') + (r.name || r.pattern) + ' → ' + CA.fill(r.msg || r.name, h, { charName }, msg));
+    }
+    out.textContent = hits.length ? hits.join('  ·  ') : 'No rule matches this line.';
+  }
+  function addRules(list, label) {
+    if (!list || !list.length) { toast('Nothing to import'); return; }
+    const have = new Set(caRules().map(r => (r.pattern || '') + '|' + (r.msg || '')));
+    const fresh = list.filter(r => !have.has((r.pattern || '') + '|' + (r.msg || ''))).map(r => ({ cooldown: 2, sound: 'heads', ...r, id: caNewId(), on: r.on !== false }));
+    saveRules(caRules().concat(fresh));
+    toast('🗣 Added ' + fresh.length + ' alert' + (fresh.length === 1 ? '' : 's') + (label ? ' from ' + label : '') + (list.length > fresh.length ? ' (' + (list.length - fresh.length) + ' already there)' : ''));
+  }
+  (() => {
+    if (!$('ca-new')) return;
+    $('ca-new').addEventListener('click', () => openCaEditor(null));
+    $('ca-starter').addEventListener('click', () => addRules(CA.STARTER.map(r => ({ ...r })), 'the starter set'));
+    $('ca-import-open').addEventListener('click', () => { $('ca-import').style.display = 'block'; $('ca-import-text').focus(); });
+    $('ca-import-cancel').addEventListener('click', () => { $('ca-import').style.display = 'none'; });
+    $('ca-import-go').addEventListener('click', () => {
+      const t = $('ca-import-text').value;
+      const list = CA.decodeShare(t) || (/<Trigger>/i.test(t) ? CA.ginaToRules(t) : null);
+      if (!list) { toast('That is not a SEQO share code or GINA trigger XML'); return; }
+      addRules(list, /<Trigger>/i.test(t) ? 'GINA' : 'the share code');
+      $('ca-import-text').value = ''; $('ca-import').style.display = 'none';
+    });
+    $('ca-gina').addEventListener('click', async () => {
+      const r = await window.overlay.importGinaFile();
+      if (!r || r.canceled) return;
+      if (r.error) { toast('GINA import: ' + r.error); return; }
+      addRules(r.rules, r.file);
+    });
+    $('ca-share').addEventListener('click', () => {
+      const pick = caRules().filter(r => !caSel.size || caSel.has(r.id));
+      if (!pick.length) { toast('No alerts to share yet'); return; }
+      window.overlay.copyText(CA.encodeShare(pick));
+      toast('📤 Share code for ' + pick.length + ' alert' + (pick.length === 1 ? '' : 's') + ' copied — friends paste it with 📥 Paste');
+    });
+    $('ca-test').addEventListener('input', caTest);
+    $('tts-on').addEventListener('change', (e) => save({ ttsOn: e.target.checked }));
+    $('tts-voice').addEventListener('change', (e) => save({ ttsVoice: e.target.value }));
+    $('tts-rate').addEventListener('input', (e) => save({ ttsRate: +e.target.value }));
+    $('tts-test').addEventListener('click', () => { const was = settings.ttsOn; settings.ttsOn = true; speak('Tell from Brannoc'); settings.ttsOn = was; });
+    $('ca-details').addEventListener('toggle', () => { if ($('ca-details').open) { fillVoices(); renderCaLog(); } });
+  })();
+
+  // ---- session history: this play session + every ended run, saved to disk ----
+  const hist = { start: Date.now(), kills: 0, levels: 0, items: 0, motes: 0, zones: [], deaths: [] };
+  function noteHistory(ev) {
+    if (ev.type === 'death' && ev.target !== 'You') hist.kills++;
+    else if (ev.type === 'levelup') hist.levels++;
+    else if (ev.type === 'loot') { hist.items++; if (/\bmote\b/i.test(ev.item || '')) hist.motes++; }
+    else if (ev.type === 'zone') {
+      const z = cleanZoneName(ev.zone);
+      if (z && hist.zones[hist.zones.length - 1] !== z && !hist.zones.includes(z)) hist.zones.push(z);
+    }
+  }
+  function sessionSnapshot() {
+    const sources = [...session.sources.entries()].map(([source, e]) => ({ source, total: e.total, count: e.count, crits: e.crits, max: e.max }))
+      .sort((a, b) => b.total - a.total).slice(0, 12);
+    const petDmg = [...session.pets.values()].reduce((a, b) => a + b, 0);
+    const group = [...session.players.entries()].filter(([n]) => !petNames.has(n))
+      .map(([n, p]) => ({ n, total: p.total })).sort((a, b) => b.total - a.total).slice(0, 8);
+    return {
+      id: 's-' + hist.start, type: 'session', start: hist.start, end: Date.now(), char: charName || '',
+      zones: hist.zones.slice(0, 20), fights: session.fights, durS: session.durS,
+      dmg: session.total, dps: session.durS ? session.total / session.durS : 0,
+      maxHit: sources.reduce((m, s) => Math.max(m, s.max || 0), 0), petDmg, sources, group,
+      stances: stanceRows().map(r => ({ n: r.n, dps: r.dps, ms: r.ms, dmg: r.dmg })),
+      xpPct: xp.pct, levels: hist.levels, aa: xp.aaGained, kills: hist.kills,
+      coin: sessionCoin, items: hist.items, motes: hist.motes, deaths: hist.deaths.slice(0, 30),
+      skills: progressRows().skills.slice(0, 30), factions: progressRows().factions.slice(0, 30),
+      healed: [...healSession.entries()].map(([n, a]) => ({ n, total: a.total, pot: a.pot })).sort((a, b) => b.total - a.total).slice(0, 8)
+    };
+  }
+  function checkpointHistory() {
+    if (!session.fights && !sessionCoin && !hist.kills && !hist.items && !xp.pct && !progSkills.size) return;  // nothing worth saving yet
+    try { window.overlay.historyUpsert(sessionSnapshot()); } catch { /* main not ready */ }
+  }
+  setInterval(checkpointHistory, 60000);
+  window.addEventListener('beforeunload', checkpointHistory);
+  function saveRunToHistory(r) {
+    const items = [...r.items.entries()].sort((a, b) => b[1] - a[1]);
+    const motes = items.filter(([n]) => /\bmote\b/i.test(n)).reduce((a, [, c]) => a + c, 0);
+    try {
+      window.overlay.historyUpsert({
+        id: 'r-' + r.startedAt, type: 'run', start: r.startedAt, end: r.endedAt, char: charName || '',
+        zones: currentZone ? [currentZone] : [], coin: r.coin, items: items.reduce((a, [, c]) => a + c, 0), motes,
+        itemList: items.slice(0, 25).map(([n, c]) => ({ n, c })), rares: [...(r.rares ? r.rares.keys() : [])]
+      });
+    } catch { /* main not ready */ }
+  }
+
+  // History view
+  let histList = [], histFilter = 'all', histSel = new Set(), histOpen = null;
+  const histMins = (e) => Math.max(0, Math.round(((e.end || 0) - (e.start || 0)) / 60000));
+  const perHr = (v, e) => { const h = ((e.end || 0) - (e.start || 0)) / 3600000; return h > 0.05 ? v / h : null; };
+  async function openHistory() {
+    checkpointHistory();
+    await new Promise(r => setTimeout(r, 150));
+    try { histList = (await window.overlay.historyList()) || []; } catch { histList = []; }
+    if (!Array.isArray(histList)) histList = [];
+    $('hist-modal').style.display = 'flex';
+    renderHistory();
+  }
+  function histShown() { return histList.filter(e => histFilter === 'all' || e.type === histFilter); }
+  function renderHistory() {
+    const fb = $('hist-filter'); fb.innerHTML = '';
+    for (const [k, label] of [['all', 'All'], ['session', 'Sessions'], ['run', 'Runs']]) {
+      const c = document.createElement('span');
+      c.className = 'qview-chip' + (histFilter === k ? ' active' : '');
+      c.textContent = label;
+      c.addEventListener('click', () => { histFilter = k; renderHistory(); });
+      fb.appendChild(c);
+    }
+    const shown = histShown();
+    // personal bests across everything saved
+    const sess = histList.filter(e => e.type === 'session');
+    const best = (arr, f) => arr.reduce((b, e) => (f(e) || 0) > (b ? f(b) || 0 : 0) ? e : b, null);
+    const bd = best(sess.filter(e => (e.durS || 0) >= 60), e => e.dps), bh = best(sess, e => e.maxHit),
+          bx = best(sess.filter(e => histMins(e) >= 15), e => perHr(e.xpPct || 0, e)),
+          bc = best(histList.filter(e => histMins(e) >= 10), e => perHr(e.coin || 0, e));
+    const day = (e) => new Date(e.start).toLocaleDateString();
+    $('hist-best').textContent = histList.length ? '🏆 Bests — ' + [
+      bd && fmt(bd.dps) + ' DPS (' + day(bd) + ')', bh && 'max hit ' + fmt(bh.maxHit) + ' (' + day(bh) + ')',
+      bx && (perHr(bx.xpPct, bx)).toFixed(1) + '% XP/hr (' + day(bx) + ')', bc && fmtCoin(Math.round(perHr(bc.coin, bc))) + '/hr (' + day(bc) + ')'
+    ].filter(Boolean).join(' · ') : '';
+    // compare exactly two ticked entries
+    const cmp = $('hist-compare');
+    const two = histList.filter(e => histSel.has(e.id));
+    if (two.length === 2) {
+      const [a, b] = two.sort((x, y) => x.start - y.start);
+      const diff = (label, fa, fb2, f) => {
+        if (fa == null && fb2 == null) return null;
+        const d = (fb2 || 0) - (fa || 0);
+        return label + ' ' + f(fa || 0) + ' → ' + f(fb2 || 0) + (fa ? ' (' + (d >= 0 ? '+' : '') + Math.round(d * 100 / fa) + '%)' : '');
+      };
+      cmp.style.display = '';
+      cmp.textContent = '⚖ ' + new Date(a.start).toLocaleString() + ' vs ' + new Date(b.start).toLocaleString() + ': ' + [
+        a.type === 'session' && b.type === 'session' ? diff('DPS', a.dps, b.dps, fmt) : null,
+        diff('XP/hr', perHr(a.xpPct || 0, a), perHr(b.xpPct || 0, b), v => v.toFixed(1) + '%'),
+        diff('coin/hr', perHr(a.coin || 0, a), perHr(b.coin || 0, b), v => fmtCoin(Math.round(v)) || '0'),
+        diff('kills', a.kills, b.kills, v => String(v))
+      ].filter(Boolean).join(' · ');
+    } else cmp.style.display = 'none';
+    const box = $('hist-rows'); box.innerHTML = '';
+    if (!shown.length) { box.innerHTML = '<div class="q-npc" style="padding:8px">Nothing saved yet — sessions save themselves every minute once you fight, loot or gain XP, and every run saves when you end it.</div>'; return; }
+    for (const e of shown) {
+      const row = document.createElement('div');
+      row.className = 'q-it';
+      row.style.cssText = 'align-items:center;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);padding:2px 0';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = histSel.has(e.id); cb.style.flex = 'none';
+      cb.addEventListener('click', (ev) => { ev.stopPropagation(); cb.checked ? histSel.add(e.id) : histSel.delete(e.id); renderHistory(); });
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      const bits = [e.type === 'run' ? '⏹ Run' : '⚔ Session', new Date(e.start).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+        histMins(e) + 'm', e.char, (e.zones || []).slice(0, 2).join(', '), e.imported ? '📥' : ''];
+      nm.textContent = bits.filter(Boolean).join(' · ') + (e.note ? '  📝' : '');
+      const loc = document.createElement('span');
+      loc.className = 'loc'; loc.style.flex = 'none';
+      loc.textContent = [e.dps ? fmt(e.dps) + ' DPS' : '', e.xpPct ? '+' + e.xpPct.toFixed(1) + '% XP' : '', e.coin ? fmtCoin(e.coin) : '',
+        (e.deaths || []).length ? '☠' + e.deaths.length : ''].filter(Boolean).join(' · ');
+      row.append(cb, nm, loc);
+      row.addEventListener('click', () => { histOpen = histOpen === e.id ? null : e.id; renderHistory(); });
+      box.appendChild(row);
+      if (histOpen === e.id) box.appendChild(histDetail(e));
+    }
+  }
+  function histDetail(e) {
+    const d = document.createElement('div');
+    d.style.cssText = 'padding:4px 6px 8px 20px;color:#bbb;font-size:10.5px';
+    const lines = [];
+    if (e.type === 'session') {
+      lines.push(e.fights + ' fights · ' + fmtDur(e.durS || 0) + ' in combat · ' + fmt(e.dmg || 0) + ' damage' + (e.petDmg ? ' + ' + fmt(e.petDmg) + ' pet' : '') +
+        (e.maxHit ? ' · max hit ' + fmt(e.maxHit) : ''));
+      if ((e.sources || []).length) lines.push('Sources: ' + e.sources.slice(0, 6).map(s => s.source + ' ' + fmt(s.total)).join(' · '));
+      if ((e.stances || []).length) lines.push('Stances: ' + e.stances.map(s => stanceLabel(s.n) + ' ' + fmt(s.dps) + ' DPS').join(' · '));
+      if ((e.group || []).length) lines.push('Group: ' + e.group.slice(0, 6).map(g => g.n + ' ' + fmt(g.total)).join(' · '));
+      if ((e.healed || []).length) lines.push('Healing: ' + e.healed.slice(0, 5).map(h => (h.n === 'You' ? 'you' : h.n) + ' ' + fmt(h.total)).join(' · '));
+      if ((e.skills || []).length) lines.push('Skill-ups: ' + e.skills.slice(0, 8).map(k => k.k + ' ' + k.from + '→' + k.to).join(' · '));
+      if ((e.factions || []).length) lines.push('Faction: ' + e.factions.slice(0, 6).map(f => f.k + ' ' + (f.net > 0 ? '+' : '') + f.net).join(' · '));
+      lines.push('XP +' + (e.xpPct || 0).toFixed(1) + '%' + (e.levels ? ' · ' + e.levels + ' level(s)' : '') + (e.aa ? ' · ' + e.aa + ' AA' : '') +
+        ' · ' + (e.kills || 0) + ' kills · ' + (e.items || 0) + ' items' + (e.motes ? ' (' + e.motes + ' motes)' : ''));
+    } else {
+      lines.push((fmtCoin(e.coin) || 'no coin') + ' · ' + (e.items || 0) + ' items' + (e.motes ? ' · ' + e.motes + ' motes' : '') +
+        ((e.rares || []).length ? ' · rares: ' + e.rares.join(', ') : ''));
+      if ((e.itemList || []).length) lines.push('Loot: ' + e.itemList.slice(0, 12).map(i => i.n + (i.c > 1 ? ' ×' + i.c : '')).join(', '));
+    }
+    for (const x of e.deaths || []) lines.push('☠ ' + x);
+    for (const l of lines) { const p = document.createElement('div'); p.textContent = l; d.appendChild(p); }
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:6px;margin-top:4px;align-items:center';
+    const note = document.createElement('input');
+    note.placeholder = 'note (e.g. "new bow", "duo with Brannoc")'; note.value = e.note || '';
+    note.style.cssText = 'flex:1;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px;padding:2px 4px';
+    note.addEventListener('click', (ev) => ev.stopPropagation());
+    note.addEventListener('change', async () => { e.note = note.value; await window.overlay.historyNote(e.id, note.value); });
+    const del = document.createElement('button');
+    del.className = 'kbtn'; del.textContent = '🗑 Delete';
+    del.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Click again to delete'; return; }  // no confirm() dialogs in the overlay
+      await window.overlay.historyRemove(e.id);
+      histList = histList.filter(x => x.id !== e.id); histSel.delete(e.id); histOpen = null; renderHistory();
+    });
+    bar.append(note, del);
+    d.appendChild(bar);
+    return d;
+  }
+  async function exportHistory(format) {
+    const ids = histSel.size ? [...histSel] : histShown().map(e => e.id);
+    const r = await window.overlay.historyExport(ids, format);
+    if (r && r.ok) toast('⬇ Saved ' + r.count + ' entr' + (r.count === 1 ? 'y' : 'ies') + ' to ' + r.path);
+    else if (r && !r.canceled) toast('Export failed: ' + (r.error || 'unknown'));
+  }
+
+  // ---- stances (EQ Legends): which one you're in, and your damage in each ----
+  // "fighting time" per stance = time between your hits, gaps over 6s count 1s,
+  // so DPS compares stances fairly even with downtime between pulls
+  let curStance = null, curStanceSince = 0;
+  const stanceStats = new Map();   // stance -> { dmg, hits, ms, last }
+  function noteStance(ev) {
+    if (ev.type === 'stance') {
+      curStance = ev.stance; curStanceSince = ev.when || Date.now();
+      renderStanceChip();
+      if (activeTab === 'breakdown') renderBreakdown();
+      return;
+    }
+    if (ev.type !== 'damage' || ev.attacker !== 'You' || !curStance || !(ev.amount > 0)) return;
+    let st = stanceStats.get(curStance);
+    if (!st) stanceStats.set(curStance, st = { dmg: 0, hits: 0, ms: 0, last: 0 });
+    const t = ev.when || Date.now();
+    st.ms += st.last && t - st.last <= 6000 ? Math.max(0, t - st.last) : 1000;
+    st.last = t; st.dmg += ev.amount; st.hits++;
+  }
+  const stanceLabel = (n) => n.replace(/\b\w/g, c => c.toUpperCase());
+  function renderStanceChip() {
+    const el = $('c-stance');
+    if (!el) return;
+    if (!curStance) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.textContent = '🥋 ' + stanceLabel(curStance);
+    el.title = 'Current stance (from "You assume a ' + curStance + ' stance.") since ' + new Date(curStanceSince).toLocaleTimeString() +
+      '. Σ Session compares your damage per stance.';
+  }
+  function stanceRows() {
+    return [...stanceStats.entries()].map(([n, st]) => ({ n, ...st, dps: st.ms ? st.dmg / (st.ms / 1000) : 0 }))
+      .sort((a, b) => b.dps - a.dps);
+  }
+
+  // ---- death recap: a rolling window of what happened TO you ----
+  const RECAP_WINDOW = 12000;          // ms shown before the moment you went down
+  let recapBuf = [], lastRecap = null, recapPending = null;
+  const recapName = (n) => (n || '?').replace(/^(A|An|The) /, (m) => m.toLowerCase());
+  function noteRecap(ev) {
+    const t = ev.when || Date.now();
+    if (ev.type === 'damage' && ev.target === 'You' && ev.amount > 0)
+      recapBuf.push({ t, k: 'hit', who: recapName(ev.attacker || '(unknown)'), what: ev.spell || (ev.kind === 'proc' ? 'damage shield' : 'melee'), amt: ev.amount, crit: !!ev.crit });
+    else if (ev.type === 'selfdamage' && ev.amount > 0)
+      recapBuf.push({ t, k: 'hit', who: 'You', what: ev.spell || 'self', amt: ev.amount, crit: false });
+    else if (ev.type === 'heal' && ev.target === 'You' && ev.amount > 0)
+      recapBuf.push({ t, k: 'heal', who: recapName(ev.healer), what: ev.spell || 'heal', amt: ev.amount });
+    else if (ev.type === 'miss' && ev.target === 'You')
+      recapBuf.push({ t, k: 'miss', who: recapName(ev.attacker) });
+    else if (ev.type === 'ko') {
+      // a death line usually follows within a second; wait for it so the card names the killer
+      clearTimeout(recapPending && recapPending.timer);
+      recapPending = { t, timer: setTimeout(() => { const p = recapPending; recapPending = null; buildRecap(p.t, null, true); }, 2500) };
+    } else if (ev.type === 'death' && ev.target === 'You') {
+      const at = recapPending ? recapPending.t : t;
+      if (recapPending) { clearTimeout(recapPending.timer); recapPending = null; }
+      if (lastRecap && Math.abs(lastRecap.at - at) < 5000 && !lastRecap.killer && ev.killer) {
+        lastRecap.killer = ev.killer; lastRecap.died = true; renderRecap(); return;   // "You died." then "slain by"
+      }
+      if (lastRecap && Math.abs(lastRecap.at - at) < 5000) return;
+      buildRecap(at, ev.killer, false);
+    }
+    if (recapBuf.length > 600) recapBuf = recapBuf.slice(-400);
+    const cut = t - 60000;
+    if (recapBuf.length && recapBuf[0].t < cut) recapBuf = recapBuf.filter(e => e.t >= cut);
+  }
+  function buildRecap(at, killer, koOnly) {
+    const rows = recapBuf.filter(e => e.t >= at - RECAP_WINDOW && e.t <= at + 1000);
+    const src = new Map();
+    let dmg = 0, healed = 0, misses = 0, biggest = null;
+    for (const e of rows) {
+      if (e.k === 'hit') {
+        dmg += e.amt;
+        const key = e.who + ' — ' + e.what;
+        src.set(key, (src.get(key) || 0) + e.amt);
+        if (!biggest || e.amt > biggest.amt) biggest = e;
+      } else if (e.k === 'heal') healed += e.amt;
+      else if (e.k === 'miss') misses++;
+    }
+    // no named killer ("You died." to a DoT): the biggest source is the likely culprit
+    const top = [...src.entries()].sort((a, b) => b[1] - a[1]);
+    lastRecap = { at, killer: killer || null, likely: !killer && top.length ? top[0][0].split(' — ')[0] : null,
+                  died: !koOnly, rows, top, dmg, healed, misses, biggest, zone: currentZone };
+    try { $('bb-death').style.display = ''; } catch { /* bar not built */ }
+    hist.deaths.push(recapText(lastRecap).split('\n').slice(0, 2).join(' — '));
+    if (settings && settings.deathRecap === false) return;
+    alertFX((koOnly ? '💫 Knocked out' : '☠ You died') + (lastRecap.killer ? ' — ' + lastRecap.killer : '') + ' · recap open', 'death');
+    renderRecap(true);
+  }
+  function recapText(r) {
+    const fmt = (n) => n.toLocaleString();
+    const lines = [(r.died ? '☠ Slain' : '💫 Knocked out') + (r.killer ? ' by ' + r.killer : r.likely ? ' (likely ' + r.likely + ')' : '') +
+      (r.zone ? ' in ' + r.zone : '') + ' — ' + new Date(r.at).toLocaleTimeString()];
+    lines.push('Last ' + RECAP_WINDOW / 1000 + 's: took ' + fmt(r.dmg) + ' damage, healed ' + fmt(r.healed) + ', dodged/missed ' + r.misses +
+      (r.biggest ? ' · biggest hit ' + fmt(r.biggest.amt) + ' (' + r.biggest.who + ', ' + r.biggest.what + ')' : ''));
+    for (const [k, v] of r.top.slice(0, 5)) lines.push('  ' + k + ': ' + fmt(v));
+    return lines.join('\n');
+  }
+  function renderRecap(open) {
+    const r = lastRecap;
+    if (!r) return;
+    const m = $('recap-modal');
+    if (open) m.style.display = 'flex';
+    if (m.style.display === 'none') return;
+    const fmt = (n) => n.toLocaleString();
+    $('recap-title').textContent = (r.died ? '☠ Slain' : '💫 Knocked unconscious') +
+      (r.killer ? ' by ' + r.killer : r.likely ? ' — most damage from ' + r.likely : '') + (r.zone ? ' · ' + r.zone : '');
+    $('recap-sum').textContent = 'Last ' + RECAP_WINDOW / 1000 + ' seconds: took ' + fmt(r.dmg) + ' damage in ' +
+      r.rows.filter(e => e.k === 'hit').length + ' hits, healed ' + fmt(r.healed) + ', ' + r.misses + (r.misses === 1 ? ' miss' : ' misses') + ' on you' +
+      (r.biggest ? '. Biggest hit: ' + fmt(r.biggest.amt) + ' from ' + r.biggest.who + (r.biggest.what !== 'melee' ? ' (' + r.biggest.what + ')' : '') : '') + '.';
+    const sb = $('recap-src'); sb.innerHTML = '';
+    for (const [k, v] of r.top.slice(0, 5)) {
+      const sp = document.createElement('span');
+      sp.style.color = '#ffb9a0';
+      sp.textContent = k + ' ' + (r.dmg ? Math.round(v * 100 / r.dmg) : 0) + '%';
+      sp.title = fmt(v) + ' damage';
+      sb.appendChild(sp);
+    }
+    const box = $('recap-rows'); box.innerHTML = '';
+    if (!r.rows.length) box.textContent = 'Nothing hit you in the log in those seconds.';
+    for (const e of [...r.rows].reverse().slice(0, 60)) {
+      const d = document.createElement('div');
+      const dt = ((e.t - r.at) / 1000).toFixed(0);
+      d.style.color = e.k === 'heal' ? '#7dffa0' : e.k === 'miss' ? '#778' : e.crit ? '#ff8c7d' : '#ddd';
+      d.textContent = (dt <= 0 ? dt : '+' + dt).toString().padStart(4) + 's  ' +
+        (e.k === 'hit' ? '-' + fmt(e.amt) + (e.crit ? '!' : '') + '  ' + e.who + (e.what !== 'melee' ? ' · ' + e.what : '')
+          : e.k === 'heal' ? '+' + fmt(e.amt) + '  ' + e.who + ' · ' + e.what
+          : '   miss  ' + e.who);
+      box.appendChild(d);
+    }
+  }
+
+  function ccKindOf(spell) { return spellDB && spellDB.cc ? spellDB.cc[spell] || null : null; }
+  function ccAlert(mob, kind, msg) {
+    if (settings && settings.ccAlerts === false) return;
+    const k = mob + '|' + kind, now = Date.now();
+    if (now - (ccLastAlert.get(k) || 0) < 3000) return;
+    ccLastAlert.set(k, now);
+    alertFX(msg, 'cc');
+  }
 
   let audioCtx = null;
   function alertGain() {
@@ -1741,7 +2855,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
                  lastYouCast.spell.toLowerCase() === sp.n.toLowerCase();
     activeBuffs.set(sp.n.toLowerCase(), {
       name: sp.n, id: sp.id, at: Date.now(),
-      durS: buffDurS(sp, myLevel()), est: !mine, ben: !!sp.ben
+      durS: buffDurS(sp, myLevel()), est: !mine, ben: !!sp.ben,
+      ids: ids.slice()   // every spell sharing this landing line (Chant of Battle / Verses of Victory…)
     });
     classDirty = true;
     return true;
@@ -1857,7 +2972,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     // (one fail = one cast; older instances are still live on their mobs)
     for (let i = activeSpellTimers.length - 1; i >= 0; i--) {
       const t = activeSpellTimers[i];
-      if (t.manual) continue;   // hand-started timers ignore cast failures
+      if (t.manual || t.cooldown) continue;   // hand-started timers + reuse timers ignore this (see cancelCooldown)
       if (spell === null || t.castSpell.toLowerCase() === spell.toLowerCase()) {
         if (Date.now() - (t.expires - t.seconds * 1000) < 15000) {
           activeSpellTimers.splice(i, 1);
@@ -1920,12 +3035,17 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       const left = (t.expires - now) / 1000;
       const chip = document.createElement('span');
       chip.className = 'stchip' + (left <= 6 ? ' low' : '');
-      chip.innerHTML = (t.manual ? '⏲ ' : '⏱ ') + '<span class="sn"></span><span class="st"></span>';
+      chip.innerHTML = (t.cooldown ? '⏳ ' : t.manual ? '⏲ ' : '⏱ ') + '<span class="sn"></span><span class="st"></span>';
       chip.querySelector('.sn').textContent = t.target
         ? t.label + ' · ' + t.target.replace(/^(?:a|an|the) /i, '')
         : t.label;
       if (t.target) chip.title = t.castSpell + ' on ' + t.target;
-      chip.querySelector('.st').textContent = left > 0 ? fmtDur(Math.max(0, left)) : 'UP!';
+      chip.querySelector('.st').textContent = left > 0 ? fmtDur(Math.max(0, left)) : (t.cooldown ? 'READY' : 'UP!');
+      if (t.cooldown) {
+        chip.title = t.label + ' — reuse timer from the game\'s spell file. Click to dismiss.';
+        chip.style.cursor = 'pointer';
+        chip.addEventListener('click', () => { activeSpellTimers = activeSpellTimers.filter(x => x !== t); renderSpellTimers(); });
+      }
       if (t.manual) {
         chip.title = 'Manual timer — click to cancel';
         chip.style.cursor = 'pointer';
@@ -1936,6 +3056,26 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       }
       bar.appendChild(chip);
     }
+  }
+
+  // reuse ("recast") timers for your own long-cooldown spells — Lay on Hands,
+  // Harm Touch, Divine Aura… straight from the spell file, no per-class packs
+  function startCooldown(spell) {
+    if (!spell || !spellDB || !spellDB.recast || (settings && settings.cooldownTimers === false)) return;
+    const rc = spellDB.recast[spell];
+    if (!rc || rc.r < ((settings && settings.cooldownMin) || 30)) return;
+    activeSpellTimers = activeSpellTimers.filter(t => !(t.cooldown && t.castSpell === spell));  // recast = restart
+    const secs = rc.r + Math.round((rc.c || 0) / 1000);
+    activeSpellTimers.push({ label: spell, cfgName: null, cooldown: true, expires: Date.now() + secs * 1000,
+                             seconds: secs, castSpell: spell, startedAt: Date.now(), warned: false });
+    renderSpellTimers();
+  }
+  function cancelCooldown(spell) {
+    if (!spell) return;
+    const before = activeSpellTimers.length;
+    // the cast never went off: no reuse timer (only the one started in the last ~15s)
+    activeSpellTimers = activeSpellTimers.filter(t => !(t.cooldown && t.castSpell === spell && Date.now() - t.startedAt < 15000));
+    if (activeSpellTimers.length !== before) renderSpellTimers();
   }
 
   function startManualTimer(label, seconds) {
@@ -1950,7 +3090,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (!activeSpellTimers.length) return;
     const now = Date.now();
     for (const t of activeSpellTimers) {
-      if (!t.warned && now >= t.expires) {
+      if (!t.warned && now >= t.expires && t.cooldown) {
+        t.warned = true;
+        alertFX('✅ ' + t.label + ' is ready', 'heads');
+      } else if (!t.warned && now >= t.expires) {
         t.warned = true;
         alertFX('⏱ ' + t.label + (t.target ? ' up: ' + t.target.replace(/^(?:a|an|the) /i, '') + '!' : ' timer up!'), 'repop');
       }
@@ -2350,7 +3493,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     // the how-to only matters until game data is flowing — then free the space
     const synced = gameFiles && (gameFiles.inventory || gameFiles.achievements);
     $('q-help').style.display = pos && !synced ? '' : 'none';
-    $('q-classes').style.display = (special && (zone === '__exalts' || zone === '__slayer' || zone === '__spellq')) ? 'none' : 'flex';
+    // class chips only where they filter something: PoS/zone quests and Epics
+    $('q-classes').style.display = (special && zone !== '__epics') ? 'none' : 'flex';
+    // export freshness: the data views carry their own compact refresh line
+    // (only when something is stale), so the global line would just repeat it
+    $('q-sync').style.display = special ? 'none' : '';
     $('q-posrow').style.display = special ? 'none' : 'flex';
     $('q-isle').style.display = pos ? '' : 'none';
     $('q-runehint').style.display = pos ? '' : 'none';
@@ -3093,8 +4240,11 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       head2.className = 'q-head';
       head2.innerHTML = '<span class="rw itemlink"></span>' +
         (tag ? '<span class="cls"></span>' : '') +
-        '<span class="st"></span><span class="q-donebtn" title="Mark done / not done">✓</span>';
+        '<span class="st"></span><span class="q-p99" title="Read this quest on the Project 1999 wiki (classic EQ — Legends may differ)">P99</span><span class="q-donebtn" title="Mark done / not done">✓</span>';
       head2.querySelector('.rw').textContent = title;
+      const p99 = head2.querySelector('.q-p99');
+      p99.style.cssText = 'font-size:8.5px;color:#9ab;border:1px solid rgba(150,170,190,.35);border-radius:4px;padding:0 3px;cursor:pointer;flex:none;opacity:.7';
+      p99.addEventListener('click', (e) => { e.stopPropagation(); openGuide({ title, source: 'p99', label: 'P99: ' + title }); });
       if (tag) head2.querySelector('.cls').textContent = tag;
       head2.querySelector('.st').textContent = st.done ? 'DONE' : '';
       head2.querySelector('.rw').addEventListener('click', (e) => { e.stopPropagation(); openItemLink(title); });
@@ -3365,7 +4515,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   const OUTFILES = [
     ['inventory', '/outputfile inventory'],
     ['achievements', '/outputfile achievements'],
-    ['factions', '/outputfile faction']
+    ['factions', '/outputfile faction'],
+    ['spellbook', '/outputfile spellbook']
   ];
   const outfileMtime = (kind) => (gameFiles && gameFiles[kind] && gameFiles[kind].mtime) || 0;
 
@@ -3382,15 +4533,16 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const bar = document.createElement('div');
     bar.className = 'q-npc outfilebar';
     const lead = document.createElement('span');
-    lead.textContent = '📂 This view reads your game exports — refresh:';
+    lead.textContent = '📂 Refresh:';
+    lead.title = 'This view reads your game exports. Click a chip to copy its /outputfile command, then paste it into the game.';
     lead.style.marginRight = '6px';
     bar.appendChild(lead);
     for (const s of stale) {
       const cmd = OUTFILES.find(o => o[0] === s.kind)[1];
       const chip = document.createElement('span');
       chip.className = 'ofchip';
-      chip.textContent = '📋 ' + cmd + ' · ' + (s.mt ? fmtAge(s.mt) : 'never seen');
-      chip.title = 'Click to copy, then paste into the game’s chat. SEQO picks the new file up by itself within a second.';
+      chip.textContent = '📋 ' + cmd.replace(/^\/outputfile\s+/, '') + ' · ' + (s.mt ? fmtAge(s.mt) : 'never');
+      chip.title = 'Click to copy ' + cmd + ', then paste it into the game’s chat. SEQO picks the new file up by itself within a second.';
       chip.addEventListener('click', () => { window.overlay.copyText(cmd); toast('📋 Copied ' + cmd + ' — paste it in game'); });
       bar.appendChild(chip);
     }
@@ -3430,6 +4582,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     if (kind === 'inventory') return true; // cleanup/needs/epics all read it
     if (kind === 'achievements') return !!((settings && settings.usedSlayer) || qSelClasses().length);
     if (kind === 'factions') return !!(settings && (settings.usedUnlocks || settings.usedSlayer));
+    if (kind === 'spellbook') return false;   // changes only when you scribe — the Spellbook view asks itself
     return true;
   }
 
@@ -4068,7 +5221,13 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const ofU = outfileBar(['achievements', 'factions', 'inventory']);
     if (ofU) list.appendChild(ofU);
     if (!achSections().length) {
-      setQuestEmpty('No achievements data yet.\n\nIn game, type  /outputfile achievements\n(and /outputfile faction for progress bars).\nSEQO reads the files automatically — no clicks needed.');
+      // the key quests still render without data, so the hint goes inline
+      // instead of the full-height empty panel (which squeezed the Keys card)
+      setQuestEmpty('');
+      const hint = document.createElement('div');
+      hint.style.cssText = 'color:#aaa;font-size:11px;margin:2px 0 8px';
+      hint.textContent = 'No achievements data yet — in game type /outputfile achievements (and /outputfile faction for progress bars). SEQO reads them automatically.';
+      list.appendChild(hint);
       renderKeyQuests(list, null);
       list.appendChild(creditLine(UNL.CREDITS[0]));
       return;
@@ -4086,7 +5245,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       const sec = achSection(g.re);
       if (!sec) continue;
       const realObjs = (a) => a.objectives.filter(o => !/^This achievement/i.test(o.text));
-      const doneCount = sec.achievements.filter(a => a.done).length;
+      // a placeholder race (achievement completes, race not playable yet) isn't counted as unlocked
+      const isPlaceholder = (a) => g.key === 'races' && UNL.RACE_QUESTS &&
+        (UNL.RACE_QUESTS[a.name.replace(g.strip, '')] || {}).placeholder;
+      const doneCount = sec.achievements.filter(a => (a.done || achDoneLive.has(a.name)) && !isPlaceholder(a)).length;
 
       const hdr = document.createElement('div');
       hdr.className = 'l-divider';
@@ -4098,17 +5260,21 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
       for (const ach of sec.achievements) {
         const label = ach.name.replace(g.strip, '');
-        const objs = realObjs(ach);
+        const rq = g.key === 'races' && UNL.RACE_QUESTS ? UNL.RACE_QUESTS[label] : null;
+        // a quest-chain race shows its walkthrough instead of the export's placeholder objective
+        const objs = realObjs(ach).filter(o => !(rq && /^Future Placeholder/i.test(o.text)));
+        const achDone = !!(ach.done || achDoneLive.has(ach.name));   // live: the log line beats the next export
         const got = objs.filter(o => o.done).length;
         const key = g.key + '|' + ach.name;
 
         const card = document.createElement('div');
-        card.className = 'q-quest' + (ach.done ? ' done' : '');
+        card.className = 'q-quest' + (achDone ? ' done' : '');
         const head = document.createElement('div');
         head.className = 'q-head';
         head.innerHTML = '<span>' + (unlExpanded.has(key) ? '▾' : '▸') + '</span><span class="rw"></span><span class="gd" title="Read the guide for this unlock here, in the attached window">📖</span><span class="st"></span>';
         head.querySelector('.rw').textContent = label;
-        head.querySelector('.st').textContent = ach.done ? 'UNLOCKED' : (objs.length ? got + '/' + objs.length : '');
+        head.querySelector('.st').textContent = achDone ? (rq && rq.placeholder ? 'DONE · race not live yet' : 'UNLOCKED') : rq ? 'guide' : (objs.length ? got + '/' + objs.length : '');
+        if (rq && rq.placeholder) head.querySelector('.st').title = rq.placeholder;
         const gd = head.querySelector('.gd');
         gd.style.cssText = 'cursor:pointer;opacity:.55;flex:none';
         if (g.key === 'races') {
@@ -4174,6 +5340,34 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
             note.className = 'q-npc';
             note.textContent = noteTxt;
             box.appendChild(note);
+          }
+          if (rq) {   // quest-chain race: numbered steps, ticked from the items you hold
+            const held = rq.steps.map(st => !!(st.item && invHas(st.item)));
+            const lastHeld = held.lastIndexOf(true);
+            rq.steps.forEach((st, i) => {
+              const ok = achDone || i <= lastHeld;   // holding a later step's item means the earlier ones are done
+              const row = document.createElement('div');
+              row.className = 'q-it' + (ok ? ' have' : '');
+              row.style.cursor = 'default';
+              row.innerHTML = '<span class="box"></span><span class="nm" style="white-space:normal"></span><span class="loc" style="flex:none;max-width:34%;text-align:right"></span>';
+              row.querySelector('.box').textContent = ok ? '☑' : '☐';
+              row.querySelector('.nm').textContent = (i + 1) + '. ' + st.text;
+              row.querySelector('.loc').textContent = st.zone || '';
+              if (st.item) row.title = 'Ticks when ' + st.item + ' is in your bags';
+              box.appendChild(row);
+            });
+            if (rq.placeholder) {
+              const ph = document.createElement('div');
+              ph.className = 'q-npc';
+              ph.style.color = '#ffcf7d';
+              ph.textContent = '⚠ ' + rq.placeholder;
+              box.appendChild(ph);
+            }
+            const src = document.createElement('div');
+            src.className = 'q-npc';
+            src.style.fontSize = '10px';
+            src.textContent = 'Tasks: ' + rq.tasks.join(' → ') + '. Source: ' + rq.source + '.';
+            box.appendChild(src);
           }
           if (g.key === 'races') {
             const grindItems = new Set();
@@ -4891,7 +6085,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           if (lv && lv <= lvl && (!best || lv < best.lv)) best = { sp: r, cls: c, lv };
         }
       }
-      if (best) pool.push(best);
+      if (best && !isHiddenSpell(best.sp.n)) pool.push(best);   // you said it isn't in Legends
     }
     const groups = new Map(), solo = [];
     for (const e of pool) {
@@ -5163,55 +6357,64 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     return picked;
   }
 
+  // "not in Legends": a spell you hide never comes back into your lineup (restore anytime)
+  const isHiddenSpell = (n) => !!(settings && Array.isArray(settings.hiddenSpells) && settings.hiddenSpells.includes(n));
+  function addHideBtn(d, sp) {
+    if (!sp || !sp.n) return;
+    const x = document.createElement('span');
+    x.textContent = '✕';
+    x.className = 'bk-hide';
+    x.style.cssText = 'flex:none;cursor:pointer;color:#667;padding:0 3px;font-size:10px;opacity:0';
+    x.title = 'Not in EverQuest Legends (or you never use it)? Hide ' + sp.n + ' from your lineup — restore it from the line under YOUR LINEUP';
+    x.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      save({ hiddenSpells: [...new Set([...((settings && settings.hiddenSpells) || []), sp.n])] });
+      toast('✕ ' + sp.n + ' hidden from your buff lineup');
+      renderClassTab();
+    });
+    d.addEventListener('mouseenter', () => { x.style.opacity = '1'; });
+    d.addEventListener('mouseleave', () => { x.style.opacity = '0'; });
+    d.appendChild(x);
+  }
+
+  // a lineup spell that's on you right now: name goes green, time left on hover
+  function markOnYou(d, sp) {
+    if (!sp) return;
+    // by name, or by a shared landing line: the log can't tell those spells apart,
+    // so if the line landed, the lineup's spell counts as on you
+    let b = activeBuffs.get(sp.n.toLowerCase());
+    if (!b) for (const a of activeBuffs.values()) if (a.ids && a.ids.includes(sp.id)) { b = a; break; }
+    if (!b || b.ben === false) return;
+    d.classList.add('have');
+    let left = '';
+    if (b.durS != null) {
+      const rem = Math.max(0, Math.round(b.durS - (Date.now() - b.at) / 1000));
+      left = ' — ' + (b.est ? '~' : '') + (rem >= 90 ? Math.ceil(rem / 60) + 'm' : rem + 's') + ' left';
+    }
+    d.dataset.onyou = '✔ On you now' + left;
+  }
+
   function renderBuffsChip(root) {
     const trio = currentTrio();
-    // --- live: on you now ---
-    const live = document.createElement('div');
-    live.className = 'l-divider';
-    live.textContent = '🧪 ON YOU NOW — from your log\'s exact spell lines';
-    root.appendChild(live);
     if (!spellDB) {
       const d = document.createElement('div');
       d.className = 'q-npc';
       d.textContent = spellDbError ? '⚠ ' + spellDbError : 'Reading the game\'s spell files…';
       root.appendChild(d);
-    } else if (!activeBuffs.size) {
-      const d = document.createElement('div');
-      d.className = 'q-npc';
-      d.textContent = 'Nothing tracked yet — buffs appear the moment their landing line hits your log. (Buffs cast before SEQO started can\'t be back-filled.)';
-      root.appendChild(d);
-    } else {
-      const now = Date.now();
-      const rows = [...activeBuffs.values()].sort((a, b) => a.at - b.at);
-      for (const b of rows) {
-        const d = document.createElement('div');
-        d.className = 'l-mob';
-        const nm = document.createElement('span');
-        nm.textContent = (b.ben === false ? '☠ ' : '') + b.name;
-        nm.style.cssText = 'flex:1;color:' + (b.ben === false ? '#ff9d9d' : '#cfe3cf') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-        const left = document.createElement('span');
-        left.className = 'k';
-        if (b.durS == null) left.textContent = '∞';
-        else {
-          const rem = Math.max(0, Math.round(b.durS - (now - b.at) / 1000));
-          left.textContent = (b.est ? '~' : '') + (rem >= 90 ? Math.ceil(rem / 60) + 'm' : rem + 's');
-          left.title = b.est ? 'Estimate — the caster\'s level sets the real duration' : 'Exact (your own cast)';
-          if (rem < 60) left.style.color = '#ffb27d';
-        }
-        const x = document.createElement('span');
-        x.textContent = '✕';
-        x.style.cssText = 'flex:none;cursor:pointer;color:#667;padding:0 3px';
-        x.title = 'Stop tracking (e.g. you clicked the buff off in game)';
-        x.addEventListener('click', () => { activeBuffs.delete(b.name.toLowerCase()); renderClassTab(); });
-        d.append(nm, left, x);
-        if (spellDB.desc[b.id]) d.title = spellDB.desc[b.id];
-        root.appendChild(d);
-      }
     }
     // --- loadout builder: gems + focus stats -> what to memorize ---
     const bh = document.createElement('div');
     bh.className = 'l-divider';
     bh.textContent = '🎛 YOUR LINEUP — the strongest set your trio can keep up';
+    const hiddenN = ((settings && settings.hiddenSpells) || []).length;
+    if (hiddenN) {
+      const rs = document.createElement('span');
+      rs.style.cssText = 'margin-left:8px;color:#778;cursor:pointer;font-size:9.5px;font-weight:400';
+      rs.textContent = hiddenN + ' hidden — restore';
+      rs.title = 'You hid: ' + settings.hiddenSpells.join(', ') + '. Click to bring them all back.';
+      rs.addEventListener('click', () => { save({ hiddenSpells: [] }); toast('Hidden spells restored'); renderClassTab(); });
+      bh.appendChild(rs);
+    }
     bh.title = 'Built from the game\'s own spell data for your classes and level, honoring the stacking table. Balanced for fighting by default — use 🎯 Focus to steer it.';
     root.appendChild(bh);
     if (spellDB && trio) {
@@ -5314,6 +6517,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
               ' — ' + effTextShort(e.sp, 3);
             d.querySelector('.nm').style.whiteSpace = 'normal';
             d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
+            markOnYou(d, e.sp); addHideBtn(d, e.sp);
             // the detail lives on hover: full effects, and the swaps if you'd rather
             const tip = [effText(e.sp)];
             if (e.alts && e.alts.length) tip.push('Or: ' + e.alts.map(a => a.n + (a.t ? ' (' + a.t + ')' : '')).join(', '));
@@ -5395,6 +6599,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
             d.querySelector('.nm').textContent = label + ' — ' + e.sp.n +
               (k === 'vision' && e.sp.eff.vision >= 2 ? ' (ultravision)' : '');
             d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
+            markOnYou(d, e.sp); addHideBtn(d, e.sp);
             if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
             root.appendChild(d);
           }
@@ -5417,6 +6622,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
               (e.sp.eff ? ' — ' + effText(e.sp) : '');
             d.querySelector('.nm').style.whiteSpace = 'normal';
             d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
+            markOnYou(d, e.sp); addHideBtn(d, e.sp);
             if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
             root.appendChild(d);
           }
@@ -5437,6 +6643,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
             d.querySelector('.nm').textContent = tag + e.sp.n + (e.sp.eff ? ' — ' + effText(e.sp) : '');
             d.querySelector('.nm').style.whiteSpace = 'normal';
             d.querySelector('.loc').textContent = e.cls + ' L' + e.lv + ' · ' + fmtBuffDur(e.sp);
+            markOnYou(d, e.sp); addHideBtn(d, e.sp);
             if (spellDB.desc[e.sp.id]) d.title = spellDB.desc[e.sp.id];
             root.appendChild(d);
           };
@@ -5457,6 +6664,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     const model = plannerModel(trio);
     const open = !!(settings && settings.buffListOpen);
     const hd = document.createElement('div');
+    for (const d of root.querySelectorAll('.q-it[data-onyou]'))
+      d.title = d.dataset.onyou + (d.title ? '\n' + d.title : '');
     hd.className = 'l-divider';
     hd.style.cursor = 'pointer';
     hd.textContent = (open ? '▾' : '▸') + ' 📋 ALL ' + model.pool.length + ' BUFFS — ' + trio.join('/');
@@ -5821,7 +7030,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     // header: chip switcher + trio selector
     const head = document.createElement('div');
     head.style.cssText = 'display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:4px';
-    for (const [key, label] of [['gear', '🛡 Gear'], ['buffs', '🧪 Buffs']]) {
+    for (const [key, label] of [['gear', '🛡 Gear'], ['buffs', '🧪 Buffs'], ['book', '📕 Spellbook']]) {
       const c = document.createElement('span');
       c.className = 'qview-chip' + (clChip() === key ? ' active' : '');
       c.textContent = label;
@@ -5875,8 +7084,115 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     body.style.cssText = 'flex:1;min-height:0;overflow-y:auto;padding-right:4px';
     root.appendChild(body);
     if (clChip() === 'buffs') renderBuffsChip(body);
+    else if (clChip() === 'book') renderSpellbookChip(body);
     else renderGearChip(body);
     body.scrollTop = prevScroll; // live re-renders must not snap the view to the top
+  }
+
+  // ================= 📕 Spellbook: what you haven't scribed yet =================
+  // your /outputfile spellbook vs every spell your classes learn by your level
+  // (from the game's own spell file), kept to spells eqlwiki has a page for —
+  // the client also carries live-EQ spells that don't exist in Legends.
+  let bookWiki = null, bookWikiBusy = false, bookWikiErr = null, bookShowUnverified = false, bookCls = null;
+  function bookCandidates(cls, maxLv) {
+    if (!spellDB || !spellDB.book) return [];
+    const nil = new Set(spellDB.notInLegends || []);
+    const have = (gameFiles && gameFiles.spellbook && gameFiles.spellbook.spells) || {};
+    const out = [];
+    for (const [n, c] of Object.entries(spellDB.book)) {
+      const lv = c[cls];
+      if (!lv || lv > maxLv || have[n] !== undefined || nil.has(n)) continue;
+      out.push({ n, lv });
+    }
+    return out.sort((a, b) => a.lv - b.lv || a.n.localeCompare(b.n));
+  }
+  async function bookVerify(names) {
+    if (bookWikiBusy) return;
+    bookWikiBusy = true;
+    try {
+      const r = await window.overlay.spellWikiCheck(names);
+      bookWiki = Object.assign(bookWiki || {}, (r && r.pages) || {});
+      bookWikiErr = r && r.error || null;
+    } catch (e) { bookWikiErr = e.message || String(e); }
+    bookWikiBusy = false;
+    if (activeTab === 'class' && clChip() === 'book') renderClassTab();
+  }
+  function renderSpellbookChip(root) {
+    const sb = gameFiles && gameFiles.spellbook;
+    const trio = (currentTrio() || []).filter(Boolean);
+    if (!bookCls || !TRIO_CLASSES.includes(bookCls)) bookCls = trio[0] || 'WAR';
+    const lvl = myLevel();
+    // export status + copy chip
+    const st = document.createElement('div');
+    st.className = 'q-npc';
+    st.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap';
+    const stT = document.createElement('span');
+    stT.textContent = sb ? '📕 Your spellbook: ' + Object.keys(sb.spells || {}).length + ' spells, exported ' + fmtAge(sb.mtime) : '📕 No spellbook export yet.';
+    const chip = document.createElement('span');
+    chip.className = 'ofchip';
+    chip.textContent = '📋 /outputfile spellbook';
+    chip.title = 'Copy the command, paste it in game after you scribe new spells — SEQO picks the file up by itself';
+    chip.addEventListener('click', () => { window.overlay.copyText('/outputfile spellbook'); toast('📋 Copied /outputfile spellbook — paste it in game'); });
+    st.append(stT, chip);
+    root.appendChild(st);
+    if (!spellDB) { const d = document.createElement('div'); d.className = 'q-npc'; d.textContent = spellDbError ? '⚠ ' + spellDbError : 'Reading the game\'s spell files…'; root.appendChild(d); return; }
+    if (!sb) return;
+    // class picker: your trio first, then every class (the book holds all of them)
+    const cb = document.createElement('div');
+    cb.style.cssText = 'display:flex;gap:3px;flex-wrap:wrap;margin:4px 0';
+    const order = [...new Set([...trio, ...TRIO_CLASSES])];
+    for (const c of order) {
+      const k = document.createElement('span');
+      k.className = 'qview-chip' + (c === bookCls ? ' active' : '');
+      k.style.fontSize = '10px';
+      k.textContent = c;
+      if (!trio.includes(c)) k.style.opacity = '.6';
+      k.addEventListener('click', () => { bookCls = c; renderClassTab(); });
+      cb.appendChild(k);
+    }
+    root.appendChild(cb);
+    const cand = bookCandidates(bookCls, lvl);
+    const unknown = cand.filter(x => !bookWiki || bookWiki[x.n] === undefined).map(x => x.n);
+    if (unknown.length && !bookWikiBusy && !bookWikiErr) bookVerify(cand.map(x => x.n));
+    const verified = cand.filter(x => bookWiki && bookWiki[x.n] === true);
+    const unver = cand.filter(x => !bookWiki || bookWiki[x.n] !== true);
+    const hdr = document.createElement('div');
+    hdr.className = 'l-divider';
+    hdr.textContent = '📕 MISSING — ' + bookCls + ' spells up to level ' + lvl + ': ' + verified.length + (bookWikiBusy ? ' (checking the wiki…)' : '');
+    hdr.title = 'Spells your ' + bookCls + ' learns by level ' + lvl + ' (game spell file) that are not in your spellbook export, and that eqlwiki documents for Legends.';
+    root.appendChild(hdr);
+    if (bookWikiErr) { const d = document.createElement('div'); d.className = 'q-npc'; d.textContent = '⚠ Wiki check failed (' + bookWikiErr + ') — showing every candidate, unverified.'; root.appendChild(d); }
+    const quests = new Map();
+    for (const q of (SPQ && SPQ.QUESTS) || []) quests.set(q.spell, q);
+    const row = (x, dim) => {
+      const d = document.createElement('div');
+      d.className = 'q-it';
+      d.style.cursor = 'pointer';
+      if (dim) d.style.opacity = '.55';
+      d.innerHTML = '<span class="box">L' + x.lv + '</span><span class="nm itemlink"></span><span class="loc" style="flex:none"></span>';
+      d.querySelector('.box').style.width = '26px';
+      d.querySelector('.nm').textContent = x.n;
+      const q = quests.get(x.n);
+      d.querySelector('.loc').textContent = q ? '📜 quest: ' + q.name : '';
+      d.title = (q ? 'Quest spell — see Quests → 🧙 Spells. ' : '') + 'Click to look the spell up (where to buy, drop or quest it).';
+      d.addEventListener('click', () => { try { openItem('Spell: ' + x.n); } catch { toast('Lookup unavailable'); } });
+      root.appendChild(d);
+    };
+    if (!verified.length && !bookWikiBusy && !bookWikiErr) {
+      const d = document.createElement('div'); d.className = 'q-npc';
+      d.textContent = cand.length ? '✔ Nothing missing that the wiki knows of for ' + bookCls + ' — nice.' : '✔ Every ' + bookCls + ' spell up to level ' + lvl + ' is in your book.';
+      root.appendChild(d);
+    }
+    for (const x of (bookWikiErr ? cand : verified)) row(x, false);
+    if (!bookWikiErr && unver.length && !bookWikiBusy) {
+      const t = document.createElement('div');
+      t.className = 'q-npc';
+      t.style.cursor = 'pointer';
+      t.textContent = (bookShowUnverified ? '▾ ' : '▸ ') + unver.length + ' more in the game files but not on the wiki (likely not in Legends yet)';
+      t.addEventListener('click', () => { bookShowUnverified = !bookShowUnverified; renderClassTab(); });
+      root.appendChild(t);
+      if (bookShowUnverified) for (const x of unver) row(x, true);
+    }
   }
 
   // ================= copy buttons =================
@@ -5907,12 +7223,27 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   // ================= tabs =================
   let activeTab = 'meter';
+  // the bottom bar (run + XP pace) costs a row of a small window: show it on
+  // Meter/Loot, whenever a run is going, or once there is XP pace to read
+  function updateBottomBar() {
+    const bar = $('bottombar');
+    if (!bar) return;
+    let running = false;
+    try { running = !!lootRun; } catch { /* run state not set up yet at startup */ }
+    let unread = false;
+    try { unread = chatUnread > 0; } catch { /* chat not set up yet */ }
+    const show = activeTab === 'meter' || activeTab === 'breakdown' || activeTab === 'loot' ||
+      running || unread || !!($('bb-xp').textContent || '').trim();
+    bar.style.display = show ? '' : 'none';
+  }
+
   function setTab(name) {
     activeTab = name;
     // Session view (old Spells) lives under the Meter tab now
     const hl = name === 'breakdown' ? 'meter' : name;
     document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === hl));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+    updateBottomBar();
     renderAll();
   }
   document.querySelectorAll('.tab[data-tab]').forEach(t =>
@@ -6660,7 +7991,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   function renderXpStrip() {
     // lives on the bottom bar now, visible on every tab
     const el = $('bb-xp');
-    if (!xp.kills && !xp.aaGained) { el.textContent = ''; $('bb-reset').style.display = 'none'; return; }
+    if (!xp.kills && !xp.aaGained) { el.textContent = ''; $('bb-reset').style.display = 'none'; updateBottomBar(); return; }
     $('bb-reset').style.display = 'inline-block';
     const bits = [];
     const hrs = xp.first && xp.last > xp.first ? (xp.last - xp.first) / 3600000 : 0;
@@ -6684,8 +8015,16 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       if (xp.aaTotal) a += ' · ' + xp.aaTotal + ' total';
       bits.push(a);
     }
-    if (!bits.length) { el.textContent = ''; return; } // capped, no AA yet — nothing to say
+    // level cap: "You gain (party) experience!" has no percent — the pace is still worth seeing
+    if (!xp.pct && xp.kills) {
+      let k = '✦ ' + xp.kills + ' XP kill' + (xp.kills === 1 ? '' : 's');
+      if (hrs >= 0.1) k += ' · ' + Math.round(xp.kills / hrs) + '/hr';
+      k += ' (max level — the log shows no XP %)';
+      bits.unshift(k);
+    }
+    if (!bits.length) { el.textContent = ''; updateBottomBar(); return; }
     el.textContent = bits.join('  ·  ');
+    updateBottomBar();
     el.title = el.textContent + '\n\nSession XP from your log. The percent is the game’s own per-kill share of your current level bar; the level position and time-to-level appear once a level-up has been seen this session. ↺ resets the pace counters.';
   }
 
@@ -6698,7 +8037,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   // meter rows exactly as displayed (pets folded into You when the setting is on)
   function meterRowsForCopy() {
-    const s = tracker.summary();
+    const s = tracker.summary(viewFight || undefined);
     if (!s) return null;
     let rows = s.rows.map(r => ({ ...r }));
     if (settings && settings.mergePets !== false) {
@@ -6740,7 +8079,14 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   function renderMeter() {
     keepScroll($('c-rows'));
     renderXpStrip();
-    const s = tracker.summary();
+    if (viewFight && !tracker.history.includes(viewFight)) viewFight = null;
+    const s = tracker.summary(viewFight || undefined);
+    const vEl = $('c-viewing');
+    if (viewFight) {
+      vEl.style.display = '';
+      vEl.textContent = '🕘 Showing the ' + new Date(viewFight.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' fight — ✕ back to live';
+    } else vEl.style.display = 'none';
+    renderFightChart(viewFight || tracker.current || tracker.last, s);
     const view = $('view-meter');
     if (!s) { $('c-empty').style.display = 'flex'; $('c-rows').style.display = 'none'; return; }
     $('c-empty').style.display = 'none';
@@ -6803,13 +8149,18 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           : 'Mark ' + r.name + ' as your pet (for pets that never speak)';
         pb.addEventListener('click', (e) => { e.stopPropagation(); togglePetRow(r.name); });
         div.querySelector('.lbl').appendChild(pb);
+      } else { // your row: an invisible paw-sized slot keeps the number column aligned
+        const sp = document.createElement('span');
+        sp.className = 'petbtn spacer';
+        sp.textContent = '🐾';
+        div.querySelector('.lbl').appendChild(sp);
       }
       rowsEl.appendChild(div);
       if (meterExpanded.has(r.name)) {
-        let srcs = tracker.attackerSources(r.name).map(s => ({ ...s }));
+        let srcs = tracker.attackerSources(r.name, viewFight || undefined).map(s => ({ ...s }));
         if (r.name === 'You' && merged) // pets are folded into your row: show theirs too
           for (const p of (s.petRows || []))
-            for (const ps of tracker.attackerSources(p.name))
+            for (const ps of tracker.attackerSources(p.name, viewFight || undefined))
               srcs.push({ ...ps, source: '🐾 ' + p.name + ': ' + ps.source });
         const sub = document.createElement('div');
         sub.className = 'msub';
@@ -6871,7 +8222,13 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     keepScroll($('b-rows'));
     $('b-mode-fight').classList.toggle('gold', bMode === 'fight');
     $('b-mode-session').classList.toggle('gold', bMode === 'session');
+    $('b-mode-heals').classList.toggle('gold', bMode === 'heals');
     const rowsEl = $('b-rows');
+    if (bMode === 'heals') {
+      $('b-empty').style.display = 'none'; rowsEl.style.display = '';
+      renderHeals(rowsEl);
+      return;
+    }
 
     let rows, swings, title, sub;
     if (bMode === 'session') {
@@ -6895,7 +8252,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       rows.forEach(r => r.pct = r.total / grandAll);
       rows.sort((a, b) => b.total - a.total);
     } else {
-      const s = tracker.summary();
+      const s = tracker.summary(viewFight || undefined);
       if (!s || !s.youBySource || !s.youBySource.length) {
         $('b-empty').style.display = 'flex'; rowsEl.style.display = 'none';
         $('b-title').textContent = 'Your damage by source'; $('b-swings').textContent = '';
@@ -6950,6 +8307,30 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       }
       rowsEl.appendChild(div);
     }
+
+    // Σ Session: your damage per stance, highest DPS first
+    if (bMode === 'session' && stanceStats.size) {
+      const sr = stanceRows();
+      const dv = document.createElement('div');
+      dv.className = 'l-divider';
+      dv.style.marginTop = '6px';
+      dv.textContent = '🥋 Stances — your damage in each (time between your hits)';
+      dv.title = 'DPS per stance = your damage while in it ÷ your fighting time in it (gaps over 6s between hits count as 1s). Pet damage not included.';
+      rowsEl.appendChild(dv);
+      const topD = sr[0].dps || 1;
+      for (const r of sr) {
+        const div = document.createElement('div');
+        div.className = 'mrow';
+        div.innerHTML = '<div class="bar" style="width:' + Math.max(2, r.dps / topD * 100) + '%"></div>' +
+          '<div class="lbl"><span class="nm"></span><span class="nums"></span></div>';
+        div.querySelector('.nm').textContent = stanceLabel(r.n) + (r.n === curStance ? ' (now)' : '');
+        div.querySelector('.nums').textContent = fmt(r.dps) + ' DPS · ' + fmtDur(r.ms / 1000) + ' · ' + fmt(r.dmg);
+        div.title = r.hits + ' hits in ' + stanceLabel(r.n);
+        rowsEl.appendChild(div);
+      }
+    }
+
+    if (bMode === 'session') renderProgress(rowsEl);
 
     // Σ Session also shows the WHOLE GROUP: everyone's session damage across
     // every fight, each row expandable to their damage by source
@@ -7059,6 +8440,26 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   $('b-mode-session').addEventListener('click', () => { bMode = 'session'; renderBreakdown(); });
   $('c-mode-fight').addEventListener('click', () => setTab('meter'));
   $('c-mode-session').addEventListener('click', () => { bMode = 'session'; setTab('breakdown'); });
+  $('c-mode-heals').addEventListener('click', () => { bMode = 'heals'; setTab('breakdown'); });
+  $('b-mode-heals').addEventListener('click', () => { bMode = 'heals'; renderBreakdown(); });
+  $('c-fights').addEventListener('click', () => { $('c-menu').style.display = 'none'; openFightHistory(); });
+  $('c-more').addEventListener('click', (e) => { e.stopPropagation(); const m = $('c-menu'); m.style.display = m.style.display === 'none' ? 'flex' : 'none'; });
+  document.addEventListener('click', (e) => { const m = $('c-menu'); if (m && m.style.display !== 'none' && !m.contains(e.target) && e.target !== $('c-more')) m.style.display = 'none'; });
+  $('chat-search').addEventListener('input', () => renderChat());
+  $('bb-chat').addEventListener('click', openChat);
+  $('chat-close').addEventListener('click', () => { $('chat-modal').style.display = 'none'; });
+
+  $('chat-clear').addEventListener('click', async (e) => {
+    const b = e.currentTarget;
+    if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Clear saved?'; setTimeout(() => { b.dataset.armed = ''; b.textContent = '🗑'; }, 4000); return; }
+    await window.overlay.chatClear();
+    chatMsgs = chatMsgs.filter(m => !m.saved && !CHAT_PERSONAL.has(m.channel));
+    b.dataset.armed = ''; b.textContent = '🗑';
+    renderChat(); toast('🗑 Saved chat history cleared');
+  });
+  $('fh-close').addEventListener('click', () => { $('fh-modal').style.display = 'none'; });
+  $('c-viewing').addEventListener('click', () => { viewFight = null; renderMeter(); });
+  $('c-chart-btn').addEventListener('click', () => { save({ meterChart: !(settings && settings.meterChart) }); renderMeter(); });
 
   function escapeHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -7095,11 +8496,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       lr.innerHTML = '▶ Start run';
       lr.classList.remove('gold');
     }
+    updateBottomBar();
   }
 
   function toggleRun() {
     if (!lootRun) {
-      lootRun = { startedAt: Date.now(), coin: 0, items: new Map(), rares: new Map() };
+      lootRun = { startedAt: Date.now(), startLog: lastLineAt || Date.now(), coin: 0, items: new Map(), rares: new Map() };
       toast('▶ Run started — tracking loot, coin, motes & rare kills until you end it');
       // zone data parsed before the boss/named extraction existed (or never
       // fetched): refresh it once so the rare checklist is complete
@@ -7107,6 +8509,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         updateZoneNow().then(() => { if (lootRun) renderRunBox(); }).catch(() => {});
     } else {
       lootRun.endedAt = Date.now();
+      saveRunToHistory(lootRun);
       lootRunHistory.unshift(lootRun);
       lootRunHistory = lootRunHistory.slice(0, 8);
       const r = lootRun;
@@ -7161,6 +8564,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   // it, otherwise named mobs you've personally killed here before (lootDB).
   function knownRares() {
     const out = new Set();
+    for (const n of rareAdds()[currentZone || ''] || []) if (!isNotRare(n)) out.add(n);
     for (const n of (zoneData && zoneData.named) || []) {
       const k = mobKey(n.mob);
       if (k && k !== '(zone drops)' && isRareMob(k)) out.add(k);
@@ -7174,6 +8578,50 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       }
     }
     return [...out];
+  }
+
+  // "+ rare": type or pick a mob (recent kills in this zone are suggested)
+  let rareAddOpen = false;
+  function rareAddControl() {
+    const w = document.createElement('div');
+    w.style.cssText = 'display:flex;gap:4px;align-items:center;margin:1px 0 2px';
+    if (!rareAddOpen) {
+      const b = document.createElement('span');
+      b.style.cssText = 'color:#7dc8ff;cursor:pointer;font-size:9.5px';
+      b.textContent = '＋ mark a mob as rare';
+      b.title = 'Add a mob to this zone’s rare list — it then counts in the checklist (click a rare to remove it)';
+      b.addEventListener('click', () => { rareAddOpen = true; renderRunBox(); });
+      w.appendChild(b);
+      return w;
+    }
+    const inp = document.createElement('input');
+    inp.setAttribute('list', 'rare-sugg');
+    inp.placeholder = 'mob name…';
+    inp.style.cssText = 'flex:1;min-width:0;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:1px 4px;font-size:10px';
+    const dl = document.createElement('datalist'); dl.id = 'rare-sugg';
+    const seen = new Set();
+    for (const m of Object.values((lootDB && lootDB.mobs) || {}))
+      if ((m.zone || '') === (currentZone || '') && m.kills && !seen.has(m.name)) { seen.add(m.name); const o = document.createElement('option'); o.value = m.name; dl.appendChild(o); }
+    for (const f of tracker.history.slice(0, 10)) for (const k of f.kills || []) if (!seen.has(k)) { seen.add(k); const o = document.createElement('option'); o.value = mobKey(k); dl.appendChild(o); }
+    const go = () => {
+      const v = inp.value.trim();
+      if (!v) return;
+      setUserRare(v, true);
+      // already killed this run? count it now
+      const f = [...(tracker.current ? [tracker.current] : []), ...tracker.history];
+      const n = f.reduce((a, x) => a + (x.kills || []).filter(k => mobKey(k).toLowerCase() === v.toLowerCase() && (!lootRun || x.lastCombat >= (lootRun.startLog || lootRun.startedAt))).length, 0);
+      if (lootRun && n) lootRun.rares.set(mobKey(v), Math.max(lootRun.rares.get(mobKey(v)) || 0, n));
+      toast('⭐ ' + v + ' marked rare in ' + (currentZone || 'this zone'));
+      rareAddOpen = false; renderRunBox();
+    };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); if (e.key === 'Escape') { rareAddOpen = false; renderRunBox(); } });
+    const ok = document.createElement('button'); ok.className = 'kbtn'; ok.textContent = 'Add'; ok.style.fontSize = '9.5px';
+    ok.addEventListener('click', go);
+    const x = document.createElement('button'); x.className = 'kbtn'; x.textContent = '✕'; x.style.fontSize = '9.5px';
+    x.addEventListener('click', () => { rareAddOpen = false; renderRunBox(); });
+    w.append(inp, dl, ok, x);
+    setTimeout(() => inp.focus(), 0);
+    return w;
   }
 
   function renderRunBox() {
@@ -7244,7 +8692,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       // rare checklist: which named mobs are down, which are still up
       const killed = r.rares ? new Map(r.rares) : new Map();
       const known = live ? knownRares() : [];
-      if (killed.size || known.length) {
+      if (killed.size || known.length || live) {
         const killedLc = new Map([...killed].map(([n, c]) => [n.toLowerCase(), c]));
         const rd = document.createElement('div');
         rd.style.cssText = 'font-size:10px;line-height:1.5;margin-top:3px;border-top:1px dashed rgba(255,215,102,.25);padding-top:2px';
@@ -7256,8 +8704,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         const downN = bits.filter(b => b.down).length;
         const hd = document.createElement('div');
         hd.style.cssText = 'color:#ffd766';
-        hd.textContent = '⭐ Rares — ' + downN + ' of ' + bits.length + ' down' +
-          (live && known.length ? ' (' + currentZone + ')' : '');
+        hd.textContent = bits.length ? '⭐ Rares — ' + downN + ' of ' + bits.length + ' down' +
+          (live && known.length ? ' (' + currentZone + ')' : '') : '⭐ Rares — none known here yet';
         const hidden = (notRares[currentZone || ''] || []).length;
         if (live && hidden) {
           const restore = document.createElement('span');
@@ -7271,6 +8719,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           hd.appendChild(restore);
         }
         rd.appendChild(hd);
+        if (live) rd.appendChild(rareAddControl());
         const line = document.createElement('div');
         line.style.cssText = 'white-space:normal';
         for (const b of bits.sort((a, x) => (x.down - a.down) || a.n.localeCompare(x.n))) {
@@ -7280,6 +8729,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           if (live) {
             sp.title = 'Not actually a rare? Click to remove ' + b.n + ' from this zone’s rare list (undo via "restore" on the Rares line)';
             sp.addEventListener('click', () => {
+              if (isUserRare(b.n)) setUserRare(b.n, false);
               setNotRare(b.n, true);
               if (lootRun && lootRun.rares) lootRun.rares.delete(mobKey(b.n));
               toast('⭐ ' + b.n + ' removed from ' + (currentZone || 'this zone') + '’s rares');
@@ -7336,6 +8786,16 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
           b.textContent = v.label;
           b.title = v.reason;
           div.appendChild(b);
+        }
+        // the going rate from WTS chat: is it worth carrying to a buyer?
+        const pt = priceTag(d.item);
+        if (pt && v.kind !== 'wish' && v.kind !== 'keep') {
+          const ps = document.createElement('span');
+          ps.className = 'v-badge';
+          ps.style.cssText = 'background:rgba(255,215,102,.12);color:#ffd766';
+          ps.textContent = pt;
+          ps.title = 'Median asking price in WTS chat over the last 30 days — click the item for the full going rate';
+          div.appendChild(ps);
         }
         const flag = document.createElement('span');
         flag.className = 'v-flag' + (itemVerdicts[verdictKey(d.item)] ? ' on' : '');
@@ -7563,12 +9023,24 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         results.push({ kind: 'tools', name, detail: 'eqlegendstools · ' + t.source, page: name });
       }
     }
+    // Project 1999 wiki: classic EQ — after the Legends sources, and labelled
+    for (const t of res.p99 || []) results.push({ kind: 'p99', name: t, detail: 'P99 wiki — classic EQ, Legends may differ' });
     renderResults(results, q);
   }
 
   function renderResults(results, q) {
+    results = Array.isArray(results) ? results.slice() : [];
     const el = $('k-results');
     el.innerHTML = '';
+    // items people are selling in chat right now, even ones SEQO has no page for yet
+    const qk = (q || '').toLowerCase().trim();
+    if (qk.length >= 3 && PR) {
+      const have = new Set(results.map(r => PR.keyOf(r.page || r.itemName || r.name)));
+      for (const [k, name] of priceName) {
+        if (results.length >= 60) break;
+        if (k.includes(qk) && !have.has(k)) { results.push({ kind: 'price', name, detail: 'seen for sale in chat' }); have.add(k); }
+      }
+    }
     if (!results.length) {
       el.innerHTML = '<div class="k-result"><span class="d">No local matches for “' +
         escapeHtml(q) + '” — try Sources ⟳ to search online.</span></div>';
@@ -7577,10 +9049,16 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     for (const r of results) {
       const div = document.createElement('div');
       div.className = 'k-result';
-      const icon = r.kind === 'seen' ? '💰' : r.kind === 'wiki' ? '🌐' : r.kind === 'tools' ? '🧰' : r.kind === 'mob' ? '👹' : '📦';
+      const icon = r.kind === 'seen' ? '💰' : r.kind === 'wiki' ? '🌐' : r.kind === 'tools' ? '🧰' : r.kind === 'mob' ? '👹' : r.kind === 'price' ? '🏷' : r.kind === 'p99' ? '🏛' : '📦';
       div.innerHTML = icon + ' <b></b> <span class="d"></span>';
       div.querySelector('b').textContent = r.name;
-      div.querySelector('.d').textContent = '— ' + r.detail;
+      const pt = r.kind !== 'mob' ? priceTag(r.page || r.itemName || r.name) : '';
+      div.querySelector('.d').textContent = '— ' + r.detail + (pt ? ' · sells ' + pt : '');
+      if (r.kind === 'p99') {
+        div.addEventListener('click', () => openGuide({ title: r.name, source: 'p99', label: 'P99: ' + r.name }));
+        el.appendChild(div);
+        continue;
+      }
       div.addEventListener('click', () => openItem(r.page || r.itemName || r.name));
       if (r.kind !== 'mob') div.appendChild(wishStar(r.page || r.itemName || r.name));
       el.appendChild(div);
@@ -7767,6 +9245,64 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   });
   $('export-close').addEventListener('click', () => $('export-modal').style.display = 'none');
   $('login-close').addEventListener('click', () => $('login-modal').style.display = 'none');
+  $('recap-close').addEventListener('click', () => { $('recap-modal').style.display = 'none'; });
+  // first 2.6 launch: offer the old-logs read once (History + going rates start full).
+  // Waits for the login popup to be gone so two popups never stack.
+  (function offerOldLogs() {
+    const tryShow = () => {
+      if (!settings || settings.oldLogsOffered || window.__EQLTEST) return;
+      if (!settings.logPath) { setTimeout(tryShow, 30000); return; }
+      if ($('login-modal').style.display === 'flex' || $('recap-modal').style.display === 'flex') { setTimeout(tryShow, 5000); return; }
+      $('oldlogs-modal').style.display = 'flex';
+    };
+    setTimeout(tryShow, 9000);
+    $('oldlogs-later').addEventListener('click', () => { save({ oldLogsOffered: true }); $('oldlogs-modal').style.display = 'none'; toast('You can do it any time: Σ Session → 📚 History → 📥 Old logs'); });
+    $('oldlogs-go').addEventListener('click', async () => {
+      const go = $('oldlogs-go');
+      if (go.dataset.done) { $('oldlogs-modal').style.display = 'none'; return; }
+      if (go.disabled) return;
+      go.disabled = true; $('oldlogs-later').style.display = 'none';
+      $('oldlogs-text').textContent = 'Reading… 0%';
+      const prog = (p) => { if (go.disabled) $('oldlogs-text').textContent = 'Reading ' + p.file + ' … ' + p.pct + '%'; };
+      window.overlay.onHistoryImportProgress(prog);
+      let r = null;
+      try { r = await window.overlay.historyImportLogs(); } catch (e) { r = { error: e.message }; }
+      go.disabled = false;
+      save({ oldLogsOffered: true });
+      if (r && r.ok) {
+        refreshPriceMed();
+        $('oldlogs-text').textContent = '✔ Added ' + r.added + ' past session' + (r.added === 1 ? '' : 's') + ' to History and ' + (r.prices || 0).toLocaleString() +
+          ' prices from ' + r.files + ' log files. Going rates now show on loot, the item card and Lookup.';
+      } else $('oldlogs-text').textContent = '⚠ ' + ((r && r.error) || 'could not read the logs') + ' — you can retry from Σ Session → 📚 History → 📥 Old logs.';
+      go.textContent = 'Close';
+      go.dataset.done = '1';
+    });
+  })();
+  $('b-history').addEventListener('click', openHistory);
+  $('hist-close').addEventListener('click', () => { $('hist-modal').style.display = 'none'; });
+  $('hist-csv').addEventListener('click', () => exportHistory('csv'));
+  $('hist-import').addEventListener('click', async () => {
+    const b = $('hist-import');
+    if (b.disabled) return;
+    b.disabled = true; b.textContent = '📥 reading… 0%';
+    try {
+      const r = await window.overlay.historyImportLogs();
+      if (r && r.ok) {
+        toast('📥 Added ' + r.added + ' past session' + (r.added === 1 ? '' : 's') + (r.prices ? ' and ' + r.prices.toLocaleString() + ' WTS/WTB prices' : '') +
+          ' from ' + r.files + ' log file' + (r.files === 1 ? '' : 's') + (r.skipped ? ' (' + r.skipped + ' sessions already saved live)' : ''));
+        refreshPriceMed();
+        histList = (await window.overlay.historyList()) || [];
+        renderHistory();
+      } else toast('📥 Import: ' + ((r && r.error) || 'failed'));
+    } finally { b.disabled = false; b.textContent = '📥 Old logs'; }
+  });
+  window.overlay.onHistoryImportProgress((p) => { for (const id of ['hist-import']) { const b = $(id); if (b && b.disabled) b.textContent = '📥 reading… ' + p.pct + '%'; } });
+  $('hist-md').addEventListener('click', () => exportHistory('md'));
+  $('recap-copy').addEventListener('click', () => {
+    if (!lastRecap) return;
+    navigator.clipboard.writeText(recapText(lastRecap)).then(() => toast('📋 Death recap copied')).catch(() => toast('Copy failed'));
+  });
+  $('bb-death').addEventListener('click', () => renderRecap(true));
   $('export-copy').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText($('export-text').textContent);
@@ -7839,13 +9375,44 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     worldState.cy = (minY + maxY) / 2;
   }
 
+  // frame a set of zones (your neighbourhood, a route) at a readable zoom
+  function fitWorldTo(c, shorts, padX = 60, padY = 40) {
+    const ns = shorts.map(k => EQLWorld.nodes[k]).filter(Boolean);
+    if (!ns.length) return fitWorld(c);
+    const minX = Math.min(...ns.map(n => n.x)) - padX, maxX = Math.max(...ns.map(n => n.x)) + padX;
+    const minY = Math.min(...ns.map(n => n.y)) - padY, maxY = Math.max(...ns.map(n => n.y)) + padY;
+    fitWorld(c);
+    const whole = worldState.scale;
+    const fit = Math.min(c.width / (maxX - minX), c.height / (maxY - minY));
+    worldState.scale = Math.max(whole, Math.min(fit, whole * 5)); // never wider than the world, never absurdly deep
+    worldState.cx = (minX + maxX) / 2;
+    worldState.cy = (minY + maxY) / 2;
+  }
+  // zones within `hops` zone lines of a zone (for the opening view)
+  function worldNeighbourhood(short, hops) {
+    const seen = new Set([short]); let ring = [short];
+    for (let h = 0; h < hops; h++) {
+      const next = [];
+      for (const z of ring) for (const [a, b] of EQLWorld.edges) {
+        const o = a === z ? b : b === z ? a : null;
+        if (o && !seen.has(o)) { seen.add(o); next.push(o); }
+      }
+      ring = next;
+    }
+    return [...seen];
+  }
+
   function currentWorldStart() {
     return worldState.startOverride ||
       (zoneShortName(currentZone) in EQLWorld.nodes ? zoneShortName(currentZone) : null);
   }
 
   function drawWorld(c, ctx) {
-    if (!worldState.scale) fitWorld(c);
+    if (!worldState.scale) {
+      // open on YOUR part of the world, readable — Fit shows the whole map
+      const start = currentWorldStart();
+      if (start) fitWorldTo(c, worldNeighbourhood(start, 2)); else fitWorld(c);
+    }
     const s = worldState.scale;
     const toScreen = (x, y) => [(x - worldState.cx) * s + c.width / 2, (y - worldState.cy) * s + c.height / 2];
     const here = currentWorldStart();
@@ -7876,6 +9443,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
     // nodes + labels
     ctx.font = Math.max(7, 8.5 * Math.min(1.4, s * 3)) + 'px sans-serif';
+    const labels = []; // drawn after every dot, most important first, never overlapping
     for (const [short, n] of Object.entries(EQLWorld.nodes)) {
       const [x, y] = toScreen(n.x, n.y);
       const isHere = short === here;
@@ -7897,9 +9465,25 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       ctx.arc(x, y, isHere || isTarget ? 4.5 : onPath.has(short) ? 3.5 : 2.5, 0, Math.PI * 2);
       ctx.fill();
       if (isHere || isTarget) { ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = 1.2; ctx.stroke(); }
-      ctx.fillStyle = isHere ? '#7dffa0' : isTarget ? '#ff9d5c' : onPath.has(short) ? '#ffd766' : 'rgba(200,200,215,.65)';
-      ctx.textAlign = 'center';
-      ctx.fillText(n.name, x, y - 6);
+      labels.push({ x, y, name: n.name,
+        pri: isHere ? 0 : isTarget ? 1 : onPath.has(short) ? 2 : EQLWorld.PORTS[short] ? 3 : 4,
+        color: isHere ? '#7dffa0' : isTarget ? '#ff9d5c' : onPath.has(short) ? '#ffd766' : 'rgba(200,200,215,.65)' });
+    }
+    // label decluttering: zoomed out, only the labels that fit are drawn (you,
+    // your target and the route always are); zooming in reveals the rest
+    labels.sort((a, b) => a.pri - b.pri);
+    const placed = [];
+    const fh = parseFloat(ctx.font) || 9;
+    ctx.textAlign = 'center';
+    for (const L of labels) {
+      if (L.x < -60 || L.x > c.width + 60 || L.y < -20 || L.y > c.height + 20) continue;
+      const w = ctx.measureText(L.name).width + 4;
+      const r = { x1: L.x - w / 2, x2: L.x + w / 2, y1: L.y - 6 - fh, y2: L.y - 4 };
+      const hit = placed.some(p => r.x1 < p.x2 && r.x2 > p.x1 && r.y1 < p.y2 && r.y2 > p.y1);
+      if (hit && L.pri > 2) continue;
+      placed.push(r);
+      ctx.fillStyle = L.color;
+      ctx.fillText(L.name, L.x, L.y - 6);
     }
 
     // route text in the hint bar
@@ -7997,6 +9581,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     else if (best === currentWorldStart()) worldState.routeTarget = null;
     else worldState.routeTarget = best;
     $('m-goto').value = worldState.routeTarget || '';
+    frameRoute();
     drawMap();
   }
 
@@ -8014,9 +9599,17 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     }
     sel.addEventListener('change', () => {
       worldState.routeTarget = sel.value || null;
+      frameRoute();
       drawMap();
     });
   })();
+
+  // a new destination: show the whole route, readable
+  function frameRoute() {
+    const here = currentWorldStart();
+    const path = here && worldState.routeTarget ? EQLWorld.route(here, worldState.routeTarget) : null;
+    if (path && path.length > 1) fitWorldTo($('m-canvas'), path.map(p => p.short));
+  }
 
   function contentScale() {
     const t = $('content').style.transform;
@@ -8126,6 +9719,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 
   // ================= settings =================
   function applySettings() {
+    try { rebuildCustomAlerts(); renderCustomAlertList(); } catch (e) { console.error('custom alerts', e); }
     if (!settings) return;
     $('content').style.fontFamily = settings.fontFamily;
     const text = $('text');
@@ -8150,6 +9744,13 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
     $('archiveclear').checked = settings.archiveOnClear !== false;
     $('autorun').checked = !!settings.autoRun;
     $('alertflash').checked = settings.alertFlash !== false;
+    $('ccalerts').checked = settings.ccAlerts !== false;
+    $('cdtimers').checked = settings.cooldownTimers !== false;
+    $('concard').checked = settings.considerCard === true;
+    if (document.activeElement !== $('cdmin')) $('cdmin').value = settings.cooldownMin || 30;
+    $('tts-on').checked = settings.ttsOn !== false;
+    $('tts-rate').value = settings.ttsRate || 1.1;
+    $('deathrecap').checked = settings.deathRecap !== false;
     $('alertsound').checked = settings.alertSound !== false;
     $('buffalerts').checked = settings.buffAlerts !== false;
     $('loginremind').checked = settings.loginReminder !== false;
@@ -8293,6 +9894,30 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
   $('autorun').addEventListener('change', (e) => save({ autoRun: e.target.checked }));
   $('archiveclear').addEventListener('change', (e) => save({ archiveOnClear: e.target.checked }));
   $('alertflash').addEventListener('change', (e) => save({ alertFlash: e.target.checked }));
+  $('ccalerts').addEventListener('change', (e) => save({ ccAlerts: e.target.checked }));
+  // settings search: show only the rows that match, open their sections
+  $('set-search').addEventListener('input', () => {
+    const q = $('set-search').value.trim().toLowerCase();
+    for (const d of document.querySelectorAll('#settings > details')) {
+      if (!d.dataset.wasOpen) d.dataset.wasOpen = d.open ? '1' : '0';
+      let hit = false;
+      const head = (d.querySelector('summary') || {}).textContent || '';
+      for (const r of d.querySelectorAll('.setrow, label, .row, .hint, textarea, input[type=range], select')) {
+        if (r.closest('.setrow') && r !== r.closest('.setrow')) continue;
+        const txt = (r.textContent + ' ' + (r.placeholder || '')).toLowerCase();
+        const show = !q || txt.includes(q) || head.toLowerCase().includes(q);
+        r.style.display = show ? '' : 'none';
+        if (show && q) hit = true;
+      }
+      d.style.display = !q || hit ? '' : 'none';
+      d.open = q ? hit : d.dataset.wasOpen === '1';
+      if (!q) delete d.dataset.wasOpen;
+    }
+  });
+  $('cdtimers').addEventListener('change', (e) => save({ cooldownTimers: e.target.checked }));
+  $('concard').addEventListener('change', (e) => save({ considerCard: e.target.checked }));
+  $('cdmin').addEventListener('change', (e) => save({ cooldownMin: Math.max(20, +e.target.value || 30) }));
+  $('deathrecap').addEventListener('change', (e) => save({ deathRecap: e.target.checked }));
   $('alertsound').addEventListener('change', (e) => save({ alertSound: e.target.checked }));
   $('buffalerts').addEventListener('change', (e) => save({ buffAlerts: e.target.checked }));
   $('loginremind').addEventListener('change', (e) => save({ loginReminder: e.target.checked }));
@@ -8321,6 +9946,8 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
       () => alertFX('💔 Charm broke: test! (descending)', 'charm'),
       () => alertFX('⚔ ATTACKED while AFK! (siren)', 'afk'),
       () => alertFX('👁 You are VISIBLE! (rising sweep)', 'invis'),
+      () => alertFX('😳 Mez broke: test mob! (double + thud)', 'cc'),
+      () => alertFX('☠ You died — test (falling notes)', 'death'),
       () => { buffAlertSeen.clear(); buffAlert('Buff dropped: Clarity (soft boop)', 'test'); }
     ];
     demos.forEach((d, i) => setTimeout(d, i * 1600));

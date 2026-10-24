@@ -1,14 +1,14 @@
 {
   "name": "seqo",
   "productName": "SEQO",
-  "version": "2.5.3",
+  "version": "2.6.0",
   "description": "SEQO - Simple EQ Overlay for EverQuest Legends",
   "main": "main.js",
   "author": "Ed",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node test/parser.test.js && node test/worldmap.test.js",
+    "test": "node test/parser.test.js && node test/gamesync.test.js && node test/worldmap.test.js && node test/history.test.js && node test/alerts.test.js && node test/prices.test.js",
     "dist": "electron-builder --win"
   },
   "devDependencies": {
@@ -43,6 +43,12 @@
       "epics.js",
       "bis.js",
       "updater.js",
+      "gamesync.js",
+      "history.js",
+      "chatlog.js",
+      "historyimport.js",
+      "prices.js",
+      "alerts.js",
       "zones.js",
       "worldmap.js",
       "buffs.js",

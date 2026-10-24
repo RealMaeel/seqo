@@ -18,7 +18,7 @@ const readline = require('readline');
 const CLASSES = ['WAR', 'CLR', 'PAL', 'RNG', 'SHD', 'DRU', 'MNK', 'BRD', 'ROG', 'SHM', 'NEC', 'WIZ', 'MAG', 'ENC', 'BST', 'BER'];
 
 // spells_us.txt columns (verified empirically against known spells)
-const COL = { ID: 0, NAME: 1, CAST: 8, DUR_F: 11, DUR_B: 12, MANA: 14, BENEFICIAL: 28, TARGET: 30, SKILL: 32, CLS0: 36 };
+const COL = { ID: 0, NAME: 1, CAST: 8, RECAST: 10, DUR_F: 11, DUR_B: 12, MANA: 14, BENEFICIAL: 28, TARGET: 30, SKILL: 32, CLS0: 36 };
 
 // classic duration formulas (ticks of 6s), capped at base — EQEmu-compatible
 function durationTicks(formula, base, level) {
@@ -59,7 +59,7 @@ function spellFiles(gameRoot) {
 function cacheKeyFor(gameRoot) {
   const f = spellFiles(gameRoot);
   // the leading token is a parser version: bump it and every cache rebuilds
-  return ['v14', fileKey(f.spells), fileKey(f.strs), fileKey(f.stacking)].join('|');
+  return ['v17', fileKey(f.spells), fileKey(f.strs), fileKey(f.stacking)].join('|');
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +216,17 @@ async function parseSpellFiles(gameRoot) {
   // pass 1: the spell table. Keep every spell with a duration (fades matter)
   // plus every beneficial spell a player class can cast (the planner pool).
   const spells = new Map(); // id -> record
+  // crowd control a player can cast, by name: 'mez' (SPA 31) or 'slow' (SPA 11
+  // below 100, e.g. Tepid Deeds 80 = 20% slow). Lets the overlay call out a
+  // mez or slow breaking / wearing off a mob.
+  const cc = {};
+  // every spell a player class can learn by level 60, instant ones included
+  // (nukes, heals, ports): the spellbook check compares this to /outputfile spellbook
+  const book = {};
+  // long reuse timers on player spells (Lay on Hands 70m, Harm Touch 20m,
+  // Divine Aura 15m…): name -> { r: recast seconds, c: cast ms }, for the
+  // overlay's "ready again in…" cooldown chips
+  const recast = {};
   await eachLine(f.spells, (line) => {
     const c = line.split('^');
     if (c.length < 60 || !+c[COL.ID]) return;
@@ -229,8 +240,21 @@ async function parseSpellFiles(gameRoot) {
       const lv = +c[COL.CLS0 + i];
       if (lv >= 1 && lv < 255) { cls[CLASSES[i]] = lv; castable = true; }
     }
+    if (castable && !recast[name]) {
+      const rs = Math.round((+c[COL.RECAST] || 0) / 1000);
+      if (rs >= 20) recast[name] = { r: rs, c: +c[COL.CAST] || 0 };
+    }
+    if (castable && !book[name]) {
+      const lo = Math.min(...Object.values(cls));
+      if (lo <= 60 && !/^Item (Benefit|Effect)\b/i.test(name)) book[name] = cls;
+    }
     const hasDur = durB > 0 || durF === 50 || durF === 3;
     if (!hasDur) return; // only lasting effects matter (tracking, planning, fades)
+    if (!ben && castable && !cc[name]) {
+      const fx = c[c.length - 1].split('$').map(x => x.split('|'));
+      if (fx.some(p => p[1] === '31')) cc[name] = 'mez';
+      else if (fx.some(p => p[1] === '11' && +p[2] > 0 && +p[2] < 100)) cc[name] = 'slow';
+    }
     let minLv = 999;
     for (const v of Object.values(cls)) minLv = Math.min(minLv, v);
     const rec = {
@@ -394,7 +418,7 @@ async function parseSpellFiles(gameRoot) {
       : { id: sp.id, n: sp.n, ben: sp.ben, durF: sp.durF, durB: sp.durB }; // slim: tracker-only
     if (stacking[id]) stk[id] = stacking[id];
   }
-  return { classes: CLASSES, spells: byId, stacking: stk, fadeMap, landMap, desc, builtAt: Date.now() };
+  return { classes: CLASSES, spells: byId, stacking: stk, fadeMap, landMap, desc, cc, book, recast, notInLegends: [...NOT_IN_LEGENDS], builtAt: Date.now() };
 }
 
 // ---------------------------------------------------------------------------

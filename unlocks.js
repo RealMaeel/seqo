@@ -212,7 +212,39 @@
     'Half Elf': 'Autocompletes when you unlock Human or Wood Elf — no separate grind.',
     'Kerran': "Complete the 'Aid the Kerrans of Kerra Isle' task chain — hail a class GM on Kerra Isle.",
     'Iksar': 'Single faction: New Sebilisian Expedition (the Legends Kunark outpost in North Ro).',
-    'Ogre': 'Alanna rates this the longest grind in the game — consider starting as an Ogre instead.'
+    'Ogre': 'Alanna rates this the longest grind in the game — consider starting as an Ogre instead.',
+    'Half Dark Elves': "Dorian G`Wyn's quest chain in Lake Nerius (five tasks, no faction grind) — walkthrough below. The achievement is still a placeholder: it completes, but the race doesn't unlock yet."
+  };
+
+  // Race unlocks that are quest chains rather than faction grinds, keyed by the
+  // race label (achievement name minus "Race Unlock - "). Same step shape as
+  // KEY_QUESTS; step.say = keywords in order, step.item = an item you hold.
+  const RACE_QUESTS = {
+    'Half Dark Elves': {
+      giver: 'Dorian G`Wyn',
+      zone: 'Lake Nerius',
+      // the game completes the achievement, but it's still "Future Placeholder
+      // for Half Dark Elves" and does NOT make the race playable (Ed, Oct 24
+      // 2026). Remove this flag the day finishing it really unlocks the race.
+      placeholder: 'The game marks this achievement complete, but it is still a placeholder: finishing the chain does not unlock the race yet.',
+      tasks: ['Something Fishy', 'Alchemical Solution', 'What`s going on here?', 'Call for Aid', 'Unfortunate news'],
+      steps: [
+        { zone: 'Lake Nerius', text: 'Something Fishy: hail Nikko Canti by the lake and say "not", "haven`t seen", "feed", "help". He lends you a fishing pole and bait.' },
+        { zone: 'Lake Nerius', item: 'Defiled Fish Scales', text: 'Fish up 3 Fresh Fish and hand them to Nikko, then kill large piranhas and ghost gills in the lake until the task updates. Nikko gives you the Defiled Fish Scales and sends you to Dorian.' },
+        { zone: 'Lake Nerius', text: 'Alchemical Solution: hand the Defiled Fish Scales to Dorian G`Wyn, the alchemist at the tradespeople\'s market. He wants lava drake bile and imp\'s blood.' },
+        { zone: 'The Lavastorm Mountains', item: 'Imp Blood', text: 'Loot Putrid Bile from a fire drake and Imp Blood from a fire imp, then hand both to Dorian. Say "assist", then "two things".' },
+        { zone: 'West Freeport', item: 'Dusty Scroll Case', text: 'The guard who stole Dorian\'s scroll case went up onto the city walls. Find the Dusty Scroll Case up there (it\'s a pickup; the log doesn\'t record it).' },
+        { zone: 'Neriak - Foreign Quarter', item: 'Encoded Missive', text: 'Find Ty`Klerr hiding low in the Foreign Quarter (/track helps). Hail her and say "dorian sent me", "ready", "report" for the Encoded Missive.' },
+        { zone: 'Lake Nerius', item: 'Fetid Lake Muck', text: 'Hand the Encoded Missive and Dusty Scroll Case to Dorian. Then fish in the lake for Fetid Lake Muck (re-hail Nikko for a pole if you gave yours back) and hand it to Dorian.' },
+        { zone: 'Lake Nerius', text: 'What`s going on here?: ask around the market. Yelayna: "sign", "contact", "undead", "increased numbers", "Everling`s". Konro Strongfoot: "folk", "hooded". Blergagh: "dorian", "smell". The Great Zultor: "What else", "possibilities", "no knowable limit", "barriers", "timeline". Neuven F`Lok: "money", "healthy", "transients". Nikko Canti: "dorian", "others".' },
+        { zone: 'Lake Nerius', text: 'Call for Aid: say "who", "Half Dark Elf", "jeopardized", "hidden home", "alleviate the threat" to Dorian for three petitions.' },
+        { zone: 'Neriak - Commons', item: 'Exorbitant Commission', text: 'Give the Appeal of Neriak to Pishtian F`Lok for the Exorbitant Commission.' },
+        { zone: 'North Freeport', item: 'A Curt Dismissal', text: 'Give the Plea to Freeport to Sir Mollin for A Curt Dismissal.' },
+        { zone: 'The Temple of Solusek Ro', item: 'Ordination of Might', text: 'Give the Solusek Petition to Lord Lyfyx of Burwood for the Ordination of Might.' },
+        { zone: 'Lake Nerius', text: 'Unfortunate news: hand all three replies to Dorian. That completes the Race Unlock - Half Dark Elves achievement (still a placeholder, so no playable race yet); he points you to the Undercroft.' }
+      ],
+      source: 'Walked through Oct 22–23 2026 (SEQO maintainer log)'
+    }
   };
 
   const DEITY_NOTES = {
@@ -271,9 +303,22 @@
         { zone: 'Nektropos Castle', item: 'Nektropos Great Room Key', text: 'With the hilt, kill the spirits of six sisters — Deirdre, Jenni, Melanie, Crysta, Sheila and Elise Everling. Each kill updates the task. Then hail Alexa`s Handmaiden for the Nektropos Great Room Key (goes on your key ring).' },
         { zone: 'Nektropos Castle', unverified: true, text: 'Sister kills only counted in Nektropos Castle 1 (Awakened) in our run, not on the regular floor.' },
         { zone: 'Nektropos Castle', item: 'Nektropos Private Chamber Key', text: 'Kill Alexa Everling in the great room, the seventh sister. The task updates and she drops the Nektropos Private Chamber Key.' },
-        { zone: 'Nektropos Castle', unverified: true, text: 'Next, per the hilt: "Go find the Lord of this house and soak the blade in his blood."' }
+        { zone: 'Nektropos Castle', text: 'The hilt now wants "the Lord of this house": Lord Rikantus Everling, down in the basement (Nektropos Basement Key). When he falls, say "end" at his body — you soak the blade in his blood, it is fully reforged, and The Betrayer and The Tragic Tale of House Everling both update.' },
+        { zone: 'Nektropos Castle', unverified: true, text: 'The blade then says there is "one task left to complete" — not walked through yet.' }
       ],
-      source: 'Walked through on Oct 22–23 2026 (SEQO maintainer log)'
+      source: 'Walked through on Oct 22–24 2026 (SEQO maintainer log)'
+    },
+    'Nektropos Basement Key': {
+      keyItem: 'Nektropos Basement Key',
+      opens: 'the Nektropos basement (Lord Rikantus Everling)',
+      task: 'The Betrayer',
+      giver: 'Lady Sileniu Everling',
+      zone: 'Nektropos Castle',
+      steps: [
+        { zone: 'Nektropos Castle', item: 'Nektropos Basement Key', text: 'Drops from the castle\'s named mobs as a normal item in your bags — loot it from the corpse (ours came off Deirdre Everling).' },
+        { zone: 'Nektropos Castle', text: 'The basement holds Lord Rikantus Everling — the "Lord of this house" the reforged hilt asks for.' }
+      ],
+      source: 'Oct 24 2026 (SEQO maintainer run + log); basement details from player chat'
     },
     'Nektropos Private Chamber Key': {
       keyItem: 'Nektropos Private Chamber Key',
@@ -299,5 +344,5 @@
   // for the data-freshness check
   const META = { captured: '2026-09-22', sources: ["Alanna's Race Unlock Guide"] };
 
-  return { CREDITS, FACTION_GRINDS, RACE_NOTES, DEITY_NOTES, GRIND_ITEMS, META, KEY_QUESTS };
+  return { CREDITS, FACTION_GRINDS, RACE_NOTES, RACE_QUESTS, DEITY_NOTES, GRIND_ITEMS, META, KEY_QUESTS };
 });

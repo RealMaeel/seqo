@@ -157,7 +157,7 @@
     tox:         'Druid ring & Wizard spires',
     northkarana: 'Druid ring & Wizard spires',
     gfaydark:    'Wizard spires',
-    soro:        'Druid ring',
+    sro:         'Druid ring',
     lavastorm:   'Druid ring',
     feerrott:    'Druid ring',
     misty:       'Druid ring',

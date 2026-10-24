@@ -67,7 +67,7 @@
     'Temple of Cazic-Thule': 'cazicthule', 'The Temple of Cazic-Thule': 'cazicthule',
     'Cazic-Thule': 'cazicthule', 'The City of Guk': 'guktop',
     'Oggok': 'oggok', 'Mountains of Rathe': 'rathemtn', 'Lake Rathetear': 'lakerathe',
-    'Arena': 'arena', 'South Ro': 'soro', 'North Ro': 'nro', 'Oasis of Marr': 'oasis',
+    'Arena': 'arena', 'South Ro': 'sro', 'North Ro': 'nro', 'Oasis of Marr': 'oasis',
     'The Desert of Ro': 'sro',
     'New Sebilis Expedition': 'newsebexp', 'The New Sebilis Expedition': 'newsebexp',
     'Gorge of King Xorbb': 'beholder', 'The Gorge of King Xorbb': 'beholder',

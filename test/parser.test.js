@@ -54,6 +54,40 @@ check('A spite golem tries to claw YOU, but misses! (Rampage)', { type: 'miss' }
 check('You try to shoot a gorgalask, but miss!', { type: 'miss', attacker: 'You', target: 'a gorgalask' });
 check('Healer tries to smite a spite golem, but misses!', { type: 'miss', attacker: 'Healer' });
 
+// --- death recap + stances (v2.6) ---
+check('You have been knocked unconscious!', { type: 'ko' });
+check('You died.', { type: 'death', target: 'You', killer: null });
+check('You have been slain by Lord Rikantus Everling!', { type: 'death', target: 'You', killer: 'Lord Rikantus Everling' });
+check('You assume a striker stance.', { type: 'stance', stance: 'striker' });
+check('You assume an evasive stance.', { type: 'stance', stance: 'evasive' });
+check('You assume a mage hunter stance.', { type: 'stance', stance: 'mage hunter' });
+
+// --- progress + chat (v2.6) ---
+check('You have become better at Fishing! (11)', { type: 'skillup', skill: 'Fishing', value: 11 });
+check('Your faction standing with Host of Nektropos has been adjusted by -2.', { type: 'faction', faction: 'Host of Nektropos', delta: -2 });
+check('Your faction standing with Brownies of Faydwer could not possibly get any worse.', { type: 'faction', delta: 0, capped: 'worse' });
+check("Cadogan tells you, 'naggy and yael also'", { type: 'chat', channel: 'tell', from: 'Cadogan', text: 'naggy and yael also' });
+check("You told Cadogan, 'just doing vox?'", { type: 'chat', channel: 'tell', from: 'You', to: 'Cadogan' });
+check("Stormbow tells the group, 'hey hey'", { type: 'chat', channel: 'group', from: 'Stormbow', text: 'hey hey' });
+check("Eliseus tells General:1, 'anyone tried out rampage rank 2?'", { type: 'chat', channel: 'chan', chan: 'General:1', from: 'Eliseus' });
+check("Ebear tells General1:1, 'WTS Blood Fire +6 10k'", { type: 'chat', channel: 'chan', chan: 'General1:1', from: 'Ebear' });
+check("You tell General:1, 'how do you get in the basement?'", { type: 'chat', channel: 'chan', from: 'You' });
+check("Lord Ollix Everling says, 'Ah, Maeel! Welcome to our castle.'", { type: 'chat', channel: 'say', from: 'Lord Ollix Everling' });
+check("Xonektik says, 'Sorry, Master... calming down.'", { type: 'petsay' });
+check('You healed Maeel for 222 hit points by Spirit Tap.', { type: 'heal', healer: 'You', amount: 222 });
+check('Lyes healed herself for 0 (6) hit points by Blessing of the Lord Commander.', { type: 'heal', healer: 'Lyes', amount: 0, potential: 6 });
+
+check('Tormentor Utzain - a rare creature - scowls at you, ready to attack -- looks like he would wipe the floor with you! (Lvl: 54)',
+  { type: 'consider', mob: 'Tormentor Utzain', level: 54, rare: true, aggro: true, attitude: 'scowls at you, ready to attack', difficulty: 'looks like he would wipe the floor with you!' });
+check('Bugroll regards you indifferently -- looks like quite a gamble. (Lvl: 50)', { type: 'consider', mob: 'Bugroll', level: 50, rare: false, aggro: false, difficulty: 'looks like quite a gamble.' });
+
+// --- AA points: the real wording (fixed in 2.6; the old pattern never matched) ---
+check('You have gained an ability point!  You now have 145 ability points.', { type: 'aa', gained: 1, total: 145 });
+check('You have gained an ability point!  You now have 1 ability point.', { type: 'aa', gained: 1, total: 1 });
+check('You have gained 2 ability point(s)!  You now have 147 ability point(s).', { type: 'aa', gained: 2, total: 147 });
+
+check('You were hit by non-melee for 52 damage.', { type: 'damage', target: 'You', attacker: '(unknown)', amount: 52, spell: 'non-melee' });
+
 // --- kills, heals, loot ---
 check('You have slain a froglok tactician!', { type: 'death', target: 'a froglok tactician', killer: 'You' });
 check('You healed Maeel for 222 hit points by Spirit Tap.', { type: 'heal', amount: 222, spell: 'Spirit Tap' });

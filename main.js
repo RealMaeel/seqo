@@ -434,124 +434,126 @@ ipcMain.handle('data-dir-status', () => ({
 // Local paths are per-machine (installs differ); the shared side is keyed
 // by filename under <dataDir>/gamefiles/.
 // ---------------------------------------------------------------------------
-const gamefilesDir = () => path.join(dataDir(), 'gamefiles');
+const gamesync = require('./gamesync.js').create({
+  getSettings: () => settings,
+  saveSettings,
+  dataDir,
+  getWin: () => win
+});
+const { syncGameFiles, watchGameFiles } = gamesync;
 
-function copyPreservingTime(src, dst) {
-  fs.copyFileSync(src, dst);
-  const st = fs.statSync(src);
-  fs.utimesSync(dst, st.atime, st.mtime); // keep mtimes equal so sync converges
-}
-
-function syncOnePair(local, shared, label, results) {
+// Session history (v2.6): saved sessions + loot runs, browse/compare/export.
+// Local profile only — see history.js for why it never goes in the sync folder.
+const history = require('./history.js').create({ dir: () => app.getPath('userData') });
+ipcMain.on('history-upsert', (_e, entry) => history.upsert(entry));
+const chatlog = require('./chatlog.js').create({ dir: () => app.getPath('userData') });
+// Market prices from WTS/WTB chat (prices.js): local profile, like history
+const priceStore = require('./prices.js').createStore({ dir: () => app.getPath('userData') });
+ipcMain.on('prices-add', (_e, list) => priceStore.add(list));
+ipcMain.handle('prices-query', (_e, opts) => ({ rows: priceStore.query(opts || {}), total: priceStore.count() }));
+ipcMain.handle('prices-detail', (_e, { key, days }) => priceStore.detail(key, days));
+ipcMain.on('chat-add', (_e, batch) => chatlog.add(batch));
+ipcMain.handle('chat-list', () => chatlog.list());
+ipcMain.handle('chat-clear', () => { chatlog.clear(); return true; });
+ipcMain.handle('history-list', () => history.list());
+// Import old logs (Logs\ + Logs\archive\) into History, oldest first, one
+// importer per character so a session that spans a log rotation stays whole.
+// Sessions overlapping one SEQO already saved live are skipped.
+let historyImporting = false;
+ipcMain.handle('history-import-logs', async () => {
+  if (historyImporting) return { error: 'an import is already running' };
+  const logPath = settings.logPath;
+  if (!logPath) return { error: 'pick your log file in Settings first' };
+  const logsDir = path.dirname(logPath);
+  const files = [];
+  for (const d of [path.join(logsDir, 'archive'), logsDir]) {
+    let names = [];
+    try { names = fs.readdirSync(d); } catch { continue; }
+    for (const n of names) {
+      const m = /^eqlog_(.+?)_(.+?)(?:-\d{4}-\d\d-\d\d-\d\d-\d\d)?\.txt$/i.exec(n);
+      if (!m) continue;
+      const p = path.join(d, n);
+      let st; try { st = fs.statSync(p); } catch { continue; }
+      files.push({ p, char: m[1], mtime: st.mtimeMs, size: st.size });
+    }
+  }
+  if (!files.length) return { error: 'no eqlog files found next to your log' };
+  files.sort((a, b) => a.mtime - b.mtime);
+  historyImporting = true;
+  const parser = require('./parser.js');
+  const { createImporter } = require('./historyimport.js');
+  const readline = require('readline');
+  const byChar = new Map();
+  const totalBytes = files.reduce((a, f) => a + f.size, 0);
+  let doneBytes = 0;
   try {
-    const le = fs.existsSync(local), se = fs.existsSync(shared);
-    if (le && se) {
-      const lm = fs.statSync(local).mtimeMs, sm = fs.statSync(shared).mtimeMs;
-      if (Math.abs(lm - sm) < 2000) { results.push(label + ': in sync'); return; }
-      if (lm > sm) {
-        fs.copyFileSync(shared, shared + '.seqo.bak');
-        copyPreservingTime(local, shared);
-        results.push(label + ': → shared (local was newer, backup kept)');
-      } else {
-        fs.copyFileSync(local, local + '.seqo.bak');
-        copyPreservingTime(shared, local);
-        results.push(label + ': ← shared (backup kept)');
+    for (const f of files) {
+      if (!byChar.has(f.char)) byChar.set(f.char, createImporter({ parser, char: f.char, prices: require('./prices.js') }));
+      const imp = byChar.get(f.char);
+      const rl = readline.createInterface({ input: fs.createReadStream(f.p, { encoding: 'latin1' }), crlfDelay: Infinity });
+      let n = 0;
+      for await (const line of rl) {
+        if (line) imp.line(line);
+        if (++n % 200000 === 0 && win) win.webContents.send('history-import-progress', { file: path.basename(f.p), pct: Math.round((doneBytes / totalBytes) * 100) });
       }
-    } else if (le) {
-      fs.mkdirSync(path.dirname(shared), { recursive: true });
-      copyPreservingTime(local, shared);
-      results.push(label + ': seeded to shared');
-    } else if (se) {
-      fs.mkdirSync(path.dirname(local), { recursive: true });
-      copyPreservingTime(shared, local);
-      results.push(label + ': pulled from shared');
-    } else {
-      results.push(label + ': ⚠ missing on both sides');
+      doneBytes += f.size;
+      if (win) win.webContents.send('history-import-progress', { file: path.basename(f.p), pct: Math.round((doneBytes / totalBytes) * 100) });
     }
+    const live = history.list().filter(e => e.type === 'session' && !e.imported);
+    let added = 0, skipped = 0;
+    for (const [, imp] of byChar) {
+      for (const s of imp.finish()) {
+        const clash = live.some(e => (!e.char || e.char === s.char) && e.start <= s.end && (e.end || e.start) >= s.start);
+        if (clash) { skipped++; continue; }
+        history.upsert(s); added++;
+      }
+    }
+    history.flush();
+    let prices = 0;
+    for (const [, imp] of byChar) prices += priceStore.add(imp.offers());
+    priceStore.flush();
+    return { ok: true, added, skipped, files: files.length, prices };
   } catch (e) {
-    results.push(label + ': ⚠ ' + e.message);
-  }
-}
-
-// list files (relative paths) under dir, up to `depth` levels down
-function listFilesRel(dir, depth, prefix = '') {
-  const out = [];
-  let entries = [];
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
-  for (const e of entries) {
-    if (e.name.endsWith('.seqo.bak')) continue;
-    if (e.isDirectory()) {
-      if (depth > 0) out.push(...listFilesRel(path.join(dir, e.name), depth - 1, path.join(prefix, e.name)));
-    } else {
-      out.push(path.join(prefix, e.name));
-    }
-  }
-  return out;
-}
-
-function syncGameFiles() {
-  if (!settings.dataDir) return { error: 'Set a shared data folder first' };
-  const results = [];
-  try { fs.mkdirSync(gamefilesDir(), { recursive: true }); } catch (e) { return { error: e.message }; }
-  for (const local of settings.syncFiles || []) {
-    const base = path.basename(local);
-    let isDir = false;
-    try { isDir = fs.statSync(local).isDirectory(); } catch { /* may only exist on shared side */ }
-    const sharedFolder = path.join(gamefilesDir(), 'folders', base);
-    if (isDir || fs.existsSync(sharedFolder)) {
-      // whole-folder sync (e.g. a custom UI skin folder): newest-wins per file,
-      // union of both sides so files added later on either machine are picked up
-      const rels = new Set([...listFilesRel(local, 3), ...listFilesRel(sharedFolder, 3)]);
-      const sub = [];
-      for (const rel of rels) syncOnePair(path.join(local, rel), path.join(sharedFolder, rel), rel, sub);
-      const changed = sub.filter(r => !r.includes('in sync'));
-      results.push('📁 ' + base + ': ' + (changed.length ? changed.length + ' of ' + rels.size + ' files updated' : rels.size + ' files in sync'));
-      for (const c of changed.slice(0, 6)) results.push('   ' + c);
-    } else {
-      syncOnePair(local, path.join(gamefilesDir(), base), base, results);
-    }
-  }
-  // sync status (v2.4): a persistent record of what just happened, plus a
-  // marker in the shared folder saying WHICH COMPUTER wrote last — so after
-  // switching machines you can see at a glance whether the other side's data
-  // actually arrived or you forgot to sync before leaving it.
-  const host = (() => { try { return require('os').hostname(); } catch { return 'this computer'; } })();
-  let otherHost = null, otherAt = 0;
-  const markerPath = path.join(gamefilesDir(), 'sync-marker.json');
+    return { error: e.message || String(e) };
+  } finally { historyImporting = false; }
+});
+ipcMain.handle('history-remove', (_e, id) => history.remove(id));
+ipcMain.handle('history-note', (_e, { id, note }) => history.setNote(id, note));
+// Custom alerts: import a GINA package (.gtp = zip with ShareData.xml) or an
+// exported GINA .xml. Returns the triggers converted to SEQO rules.
+ipcMain.handle('import-gina-file', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Import GINA triggers', properties: ['openFile'],
+    filters: [{ name: 'GINA triggers', extensions: ['gtp', 'xml', 'txt'] }, { name: 'All files', extensions: ['*'] }]
+  });
+  if (res.canceled || !res.filePaths.length) return { canceled: true };
   try {
-    const m = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
-    if (m && m.host && m.host !== host) { otherHost = m.host; otherAt = m.at || 0; }
-  } catch { /* first sync ever, or marker unreadable */ }
-  const pulled = results.filter(r => /← shared|pulled from shared/.test(r)).length;
-  const pushed = results.filter(r => /→ shared|seeded to shared/.test(r)).length;
-  const failed = results.filter(r => r.includes('⚠'));
-  const summary = {
-    at: Date.now(), host, pulled, pushed,
-    failed: failed.slice(0, 4),
-    inSync: results.filter(r => r.includes('in sync')).length,
-    from: pulled && otherHost ? { host: otherHost, at: otherAt } : null
-  };
-  settings.lastSync = summary;
-  saveSettings(settings);
-  try { fs.writeFileSync(markerPath, JSON.stringify({ host, at: Date.now() })); } catch { /* read-only share */ }
-  return { results, summary };
-}
-
-let gamefileWatchers = [];
-function watchGameFiles() {
-  for (const p of gamefileWatchers) fs.unwatchFile(p);
-  gamefileWatchers = [];
-  if (!settings.dataDir) return;
-  for (const local of settings.syncFiles || []) {
-    const shared = path.join(gamefilesDir(), path.basename(local));
-    gamefileWatchers.push(shared);
-    fs.watchFile(shared, { interval: 5000 }, (curr, prev) => {
-      if (curr.mtimeMs === prev.mtimeMs) return;
-      const res = syncGameFiles();
-      if (win && res.results) win.webContents.send('gamefiles-synced', res);
-    });
-  }
-}
+    const A = require('./alerts.js');
+    const buf = fs.readFileSync(res.filePaths[0]);
+    const xml = buf.readUInt32LE(0) === 0x04034b50 ? A.unzipFirstXml(buf) : buf.toString('utf8');
+    if (!xml) return { error: 'no trigger XML found in that file' };
+    const rules = A.ginaToRules(xml);
+    return rules.length ? { rules, file: path.basename(res.filePaths[0]) } : { error: 'no triggers found in that file' };
+  } catch (e) { return { error: e.message || String(e) }; }
+});
+ipcMain.handle('history-export', async (_e, { ids, format }) => {
+  const H = require('./history.js');
+  const all = history.list();
+  const pick = Array.isArray(ids) && ids.length ? all.filter(e => ids.includes(e.id)) : all;
+  if (!pick.length) return { ok: false, error: 'nothing to export' };
+  const md = format === 'md';
+  const res = await dialog.showSaveDialog(win, {
+    title: 'Export SEQO history',
+    defaultPath: 'seqo-history-' + new Date().toISOString().slice(0, 10) + (md ? '.md' : '.csv'),
+    filters: md ? [{ name: 'Markdown', extensions: ['md'] }] : [{ name: 'CSV (Excel, Sheets)', extensions: ['csv'] }]
+  });
+  if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+  try {
+    // CSV gets a BOM so Excel reads the UTF-8 names (Ak'Anon, ☠) correctly
+    fs.writeFileSync(res.filePath, md ? H.toMarkdown(pick) : '\ufeff' + H.toCSV(pick), 'utf8');
+    return { ok: true, path: res.filePath, count: pick.length };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
 
 ipcMain.handle('get-sync-files', () => settings.syncFiles || []);
 
@@ -1012,6 +1014,31 @@ ipcMain.handle('get-spell-db', async () => {
 
 // bulk wiki existence pre-check for the cleanup scan: one query per 50 titles
 // instead of parse + search fallbacks per missing item
+// Spellbook check: which client spells really exist in Legends? The client ships
+// live-EQ data (later expansions' ports, illusions), so a spell counts as
+// obtainable once eqlwiki has a page for it. Answers cached 30 days in gameDB.
+ipcMain.handle('spell-wiki-check', async (_e, names) => {
+  const cache = gameDB.spellPages = gameDB.spellPages || {};
+  const now = Date.now(), fresh = 30 * 864e5;
+  const want = (names || []).filter(n => typeof n === 'string' && n).slice(0, 2500);
+  const unknown = want.filter(n => !cache[n] || now - cache[n].at > fresh);
+  let error = null;
+  for (let i = 0; i < unknown.length; i += 400) {
+    try {
+      const r = await updater.pagesExist(unknown.slice(i, i + 400));
+      if (r && r.error) { error = r.error; break; }
+      for (const n of unknown.slice(i, i + 400)) {
+        const v = r && (r[n] !== undefined ? r[n] : r[n.replace(/ /g, '_')]);
+        if (v !== undefined) cache[n] = { ok: !!v, at: now };
+      }
+    } catch (e) { error = e.message || String(e); break; }
+  }
+  saveGameDBSoon();
+  const out = {};
+  for (const n of want) if (cache[n]) out[n] = cache[n].ok;
+  return { pages: out, error };
+});
+
 ipcMain.handle('check-pages-exist', async (_e, titles) => {
   try {
     return await updater.pagesExist((titles || []).filter(Boolean).slice(0, 400));
@@ -1069,7 +1096,8 @@ ipcMain.handle('search-wiki', async (_e, query) => {
   try { out.titles = await updater.searchWiki(query); }
   catch (err) { wikiError = err.message; }
   try { out.tools = updater.searchEqlTools(gameDB.toolsPages, query); } catch {}
-  if (wikiError && !out.titles.length && !out.tools.length) return { error: wikiError };
+  try { out.p99 = await updater.searchP99(query); } catch { out.p99 = []; }   // classic EQ, labelled as such
+  if (wikiError && !out.titles.length && !out.tools.length && !(out.p99 || []).length) return { error: wikiError };
   return out;
 });
 
@@ -1727,9 +1755,26 @@ async function fetchGuidePage(title) {
   return { wikitext, pageTitle: (j.parse.title || title), revid: j.parse.revid, updated: Date.now() };
 }
 
-ipcMain.handle('get-guide-page', async (_e, { title, anchor, refresh } = {}) => {
+ipcMain.handle('get-guide-page', async (_e, { title, anchor, refresh, source } = {}) => {
   if (!title) return { error: 'no page requested' };
   gameDB.guidePages = gameDB.guidePages || {};
+  if (source === 'p99') {   // Project 1999 wiki: classic EQ, cached under its own key
+    const key = 'p99:' + title;
+    let page = gameDB.guidePages[key];
+    if (!page || refresh || Date.now() - (page.updated || 0) > 7 * 864e5) {
+      try {
+        const fresh = await updater.fetchP99Page(title);
+        if (fresh) { page = fresh; gameDB.guidePages[key] = page; saveGameDBSoon(); }
+        else if (!page) return { error: 'the P99 wiki has no page for "' + title + '"' };
+      } catch (e) { if (!page) return { error: e.message || String(e) }; }
+    }
+    const section = anchor ? sliceWikiSection(page.wikitext, anchor) : null;
+    return {
+      title: page.pageTitle, anchor: section ? anchor : null, source: 'p99',
+      text: wikitextToText(section || page.wikitext), updated: page.updated,
+      url: updater.P99_BASE + encodeURIComponent(page.pageTitle.replace(/ /g, '_'))
+    };
+  }
   let page = gameDB.guidePages[title];
   const stale = !page || refresh || Date.now() - (page.updated || 0) > 7 * 24 * 3600 * 1000;
   if (stale) {
@@ -2169,7 +2214,7 @@ function discoverOutputFiles() {
   if (!logPath || !cs) return null;
   const root = gameRootFromLog(logPath);
   const prefix = (cs.name + '_' + cs.server).toLowerCase();
-  const found = { root, prefix, inventory: null, achievements: null, factions: null };
+  const found = { root, prefix, inventory: null, achievements: null, factions: null, spellbook: null };
   let entries = [];
   try { entries = fs.readdirSync(root); } catch { return found; }
   for (const f of entries) {
@@ -2178,6 +2223,7 @@ function discoverOutputFiles() {
     if (lf.includes('inventory')) found.inventory = pickNewer(found.inventory, path.join(root, f));
     else if (lf.includes('achievements')) found.achievements = pickNewer(found.achievements, path.join(root, f));
     else if (lf.includes('factions')) found.factions = pickNewer(found.factions, path.join(root, f));
+    else if (lf.includes('spellbook')) found.spellbook = pickNewer(found.spellbook, path.join(root, f));
   }
   return found;
 }
@@ -2280,6 +2326,21 @@ function parseFactionsFile(text) {
   return { factions };
 }
 
+// Spellbook (/outputfile spellbook): "<level>\t<spell name>" per line, written as
+// <Char>_<server>-<CLASS>-Spellbook.txt. It lists the whole book (every class the
+// character has), so the class in the file name is only the one active at export.
+function parseSpellbookFile(text) {
+  const spells = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const cols = raw.replace(/\r$/, '').split('\t');
+    if (cols.length < 2) continue;
+    const lv = parseInt(cols[0], 10), name = cols[1].trim();
+    if (!name || isNaN(lv)) continue;
+    spells[name] = lv;
+  }
+  return { spells };
+}
+
 // Achievements: section headers have no prefix; achievements are
 // "[IC]\t<name>"; objectives are "[IC]\t\t<text>".  C = complete.
 function parseAchievementsFile(text) {
@@ -2323,10 +2384,11 @@ function refreshGameData(notify) {
   gameData.inventory = applyDepotCarry(readOne(found.inventory, parseInventoryFile));
   gameData.achievements = readOne(found.achievements, parseAchievementsFile);
   gameData.factions = readOne(found.factions, parseFactionsFile);
+  gameData.spellbook = readOne(found.spellbook, parseSpellbookFile);
   if (notify && win) {
     win.webContents.send('gamedata-updated', {
       inventory: !!gameData.inventory, achievements: !!gameData.achievements,
-      factions: !!gameData.factions
+      factions: !!gameData.factions, spellbook: !!gameData.spellbook
     });
   }
 }
@@ -2356,11 +2418,11 @@ function watchOutputFiles() {
       if (!fname) return;
       const lf = fname.toLowerCase();
       if (!lf.startsWith(found.prefix)) return;
-      if (!/inventory|achievements|factions/.test(lf)) return;
+      if (!/inventory|achievements|factions|spellbook/.test(lf)) return;
       clearTimeout(outputDebounce);
       outputDebounce = setTimeout(async () => {
         const f = discoverOutputFiles();
-        for (const p of [f && f.inventory, f && f.achievements, f && f.factions].filter(Boolean))
+        for (const p of [f && f.inventory, f && f.achievements, f && f.factions, f && f.spellbook].filter(Boolean))
           await waitForStableFile(p);
         refreshGameData(true);
       }, 700);
@@ -2539,6 +2601,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  try { history.flush(); chatlog.flush(); priceStore.flush(); } catch { /* never block quitting */ }
   if (settings && settings.autoClearLog) clearLogFile();
   if (settings && settings.dataDir && (settings.syncFiles || []).length) syncGameFiles();
 });

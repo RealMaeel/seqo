@@ -118,6 +118,10 @@
       return { type: 'damage', when, attacker: '(unknown)', target: isYou(m[1]) ? YOU : m[1],
                amount: +m[2], spell: m[3], crit: isCrit(m[4]), kind: 'dot' };
 
+    // unnamed damage on you: "You were hit by non-melee for 52 damage." (counts as taken + death recap)
+    if ((m = /^You were hit by non-melee for (\d+) damage\.$/.exec(msg)))
+      return { type: 'damage', when, attacker: '(unknown)', target: YOU, amount: +m[1], spell: 'non-melee', kind: 'spell' };
+
     if ((m = RE_NONMELEE.exec(msg))) {
       // "... burned by YOUR flames ..." = your damage shield;
       // "... pierced by a ghoul knight's thorns ..." = someone else's
@@ -152,9 +156,17 @@
       return { type: 'levelup', when, level: +m[1] };
 
     // "You have gained 2 ability points! You now have 145 ability points."
-    if ((m = /^You have gained (\d+) ability points?! You now have (\d+) ability points?[.!]?$/.exec(msg)))
-      return { type: 'aa', when, gained: +m[1], total: +m[2] };
+    // the real lines (EQ Legends): "You have gained an ability point!  You now have 145 ability points."
+    // and "You have gained 2 ability point(s)!  You now have 147 ability point(s)." (two spaces)
+    if ((m = /^You have gained (an|\d+) ability point(?:s|\(s\))?!\s+You now have (\d+) ability point(?:s|\(s\))?[.!]?$/.exec(msg)))
+      return { type: 'aa', when, gained: m[1] === 'an' ? 1 : +m[1], total: +m[2] };
 
+    // death recap: going down. "knocked unconscious" comes first, then either
+    // "You have been slain by X!" or (a DoT/no-killer death) "You died."
+    if (msg === 'You have been knocked unconscious!') return { type: 'ko', when };
+    if (msg === 'You died.') return { type: 'death', when, target: YOU, killer: null };
+    // stances (EQ Legends): "You assume a striker stance." / "an evasive stance"
+    if ((m = /^You assume an? (.+?) stance\.$/.exec(msg))) return { type: 'stance', when, stance: m[1] };
     if ((m = RE_SLAIN_BY_YOU.exec(msg)))
       return { type: 'death', when, target: m[1], killer: YOU };
     if ((m = RE_YOU_SLAIN.exec(msg)))
@@ -232,8 +244,20 @@
     if ((m = RE_DESTROYED.exec(msg)))
       return { type: 'destroyed', when, count: +m[1], item: normItem(m[2]) };
 
-    if ((m = RE_CONSIDER.exec(msg)))
-      return { type: 'consider', when, mob: m[1], level: +m[2] };
+    if ((m = RE_CONSIDER.exec(msg))) {
+      // "Tormentor Utzain - a rare creature - scowls at you, ready to attack --
+      //  looks like he would wipe the floor with you! (Lvl: 54)"
+      let mob = m[1], rare = false;
+      const rm = /^(.+?) - a rare creature -$/.exec(mob);
+      if (rm) { mob = rm[1]; rare = true; }
+      const body = msg.slice(m[1].length + 1).replace(/\s*\(Lvl: \d+\)[.!]?$/, '');
+      const cut = body.indexOf(' -- ');
+      let attitude = (cut >= 0 ? body.slice(0, cut) : body).trim();
+      let difficulty = cut >= 0 ? body.slice(cut + 4).trim() : '';
+      if (!difficulty && /^looks like /i.test(attitude)) { difficulty = attitude; attitude = ''; }
+      return { type: 'consider', when, mob, level: +m[2], rare, attitude, difficulty,
+               aggro: /ready to attack|threateningly|scowls/i.test(attitude) };
+    }
 
     if (/^You cannot loot this item no room in your inventory\.$/.test(msg))
       return { type: 'lootfull', when };
@@ -282,6 +306,38 @@
                trio: pm && pm[2] ? pm[2].split('/') : null };
     }
 
+    // progress: "You have become better at Fishing! (11)"
+    if ((m = /^You have become better at (.+?)! \((\d+)\)$/.exec(msg)))
+      return { type: 'skillup', when, skill: m[1], value: +m[2] };
+    // "Your faction standing with Host of Nektropos has been adjusted by -2."
+    // "... could not possibly get any better." / "... any worse."
+    if ((m = /^Your faction standing with (.+?) has been adjusted by (-?\d+)\.$/.exec(msg)))
+      return { type: 'faction', when, faction: m[1], delta: +m[2] };
+    if ((m = /^Your faction standing with (.+?) could not possibly get any (better|worse)\.$/.exec(msg)))
+      return { type: 'faction', when, faction: m[1], delta: 0, capped: m[2] };
+
+    // chat (v2.6 history): tells, group, guild, raid, says, shouts, OOC, auction, channels
+    if ((m = /^(.+?) tells you, '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: 'tell', from: m[1], text: m[2] };
+    if ((m = /^You told (.+?), '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: 'tell', from: YOU, to: m[1], text: m[2] };
+    if ((m = /^(.+?) tells the (group|guild|raid), '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: m[2], from: m[1], text: m[3] };
+    if ((m = /^You tell (?:your|the) (party|group|guild|raid), '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: m[1] === 'party' ? 'group' : m[1], from: YOU, text: m[2] };
+    if ((m = /^You say to your guild, '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: 'guild', from: YOU, text: m[1] };
+    if ((m = /^(.+?) tells ([A-Za-z][A-Za-z0-9]*):(\d+), '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: 'chan', chan: m[2] + ':' + m[3], from: isYou(m[1]) ? YOU : m[1], text: m[4] };
+    if ((m = /^You tell ([A-Za-z][A-Za-z0-9]*):(\d+), '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: 'chan', chan: m[1] + ':' + m[2], from: YOU, text: m[3] };
+    if ((m = /^(.+?) (says|shouts|auctions), '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: m[2] === 'says' ? 'say' : m[2] === 'shouts' ? 'shout' : 'auction', from: m[1], text: m[3] };
+    if ((m = /^(.+?) says out of character, '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: 'ooc', from: m[1], text: m[2] };
+    if ((m = /^You (say|shout|auction), '([\s\S]*)'$/.exec(msg)))
+      return { type: 'chat', when, channel: m[1] === 'say' ? 'say' : m[1] === 'shout' ? 'shout' : 'auction', from: YOU, text: m[2] };
+
     return null;
   }
 
@@ -312,6 +368,7 @@
       this.last = null;
       this.lastFeedWallclock = 0;
       this.casts = new Map(); // "caster|spell" -> last cast timestamp
+      this.history = [];      // ended fights, newest first (fight history view)
     }
 
     _isProc(ev) {
@@ -327,7 +384,11 @@
     end() {
       if (!this.current) return;
       const hadEvents = this.current.events.length > 0;
-      if (hadEvents) this.last = this.current;
+      if (hadEvents) {
+        this.last = this.current;
+        this.history.unshift(this.current);
+        if (this.history.length > 25) this.history.length = 25;
+      }
       this.current = null;
       if (hadEvents && this.onFightEnd) this.onFightEnd(this.summary());
     }
@@ -360,7 +421,7 @@
           ev.kind === 'melee' ? 'Melee' :
           ev.kind === 'proc' ? 'Damage Shield' :
           (ev.spell || 'Unknown');
-        f.events.push({ attacker, target, amount: ev.amount, crit: !!ev.crit,
+        f.events.push({ t: ev.when, attacker, target, amount: ev.amount, crit: !!ev.crit,
                         source, kind: ev.kind, proc,
                         pet: !!(this.petNames && this.petNames.has(attacker)) });
 
@@ -403,8 +464,8 @@
 
     // Per-source damage for ANY attacker in the current/last fight
     // (powers the click-to-expand rows on the meter).
-    attackerSources(name) {
-      const f = this.current || this.last;
+    attackerSources(name, fx) {
+      const f = fx || this.current || this.last;
       if (!f) return [];
       const bySource = new Map();
       for (const e of f.events) {
@@ -422,10 +483,11 @@
       return rows;
     }
 
-    summary() {
-      const f = this.current || this.last;
+    // summary of the live/last fight, or of an older one from this.history
+    summary(fx) {
+      const f = fx || this.current || this.last;
       if (!f) return null;
-      const live = !!this.current;
+      const live = !fx && !!this.current;
       const durS = Math.max(1, (f.lastCombat - f.start) / 1000);
 
       // Meter rows: only damage dealt TO enemies (excludes enemy hits on allies).
@@ -502,7 +564,8 @@
         rows, you,
         youTaken,
         youHealed: f.healingBy.get(YOU) || 0,
-        kills: f.kills.length
+        kills: f.kills.length,
+        start: f.start, end: f.lastCombat
       };
     }
   }

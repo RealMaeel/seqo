@@ -815,6 +815,53 @@ async function fetchEffectItems(effectName) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Project 1999 wiki (classic EverQuest) — a SECOND opinion for quests, mobs and
+// items the Legends wiki hasn't covered yet. Read-only, on demand only, cached,
+// and always labelled: Legends changes levels, drops and quests from classic.
+// ---------------------------------------------------------------------------
+const P99_BASE = 'https://wiki.project1999.com/';
+const P99_API = P99_BASE + 'api.php';
+async function p99Api(params) {
+  const u = new URL(P99_API);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+  u.searchParams.set('format', 'json');
+  const res = await fetch(u, { headers: { 'User-Agent': UA } });
+  if (!res.ok) throw new Error('P99 wiki returned HTTP ' + res.status);
+  return res.json();
+}
+async function searchP99(query) {
+  const [prefix, full] = await Promise.all([
+    p99Api({ action: 'query', list: 'prefixsearch', pssearch: query, pslimit: '6' })
+      .then(j => ((j.query && j.query.prefixsearch) || []).map(p => p.title)).catch(() => []),
+    p99Api({ action: 'query', list: 'search', srsearch: query, srlimit: '8' })
+      .then(j => ((j.query && j.query.search) || []).map(p => p.title)).catch(() => [])
+  ]);
+  return [...new Set([...prefix, ...full])].filter(t => !/^(Talk|User|Category|File|Template|Special):/i.test(t)).slice(0, 10);
+}
+// -> { wikitext, pageTitle, revid, updated } or null. Exact title first; if there
+// is no such page, the best search hit ("Poacher's Head" -> "Poacher's Head Quest").
+async function fetchP99Page(title) {
+  const get = async (t) => {
+    try {
+      const j = await p99Api({ action: 'parse', page: t, prop: 'wikitext|revid', redirects: '1' });
+      const wt = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
+      if (wt) return { wikitext: wt, pageTitle: j.parse.title || t, revid: j.parse.revid || 0, updated: Date.now() };
+    } catch { /* api.php unavailable: fall back to the raw page below */ }
+    try {
+      const res = await fetch(P99_BASE + 'index.php?action=raw&title=' + encodeURIComponent(t.replace(/ /g, '_')), { headers: { 'User-Agent': UA } });
+      if (res.ok) { const wt = await res.text(); if (wt && !/^\s*<!DOCTYPE/i.test(wt)) return { wikitext: wt, pageTitle: t, revid: 0, updated: Date.now() }; }
+    } catch { /* offline */ }
+    return null;
+  };
+  let page = await get(title);
+  if (!page) {
+    const hits = await searchP99(title).catch(() => []);
+    if (hits.length) page = await get(hits[0]);
+  }
+  return page;
+}
+
 async function searchWiki(query) {
   // prefixsearch catches partial names ("innoruu" -> Innoruuk) that
   // full-text search misses; merge both, prefix matches first
@@ -919,6 +966,7 @@ async function wikiEdit({ title, text, newSectionTitle, summary, csrf }) {
 }
 
 module.exports = {
+  P99_BASE, searchP99, fetchP99Page,
   fetchZoneData, fetchItemData, searchWiki, getLatestRevisions, pagesExist,
   getAllCategoryMembers, parseStatsBlock, classifyObtain, getEraBannerNames, getEraBanners, pageEraBanner,
   getRecentChangeTitles, parseGearPage,

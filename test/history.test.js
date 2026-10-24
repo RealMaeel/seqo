@@ -1,0 +1,60 @@
+// node test/history.test.js — history store + exports
+const fs = require('fs'), os = require('os'), path = require('path');
+const H = require('../history.js');
+let pass = 0, fail = 0;
+const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL ' + m); } };
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'seqoh'));
+const h = H.create({ dir: () => dir });
+ok(h.list().length === 0, 'starts empty');
+h.upsert({ id: 's1', type: 'session', start: 1000, end: 61000, char: 'Maeel', dmg: 1200, dps: 40, fights: 2 });
+h.upsert({ id: 'r1', type: 'run', start: 5000, end: 9000, coin: 12345, items: 3 });
+ok(h.list()[0].id === 'r1', 'newest first');
+h.upsert({ id: 's1', dmg: 2400 });
+ok(h.list().find(e => e.id === 's1').dmg === 2400 && h.list().find(e => e.id === 's1').char === 'Maeel', 'upsert merges');
+ok(h.setNote('s1', 'good pulls'), 'note set');
+h.upsert({ id: 's1', dmg: 2500 });
+ok(h.list().find(e => e.id === 's1').note === 'good pulls', 'checkpoint keeps the note');
+h.flush();
+const h2 = H.create({ dir: () => dir });
+ok(h2.list().length === 2 && h2.list().find(e => e.id === 's1').note === 'good pulls', 'reloads from disk');
+ok(h2.remove('r1') && h2.list().length === 1, 'remove');
+ok(!h2.upsert({ dmg: 1 }), 'entry without id refused');
+for (let i = 0; i < H.MAX_ENTRIES + 5; i++) h2.upsert({ id: 'x' + i, start: i });
+ok(h2.list().length === H.MAX_ENTRIES, 'capped');
+const csv = H.toCSV([{ type: 'session', start: 0, end: 600000, char: 'Me', zones: ['Lake Nerius', 'Nektropos Castle'], dmg: 10, note: 'a, "b"' }]);
+ok(csv.split('\r\n')[0].startsWith('type,start,end,minutes'), 'csv header');
+ok(csv.includes('"a, ""b"""') && csv.includes('Lake Nerius; Nektropos Castle') && csv.includes(',10,'), 'csv escaping');
+const md = H.toMarkdown([{ type: 'run', start: 0, end: 120000, coin: 12345, items: 4, motes: 2, rares: ['Lord X'], deaths: ['Slain by Y'],
+  sources: [{ source: 'Melee', total: 300 }, { source: 'Spirit Tap', total: 100 }], stances: [{ n: 'striker', dps: 99.6 }] }]);
+ok(md.includes('## Run') && md.includes('12pp 3gp 4sp 5cp') && md.includes('| Melee | 300 | 75% |') && md.includes('striker 100 DPS') && md.includes('> ☠ Slain by Y'), 'markdown');
+// chat log (v2.6): personal channels persist, public ones don't
+const C = require('../chatlog.js');
+const cd = fs.mkdtempSync(path.join(os.tmpdir(), 'seqoc'));
+const cl = C.create({ dir: () => cd });
+ok(cl.add([{ t: 1, channel: 'tell', from: 'Inky', text: 'hi' }, { t: 2, channel: 'chan', from: 'X', text: 'spam' }, { t: 3, channel: 'group', from: 'You', text: 'inc' }]) === 2, 'only tells/group/guild/raid kept');
+cl.flush();
+ok(C.create({ dir: () => cd }).list().map(m => m.text).join(',') === 'hi,inc', 'chat log reloads from disk');
+for (let i = 0; i < C.MAX + 10; i++) cl.add([{ t: i, channel: 'tell', from: 'A', text: 'm' + i }]);
+ok(cl.list().length === C.MAX && cl.list()[cl.list().length - 1].text === 'm' + (C.MAX + 9), 'chat log capped, newest kept');
+cl.clear();
+ok(C.create({ dir: () => cd }).list().length === 0, 'chat log clear');
+// importer: old logs -> sessions
+const P = require('../parser.js'), I = require('../historyimport.js');
+const imp = I.createImporter({ parser: P, char: 'Maeel' });
+const L = (hms, s) => imp.line('[Sat Oct 24 ' + hms + ' 2026] ' + s);
+L('13:00:00', 'You have entered Lake Nerius.'); L('13:00:01', 'You assume a striker stance.');
+for (let i = 2; i < 12; i++) L('13:00:' + String(i).padStart(2, '0'), 'You slash a froglok tactician for 100 points of damage.');
+L('13:00:13', 'You have slain a froglok tactician!'); L('13:00:13', 'You gain experience! (1.5%)');
+L('13:00:14', 'You receive 3 gold from the corpse.'); L('13:00:20', 'You have become better at Slashing! (101)');
+L('14:00:00', 'You have entered Nektropos Castle.');           // 60 min gap: a new session
+L('14:00:02', 'You slash a ghoul for 50 points of damage.'); L('14:00:03', 'You have been slain by a ghoul!');
+const ss = imp.finish();
+ok(ss.length === 2, 'gap splits sessions');
+ok(ss[0].dmg === 1000 && ss[0].kills === 1 && ss[0].xpPct === 1.5 && ss[0].coin === 300 && ss[0].zones[0] === 'Lake Nerius', 'session totals');
+ok(ss[0].skills[0].k === 'Slashing' && ss[0].stances[0].n === 'striker' && ss[0].id.startsWith('imp-Maeel-'), 'skills, stances, id');
+ok(ss[1].deaths.length === 1 && /Slain by a ghoul/.test(ss[1].deaths[0]), 'deaths');
+const idle = I.createImporter({ parser: P, char: 'X' });
+idle.line('[Sat Oct 24 13:00:00 2026] You have entered Lake Nerius.');
+ok(idle.finish().length === 0, 'an idle login is not a session');
+console.log(pass + ' passed, ' + fail + ' failed');
+process.exit(fail ? 1 : 0);
