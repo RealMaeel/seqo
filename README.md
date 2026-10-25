@@ -363,6 +363,30 @@ All of SEQO's data views stand on community work — please support these people
 - **Item lookups** link out to the community databases, with thanks: [eqlwiki](https://eqlwiki.com/), [EQLBase](https://eqlbase.com/), [EQ Legends Tools](https://eqlegendstools.com/), [Loadout Legends](https://www.loadoutlegends.com/), [Gnoll Guard](https://www.gnollguard.com/).
 - Built with Electron. Field-tested and shaped by real EverQuest Legends combat logs.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/). *(Applied for in October 2026: releases are signed once the project is approved; until then Windows may show its "unknown publisher" warning.)*
+
+From 2.7 on, every SEQO release is built from this repository's source code by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)), and a release is signed only after an approver has approved that signing request.
+
+**Team roles**
+
+- Committers and reviewers: [RealMaeel](https://github.com/RealMaeel) — changes the source code; reviews every pull request from anyone else before it is merged
+- Approvers: [RealMaeel](https://github.com/RealMaeel) — approves each release for signing
+
+SEQO is developed by RealMaeel with AI assistance; every change is directed, reviewed, tested and published by the maintainer.
+
+### Privacy policy
+
+SEQO has no accounts, analytics, telemetry, ads or tracking. It only goes online for the things listed here; the two automatic checks can be turned off in Settings.
+
+- **Your game files stay on your PC.** SEQO reads the log file and `/outputfile` exports EverQuest Legends writes, and keeps its own databases (loot, kills, history, settings) in your Windows profile. None of it is uploaded anywhere.
+- **Looking things up.** SEQO downloads public pages from community sites when you use its lookups or refresh its data: [eqlwiki.com](https://eqlwiki.com) (items, zones, quests, spells, gear), [eqlegendstools.com](https://eqlegendstools.com) (Plane of Sky quests, gear databases), [eqlforge.com](https://eqlforge.com) (zone named mobs, when you update a zone) and [wiki.project1999.com](https://wiki.project1999.com) (when you open a Project 1999 result). Each request sends only what is needed to fetch the page (a page title or your search words) and identifies itself as SEQO with its version number. Like any website visit, those sites can see your IP address.
+- **Automatic checks you can turn off.** At launch SEQO asks GitHub (api.github.com) whether a newer SEQO release exists (⚙ → *Check for new releases at launch*), and once a week it re-checks the wiki pages its quest data comes from (⚙ → *weekly auto-sync*). **Get update** opens this repository's releases page in your browser.
+- **Wiki uploads, only when you ask.** ⚙ → Advanced → Wiki export logs into eqlwiki.com with the bot password *you* enter and posts *your* observed drop rates. Nothing is posted unless you press the button. The password is stored encrypted on your PC.
+- **Shared data folder.** If you pick one, SEQO copies its databases into that folder; any syncing between computers is done by the service that folder belongs to (Dropbox, OneDrive, Google Drive), not by SEQO.
+- Links in SEQO open in your own web browser, under that site's privacy policy.
+
 ## License
 
 MIT — do what you like, no warranty. SEQO is a fan project, unaffiliated with Daybreak Game Company.
