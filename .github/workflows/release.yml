@@ -1,0 +1,66 @@
+# Builds the Windows installer + portable exe on GitHub and attaches them to
+# the release, so a release can never go out without its downloads.
+#
+# Runs by itself when a release is published (the publish script creates the
+# release). By hand: Actions tab → "Build release exes" → Run workflow → type
+# the tag (e.g. v2.7.0). Untick "attach" for a dry run that only builds.
+name: Build release exes
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build, e.g. v2.7.0'
+        required: true
+      attach:
+        description: 'Attach the exes to that release (untick for a dry run)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # attach files to the release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (exact versions from package-lock.json)
+        run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      - name: Version in package.json matches the release tag
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if [ "v$v" != "$TAG" ]; then
+            echo "::error::package.json says $v but the release tag is $TAG"
+            exit 1
+          fi
+
+      - name: Build installer + portable exe
+        run: npx electron-builder --win --publish never
+
+      - name: Attach to the release
+        if: github.event_name == 'release' || inputs.attach
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(node -p "require('./package.json').version")
+          ls -l dist/*.exe
+          gh release upload "$TAG" "dist/SEQO-Setup-$v.exe" "dist/SEQO-Portable-$v.exe" --clobber
