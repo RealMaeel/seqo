@@ -51,5 +51,51 @@ const S = (n) => A.STARTER.find(r => r.name === n);
 ok(run(S('Tell received'), "Inky tells you, 'i did get the helm'") === '💬 Inky: i did get the helm', 'starter: tell');
 ok(run(S('Summoned'), 'You have been summoned!') !== null && run(S('Stunned'), 'You are stunned!') !== null, 'starter: summoned + stunned');
 ok(run(S('Group invite'), 'Brannoc invites you to join a group.') === '👥 Brannoc invites you to a group', 'starter: invite');
+// GINA quirks (2.7): hex entities, .NET inline flags, UTF-16 exports
+{
+  const AL = require('../alerts.js');
+  const g = AL.ginaToRules('<Trigger><Name>Hex</Name><TriggerText>{S} tells you, &#x27;hi&#x27;</TriggerText><EnableRegex>False</EnableRegex></Trigger>' +
+    '<Trigger><Name>Flags</Name><TriggerText>(?i)^you have been slain(?#by anything)\\Z</TriggerText><EnableRegex>True</EnableRegex></Trigger>');
+  const m = (r, l) => !!AL.matchLine(AL.compileRule(r, { charName: 'Maeel' }), l);
+  ok(g[0].pattern === "{S} tells you, 'hi'" && m(g[0], "Nekkroh tells you, 'hi'"), 'GINA: &#x27; decoded');
+  ok(AL.compileRule(g[1], {}) && m(g[1], 'You have been slain') && !m(g[1], 'You have been slain by a gnoll'), 'GINA: (?i), (?#…) and \\Z understood');
+  const xml = '<SharedData><TriggerGroups><TriggerGroup><Name>G</Name><Triggers><Trigger><Name>T</Name><TriggerText>{S} yawns.</TriggerText></Trigger></Triggers></TriggerGroup></TriggerGroups></SharedData>';
+  const zlib = require('zlib');
+  const u16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(xml, 'utf16le')]);
+  const comp = zlib.deflateRawSync(u16);
+  const name = Buffer.from('ShareData.xml');
+  const hdr = Buffer.alloc(30); hdr.writeUInt32LE(0x04034b50, 0); hdr.writeUInt16LE(8, 8);
+  hdr.writeUInt32LE(comp.length, 18); hdr.writeUInt32LE(u16.length, 22); hdr.writeUInt16LE(name.length, 26);
+  const back = AL.unzipFirstXml(Buffer.concat([hdr, name, comp]));
+  ok(back && AL.ginaToRules(back)[0].pattern === '{S} yawns.', 'GINA: UTF-16 ShareData.xml inside a .gtp');
+}
+
+// any quote mark matches any other (people type " where EQ writes ') — 2.7
+{
+  const AL = require('../alerts.js');
+  const tell = AL.STARTER.find(r => r.name === 'Tell received');
+  const hit = (r, l) => AL.matchLine(AL.compileRule(r, {}), l);
+  ok(hit(tell, 'Inky tells you, "Hi"') && hit(tell, 'Inky tells you, \u2018Hi\u2019') && hit(tell, "Inky tells you, 'Hi'"), 'quotes: straight, double and curly all match');
+  ok(hit({ pattern: "{S} says, 'pull'" }, 'Bob says, "pull"'), 'quotes: plain-text rules too');
+  ok(hit({ pattern: "^(\\w+) says, '([^']+)'$", regex: true }, "Bob says, 'hi'"), 'quotes inside [classes] left alone');
+}
+
+// timer early warning (2.7): GINA "timer ending", share codes, spawn starters
+{
+  const AL = require('../alerts.js');
+  const g = AL.ginaToRules('<Trigger><Name>Ghoul</Name><TriggerText>a ghoul knight has been slain</TriggerText><EnableRegex>False</EnableRegex>' +
+    '<UseText>True</UseText><DisplayText>ghoul down</DisplayText><TimerType>Timer</TimerType><TimerName>Ghoul respawn</TimerName><TimerDuration>400</TimerDuration>' +
+    '<UseTimerEnding>True</UseTimerEnding><TimerEndingTime>60</TimerEndingTime><TimerEndingTrigger><UseText>True</UseText><DisplayText>soon</DisplayText></TimerEndingTrigger>' +
+    '<UseTimerEnded>True</UseTimerEnded><TimerEndedTrigger><UseText>True</UseText><DisplayText>Ghoul is UP</DisplayText></TimerEndedTrigger></Trigger>');
+  ok(g[0].timer === 400 && g[0].timerWarn === 60 && g[0].timerEnd === 'Ghoul is UP' && g[0].msg === 'ghoul down' && g[0].timerName === 'Ghoul respawn', 'GINA timer ending + ended imported: ' + JSON.stringify(g[0]));
+  const back = AL.decodeShare(AL.encodeShare([{ name: 'x', pattern: 'y', timer: 400, timerWarn: 60, timerName: '{1} respawn', timerEnd: 'up' }]));
+  ok(back[0].timerWarn === 60 && back[0].timerName === '{1} respawn' && back[0].timerEnd === 'up', 'share codes keep the timer warning, name and end text');
+  const sp = AL.STARTER.filter(r => /Spawn/.test(r.name));
+  ok(sp.length === 2 && sp.every(r => r.on === false && r.timerWarn === 60 && r.timer > 0), 'two spawn starters, added switched off');
+  const c = AL.compileRule(sp[0], { charName: 'Maeel' });
+  const own = AL.matchLine(c, 'You have slain a ghoul knight!'), other = AL.matchLine(c, 'a ghoul knight has been slain by Kwazimodo!');
+  ok(own && other && AL.fill(sp[0].timerName, own, {}, '') === 'a ghoul knight respawn' && !AL.matchLine(c, 'You have slain a ghoul knight priest!'), 'spawn starter: your kill or anyone\'s, that mob only');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

@@ -131,23 +131,7 @@ const SPA_NEG_OK = new Set([59, 55, 168, 182]);
 // capped at max. Values are computed at the Legends level cap (50) — that is
 // what the slot entry means in game at 50, not the theoretical cap.
 const EFF_LEVEL = 50;
-function calcSlotValue(base, calc, max, level) {
-  let v = Math.abs(base);
-  switch (+calc) {
-    case 0: case 100: break;                                  // flat
-    case 101: v += Math.floor(level / 2); break;
-    case 102: v += level; break;
-    case 103: v += level * 2; break;
-    case 104: v += level * 3; break;
-    case 105: v += level * 4; break;
-    case 108: v += Math.floor(level / 3); break;
-    case 109: v += Math.floor(level / 4); break;
-    case 110: v += Math.floor(level / 6); break;              // Amplification
-    default: v = Math.max(v, Math.abs(max) || v);             // unknown curve: the cap
-  }
-  if (max) v = Math.min(v, Math.abs(max));
-  return v;
-}
+const { calcSlotValue } = require('./slotcalc.js');   // shared with the Class tab
 
 function parseEffects(field) {
   if (!field || !field.includes('|')) return null;

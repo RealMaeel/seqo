@@ -6,11 +6,28 @@
 // A session ends after 30 minutes of log silence or at a "Welcome to EverQuest" line.
 'use strict';
 const GAP_MS = 30 * 60000;
+const SOLO_MS = 10 * 60000;   // no other player in your fights for this long = solo (buffs on you are yours)
 
 const MARKET = new Set(['chan', 'auction', 'shout', 'ooc', 'say']);
 
-function createImporter({ parser, char, prices }) {
+// the zone name the overlay files kills under (same rule as its cleanZoneName)
+const { tierNum } = require('./mobstats.js');
+const trioguess = require('./trioguess.js');
+function cleanZone(z) {
+  if (!z) return '';
+  let zone = String(z).replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+\d+\s*$/, '').trim();
+  const mm = /\s+-\s+(Solo|Duo|Trio|Group|Raid|Party|Heroic|Event)$/i.exec(zone);
+  if (mm) zone = zone.slice(0, mm.index).trim();
+  return zone;
+}
+
+function createImporter({ parser, char, prices, spellDB }) {
   const sessions = [];
+  const killTimes = new Map();   // zone + '\u0001' + mob -> [ms…] (2.7: kill card's recent kills)
+  // your class makeup at each kill (2.7): /who rows, your casts and — solo — buffs landing on you
+  const guess = spellDB && spellDB.book ? trioguess.create({ book: spellDB.book, landMap: spellDB.landMap, spells: spellDB.spells }) : null;
+  let lastGroupT = 0;    // last time another player hit something you were fighting
+  let zoneNow = '', tierNow = 0;   // tier: 0-4 difficulty of the zone copy (2.7)
   const offers = [];      // WTS/WTB lines seen in chat (when a prices parser is given)
   let cur = null, tracker = null, lastT = 0;
   const YOU = parser.YOU;
@@ -62,12 +79,21 @@ function createImporter({ parser, char, prices }) {
       if (isNaN(t)) return;
     }
     const welcome = raw.includes('] Welcome to EverQuest');
-    if (!cur || t - lastT > GAP_MS || welcome || t < lastT - 60000) { close(); open(t); }
+    if (!cur || t - lastT > GAP_MS || welcome || t < lastT - 60000) { close(); open(t); if (guess) guess.newSession(); }
     lastT = t; cur.end = t; cur.lines++;
-    if (!ev) return;
+    if (!ev) {
+      if (guess) { const msg = raw.slice(raw.indexOf('] ') + 2); if (!guess.groupLine(msg)) guess.landed(msg, t, t - lastGroupT > SOLO_MS); }
+      return;
+    }
     tracker.feed(ev);
+    if (guess) {
+      if (ev.type === 'cast' && ev.caster === YOU) guess.cast(ev.spell, t);
+      else if (ev.type === 'zonemap' && ev.trio && ev.player && char && ev.player.toLowerCase() === String(char).toLowerCase()) guess.who(ev.trio, t);
+    }
+    if (ev.type === 'damage' && ev.attacker !== YOU && !ev.pet && /^[A-Z][a-z]+$/.test(ev.attacker || '') && tracker.current &&
+        tracker.current.enemies.has(ev.target) && !tracker.current.enemies.has(ev.attacker)) lastGroupT = t;
     switch (ev.type) {
-      case 'zone': if (ev.zone && cur.zones[cur.zones.length - 1] !== ev.zone && !cur.zones.includes(ev.zone)) cur.zones.push(ev.zone); break;
+      case 'zone': if (ev.zone && cur.zones[cur.zones.length - 1] !== ev.zone && !cur.zones.includes(ev.zone)) cur.zones.push(ev.zone); zoneNow = cleanZone(ev.zone); tierNow = tierNum(ev.variant); break;
       case 'exp': if (ev.pct) cur.xpPct += ev.pct; break;
       case 'levelup': cur.levels++; break;
       case 'aa': cur.aa += ev.gained || 0; break;
@@ -75,7 +101,20 @@ function createImporter({ parser, char, prices }) {
       case 'loot': cur.items++; if (/\bmote\b/i.test(ev.item || '')) cur.motes++; if (ev.soldFor) cur.coin += ev.soldFor; break;
       case 'death':
         if (ev.target === YOU) { if (!cur.deaths.length || t - cur.lastDeath > 5000) cur.deaths.push((ev.killer ? 'Slain by ' + ev.killer : 'Died') + ' — ' + new Date(t).toLocaleTimeString()); cur.lastDeath = t; }
-        else cur.kills++;
+        else {
+          cur.kills++;
+          if (zoneNow && ev.target) {
+            const k = zoneNow + '\u0001' + ev.target;
+            const a = killTimes.get(k) || [];
+            const secs = tracker.engagedSecs ? tracker.engagedSecs(ev.target, t) : null;
+            const kt = { t, d: tierNow };
+            if (secs != null) kt.s = secs;
+            const mk = guess && guess.makeup(t);
+            if (mk) kt.c = mk.text;
+            kt.g = tracker.othersInFight().length ? 1 : 0;
+            a.push(kt); killTimes.set(k, a);
+          }
+        }
         break;
       case 'skillup': { const e = cur.skills.get(ev.skill) || { from: ev.value - 1, to: ev.value, n: 0 }; e.to = Math.max(e.to, ev.value); e.n++; cur.skills.set(ev.skill, e); break; }
       case 'faction': { const e = cur.factions.get(ev.faction) || { net: 0, n: 0 }; e.net += ev.delta; e.n++; cur.factions.set(ev.faction, e); break; }
@@ -94,7 +133,10 @@ function createImporter({ parser, char, prices }) {
     }
   }
   function finish() { close(); return sessions; }
-  return { line, finish, offers: () => offers };
+  return {
+    line, finish, offers: () => offers,
+    killTimes: () => [...killTimes].map(([k, times]) => { const [zone, mob] = k.split('\u0001'); return { zone, mob, times }; })
+  };
 }
 
-module.exports = { createImporter, GAP_MS };
+module.exports = { createImporter, GAP_MS, SOLO_MS, cleanZone };

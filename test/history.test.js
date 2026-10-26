@@ -56,5 +56,51 @@ ok(ss[1].deaths.length === 1 && /Slain by a ghoul/.test(ss[1].deaths[0]), 'death
 const idle = I.createImporter({ parser: P, char: 'X' });
 idle.line('[Sat Oct 24 13:00:00 2026] You have entered Lake Nerius.');
 ok(idle.finish().length === 0, 'an idle login is not a session');
+// kill times for the kill card (2.7)
+{
+  const k = I.createImporter({ parser: P, char: 'Maeel' });
+  const at = (hms, t) => k.line('[Sat Oct 24 ' + hms + ' 2026] ' + t);
+  at('21:00:00', 'Lord Rikantus Everling has been slain by Deathwish!');          // before any zone line: skipped
+  at('21:01:00', 'You have entered Nektropos Castle (Fused).');
+  at('21:34:00', 'You have slain Lord Rikantus Everling!');
+  at('21:52:00', 'Lord Rikantus Everling has been slain by Kwazimodo!');
+  at('21:53:00', 'You died.');
+  at('21:55:00', 'You have entered Lake Nerius.');
+  at('21:56:00', 'You have slain a large piranha!');
+  k.finish();
+  const kt = k.killTimes();
+  const rik = kt.find(x => x.mob === 'Lord Rikantus Everling');
+  ok(rik && rik.zone === 'Nektropos Castle' && rik.times.length === 2, 'kill times filed under the overlay\'s zone name (tier stripped): ' + JSON.stringify(rik));
+  ok(rik.times[1].t - rik.times[0].t === 18 * 60000, 'exact kill times');
+  ok(rik.times.every(x => x.d === 3), 'difficulty tier kept with each kill (Fused = D3)');
+  ok(kt.find(x => x.mob === 'a large piranha').times[0].d === 0, 'no tier in the zone name = D0');
+  ok(kt.some(x => x.mob === 'a large piranha' && x.zone === 'Lake Nerius') && !kt.some(x => x.mob === 'You'), 'your own death is not a kill');
+  ok(rik.times[0].g === 0 && rik.times[1].g === 0, 'solo kills');
+  ok(I.cleanZone('Nektropos Castle (Fused)') === 'Nektropos Castle' && I.cleanZone('Plane of Fear - Raid') === 'Plane of Fear', 'zone names cleaned like the overlay');
+}
+
+// class makeup per kill (2.7): needs the spell book
+{
+  const spellDB = { book: { 'Drain Spirit': { SHD: 49, NEC: 39 }, "Tuyen's Chant of Frost": { BRD: 46 } }, landMap: {}, spells: {} };
+  const k = I.createImporter({ parser: P, char: 'Maeel', spellDB });
+  const at = (hms, t) => k.line('[Sat Oct 24 ' + hms + ' 2026] ' + t);
+  at('17:00:00', 'You have entered Nektropos Castle.');
+  at('17:00:05', '[50 RNG/SHD/BRD] Maeel (Half Elf) <The Walking Dads> ZONE: Nektropos Castle (nektropos)');
+  at('17:03:15', 'You shoot Lord Rikantus Everling for 269 points of damage. (Double Bow Shot)');
+  at('17:04:13', 'You begin casting Drain Spirit X.');
+  at('17:05:00', 'You have slain Lord Rikantus Everling!');
+  at('17:20:00', 'You shoot Lord Rikantus Everling for 269 points of damage.');
+  at('17:20:01', 'Kwazimodo strikes Lord Rikantus Everling for 22 points of damage.');
+  at('17:21:00', 'Lord Rikantus Everling has been slain by Kwazimodo!');
+  k.finish();
+  const r = k.killTimes().find(x => x.mob === 'Lord Rikantus Everling');
+  ok(r && r.times[0].c === 'RNG/SHD/BRD' && r.times[0].g === 0, 'makeup from your /who row, solo: ' + JSON.stringify(r && r.times));
+  ok(r.times[1].g === 1 && r.times[1].c === 'RNG/SHD/BRD', 'another player in the fight = group kill');
+  const n = I.createImporter({ parser: P, char: 'Maeel' });
+  n.line('[Sat Oct 24 17:00:00 2026] You have entered Lake Nerius.');
+  n.line('[Sat Oct 24 17:01:00 2026] You have slain a large piranha!');
+  ok(n.killTimes()[0].times[0].c === undefined, 'no spell files: no makeup, the rest still works');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

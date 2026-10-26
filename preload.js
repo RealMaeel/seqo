@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('overlay', {
+const api = {
   onSettings: (cb) => ipcRenderer.on('settings', (_e, s) => cb(s)),
   onLockState: (cb) => ipcRenderer.on('lock-state', (_e, locked) => cb(locked)),
   updateSettings: (partial) => ipcRenderer.send('update-settings', partial),
@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('overlay', {
   switchLog: (p) => ipcRenderer.send('switch-log', p),
   onLogLines: (cb) => ipcRenderer.on('log-lines', (_e, lines) => cb(lines)),
   onLogStatus: (cb) => ipcRenderer.on('log-status', (_e, st) => cb(st)),
-  recordKill: (mob, zone) => ipcRenderer.send('record-kill', { mob, zone }),
+  recordKill: (mob, zone, when, secs, variant, makeup, group) => ipcRenderer.send('record-kill', { mob, zone, when, secs, variant, makeup, group }),
   recordMobStats: (entries) => ipcRenderer.send('record-mob-stats', entries),
   recordDrop: (mob, item, zone) => ipcRenderer.send('record-drop', { mob, item, zone }),
   getLootDB: () => ipcRenderer.invoke('get-loot-db'),
@@ -61,6 +61,9 @@ contextBridge.exposeInMainWorld('overlay', {
   getEffectItems: (name) => ipcRenderer.invoke('get-effect-items', name),
   getItemKnowledge: () => ipcRenderer.invoke('get-item-knowledge'),
   checkPagesExist: (titles) => ipcRenderer.invoke('check-pages-exist', titles),
+  itemAltSource: (name) => ipcRenderer.invoke('item-alt-source', name),
+  getItemFixes: () => ipcRenderer.invoke('get-item-fixes'),
+  setItemFix: (key, fix) => ipcRenderer.invoke('set-item-fix', { key, fix }),
   getSpellDB: () => ipcRenderer.invoke('get-spell-db'),
   historyUpsert: (entry) => ipcRenderer.send('history-upsert', entry),
   spellWikiCheck: (names) => ipcRenderer.invoke('spell-wiki-check', names),
@@ -118,6 +121,8 @@ contextBridge.exposeInMainWorld('overlay', {
   openExternal: (url) => ipcRenderer.send('open-external', url),
   checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
   onAppUpdate: (cb) => ipcRenderer.on('app-update', (_e, r) => cb(r)),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateProgress: (cb) => ipcRenderer.on('update-progress', (_e, p) => cb(p)),
   getPosQuests: () => ipcRenderer.invoke('get-posquests'),
   importInventory: () => ipcRenderer.invoke('import-inventory'),
   chooseDataFolder: () => ipcRenderer.invoke('choose-data-folder'),
@@ -134,5 +139,38 @@ contextBridge.exposeInMainWorld('overlay', {
   syncGameFiles: () => ipcRenderer.invoke('sync-game-files'),
   onGamefilesSynced: (cb) => ipcRenderer.on('gamefiles-synced', (_e, r) => cb(r)),
   onTestTab: (cb) => ipcRenderer.on('test-tab', (_e, tab) => cb(tab)),
+  problemReport: () => ipcRenderer.invoke('problem-report'),
   closeApp: () => ipcRenderer.send('close-app')
-});
+};
+
+// Since 2.7 the overlay's code is split into ui/*.js files that load one after
+// another. An IPC reply or a main-process event must not reach the page while
+// those files are still loading: a later file's functions wouldn't exist yet.
+// (When it was one inline <script> that could never happen.) So on the
+// overlay page, replies and events wait for DOMContentLoaded, which fires once
+// every file has run. After that nothing is delayed.
+const gated = /overlay\.html$/i.test((typeof location !== 'undefined' && location.pathname) || '');
+if (gated) {
+  // one queue for replies and events, so they still arrive in the order they came in
+  let loaded = false;
+  let queue = [];
+  const later = (fn) => { if (loaded) fn(); else queue.push(fn); };
+  window.addEventListener('DOMContentLoaded', () => {
+    loaded = true;
+    let chain = Promise.resolve();
+    for (const fn of queue) chain = chain.then(fn);
+    queue = null;
+  }, { once: true });
+  for (const [name, fn] of Object.entries(api)) {
+    api[name] = /^on[A-Z]/.test(name)
+      ? (cb) => fn((...a) => later(() => cb(...a)))
+      : (...args) => {
+          const r = fn(...args);
+          if (loaded || !r || typeof r.then !== 'function') return r;
+          return new Promise((resolve, reject) =>
+            r.then((v) => later(() => resolve(v)), (e) => later(() => reject(e))));
+        };
+  }
+}
+
+contextBridge.exposeInMainWorld('overlay', api);

@@ -354,6 +354,7 @@
       start: when, lastCombat: when,
       events: [],             // damage events (attacker, target, amount, crit)
       misses: new Map(),      // attacker -> miss count (vs non-you targets)
+      missesOn: new Map(),    // attacker + '\u0001' + target -> misses on that mob (meter target filter)
       healingBy: new Map(),   // name -> actual healing
       enemies: new Set(),     // entities you attacked or that attacked you
       kills: []
@@ -443,7 +444,11 @@
         // same bystander rule: only swings at this fight's mobs count
         if (attacker === YOU || (this.petNames && this.petNames.has(attacker)) ||
             this.current.enemies.has(target))
+        {
           this.current.misses.set(attacker, (this.current.misses.get(attacker) || 0) + 1);
+          const mk = attacker + '\u0001' + target, mo = this.current.missesOn;
+          if (mo) mo.set(mk, (mo.get(mk) || 0) + 1);
+        }
       } else if (ev.type === 'death' && this.current) {
         this.current.kills.push(ev.target);
       } else if (ev.type === 'cast') {
@@ -462,14 +467,43 @@
       if (this.current && this.lastFeedWallclock && Date.now() - this.lastFeedWallclock > FIGHT_GAP_MS) this.end();
     }
 
+    // How long a mob took to kill (2.7): seconds from the first hit your side
+    // landed on it in this fight to `when` (its death). null when unknown.
+    // the other players who hit an enemy in the current/last fight (not you,
+    // not pets, not mobs): empty = you killed it solo (2.7 kill records)
+    othersInFight() {
+      const f = this.current || this.last;
+      if (!f) return [];
+      const s = new Set();
+      for (const e of f.events) {
+        if (e.attacker === YOU || e.pet || f.enemies.has(e.attacker) || !f.enemies.has(e.target)) continue;
+        if (/^[A-Z][a-z]+$/.test(e.attacker)) s.add(e.attacker);
+      }
+      return [...s];
+    }
+
+    engagedSecs(target, when) {
+      const f = this.current || this.last;
+      if (!f || !target) return null;
+      const t = normName(target);
+      for (const e of f.events) {
+        if (e.target !== t || e.target === YOU) continue;
+        if (f.enemies.has(e.attacker) && e.attacker !== YOU && !e.pet) continue;
+        const s = Math.round((when - e.t) / 1000);
+        return s >= 0 && s <= 3600 ? s : null;
+      }
+      return null;
+    }
+
     // Per-source damage for ANY attacker in the current/last fight
     // (powers the click-to-expand rows on the meter).
-    attackerSources(name, fx) {
+    attackerSources(name, fx, target) {
       const f = fx || this.current || this.last;
       if (!f) return [];
       const bySource = new Map();
       for (const e of f.events) {
         if (e.attacker !== name || e.target === YOU || !f.enemies.has(e.target)) continue;
+        if (target && e.target !== target) continue;     // one mob only (meter target filter)
         let s = bySource.get(e.source);
         if (!s) bySource.set(e.source, s = { source: e.source, total: 0, count: 0, crits: 0, max: 0 });
         s.total += e.amount;
@@ -483,12 +517,35 @@
       return rows;
     }
 
-    // summary of the live/last fight, or of an older one from this.history
-    summary(fx) {
+    // summary of the live/last fight, or of an older one from this.history.
+    // target (2.7): only damage dealt to that one mob — rates over the time it was
+    // being fought, so "who did what to Lord Rikantus vs the golems" in one fight
+    summary(fx, target) {
       const f = fx || this.current || this.last;
       if (!f) return null;
       const live = !fx && !!this.current;
-      const durS = Math.max(1, (f.lastCombat - f.start) / 1000);
+      // every mob hit in this fight, biggest first (always the whole fight)
+      const allTargets = new Map();
+      for (const e of f.events) {
+        if (e.target === YOU || !f.enemies.has(e.target)) continue;
+        if (f.enemies.has(e.attacker) && e.attacker !== YOU && !e.pet) continue;
+        const t = allTargets.get(e.target) || { name: e.target, total: 0, first: e.t, last: e.t };
+        t.total += e.amount;
+        if (e.t < t.first) t.first = e.t;
+        if (e.t > t.last) t.last = e.t;
+        allTargets.set(e.target, t);
+      }
+      const tgGrand = [...allTargets.values()].reduce((a, t) => a + t.total, 0) || 1;
+      const targetList = [...allTargets.values()].sort((a, b) => b.total - a.total)
+        .map(t => ({ name: t.name, total: t.total, pct: t.total / tgGrand }));
+      const only = target && allTargets.has(target) ? target : null;
+      const missesOf = (name) => only
+        ? ((f.missesOn && f.missesOn.get(name + '\u0001' + only)) || 0)
+        : (f.misses.get(name) || 0);
+      const onlyT = only ? allTargets.get(only) : null;
+      const durS = onlyT && onlyT.first && onlyT.last
+        ? Math.max(1, (onlyT.last - onlyT.first) / 1000)
+        : Math.max(1, (f.lastCombat - f.start) / 1000);
 
       // Meter rows: only damage dealt TO enemies (excludes enemy hits on allies).
       const byAttacker = new Map();
@@ -496,8 +553,9 @@
       let youTaken = 0;
 
       for (const e of f.events) {
-        if (e.target === YOU) { youTaken += e.amount; continue; }
+        if (e.target === YOU) { if (!only || e.attacker === only) youTaken += e.amount; continue; }
         if (!f.enemies.has(e.target)) continue;        // ally took a hit - not meter damage
+        if (only && e.target !== only) continue;
         // enemy-on-enemy noise - EXCEPT damage flagged as pet's when it happened
         if (f.enemies.has(e.attacker) && e.attacker !== YOU && !e.pet) continue;
         let a = byAttacker.get(e.attacker);
@@ -512,7 +570,7 @@
       const rows = [...byAttacker.entries()]
         .map(([name, a]) => ({
           name, total: a.total, dps: a.total / durS, maxHit: a.maxHit,
-          crits: a.crits, hits: a.hits, misses: f.misses.get(name) || 0
+          crits: a.crits, hits: a.hits, misses: missesOf(name)
         }))
         .sort((x, y) => y.total - x.total);
 
@@ -524,9 +582,10 @@
 
       // Your damage by source (spell/melee/proc breakdown)
       const bySource = new Map();
-      let youSwings = f.misses.get(YOU) || 0; // melee swings = melee hits + misses
+      let youSwings = missesOf(YOU); // melee swings = melee hits + misses
       for (const e of f.events) {
         if (e.attacker !== YOU || e.target === YOU || !f.enemies.has(e.target)) continue;
+        if (only && e.target !== only) continue;
         if (e.kind === 'melee') youSwings += 1;
         let s = bySource.get(e.source);
         if (!s) bySource.set(e.source, s = { source: e.source, total: 0, count: 0, crits: 0, max: 0, proc: !!e.proc });
@@ -549,6 +608,7 @@
       const petAgg = new Map();
       for (const e of f.events) {
         if (!e.pet || e.target === YOU || !f.enemies.has(e.target)) continue;
+        if (only && e.target !== only) continue;
         let p = petAgg.get(e.attacker);
         if (!p) petAgg.set(e.attacker, p = { name: e.attacker, total: 0, hits: 0, crits: 0, maxHit: 0 });
         p.total += e.amount; p.hits += 1;
@@ -560,7 +620,8 @@
       return {
         petRows, youBySource, youSwings,
         live, durS,
-        title: targets.length ? targets[0] + (targets.length > 1 ? ` +${targets.length - 1}` : '') : '—',
+        title: only || (targets.length ? targets[0] + (targets.length > 1 ? ` +${targets.length - 1}` : '') : '—'),
+        target: only, targets: targetList,
         rows, you,
         youTaken,
         youHealed: f.healingBy.get(YOU) || 0,

@@ -91,6 +91,56 @@ let settings = null;
 let win = null;
 let tray = null;
 
+// ---------------------------------------------------------------------------
+// Error log (v2.7) — see errorlog.js. Errors in the main process and on SEQO's
+// own pages land in <userData>/seqo-errors.log, behind ⚙ → 📋 Copy problem report.
+// ---------------------------------------------------------------------------
+const errorlog = require('./errorlog.js').create({
+  dir: () => app.getPath('userData'),
+  home: require('os').homedir(),
+  appDir: __dirname          // errors name the SEQO file they came from ("lootdb.js:88", "ui/overlay/24-meter.js:120")
+});
+// a monitor only watches: Electron's own handling of the crash is unchanged
+process.on('uncaughtExceptionMonitor', (err) =>
+  errorlog.record('main', (err && err.message) || String(err), err && err.stack));
+process.on('unhandledRejection', (err) => {
+  errorlog.record('main', 'Unhandled promise rejection: ' + ((err && err.message) || String(err)), err && err.stack);
+  console.warn('Unhandled promise rejection:', err);
+});
+{
+  const origError = console.error;
+  console.error = (...args) => {
+    try {
+      const text = args.map((x) => x instanceof Error ? x.message
+        : typeof x === 'string' ? x : (() => { try { return JSON.stringify(x); } catch { return String(x); } })()).join(' ');
+      const errObj = args.find((x) => x instanceof Error);
+      // no Error passed: where console.error was called from still names the module
+      errorlog.record('main', text, errObj ? errObj.stack : String(new Error().stack || '').split('\n').slice(2).join('\n'));
+    } catch { /* never let logging break anything */ }
+    origError.apply(console, args);
+  };
+}
+// only SEQO's own pages (file://) — not the hidden windows that read web pages
+const seqoPage = (wc) => {
+  try { const u = wc.getURL(); return u.startsWith('file:') ? path.basename(new URL(u).pathname, '.html') : null; }
+  catch { return null; }
+};
+app.on('web-contents-created', (_e, wc) => {
+  wc.on('console-message', (ev, level, message, line, sourceId) => {
+    const pick = (k, positional) => (ev && ev[k] !== undefined ? ev[k] : positional);
+    const lv = pick('level', level);
+    if (lv !== 'error' && lv !== 3) return;
+    const page = seqoPage(wc);
+    if (!page) return;
+    const src = pick('sourceId', sourceId);
+    errorlog.record(page, pick('message', message), src ? src + ':' + pick('lineNumber', line) : null);
+  });
+  wc.on('render-process-gone', (_e2, d) => errorlog.record(seqoPage(wc) || 'page',
+    'window crashed: ' + ((d && d.reason) || '?') + (d && d.exitCode != null ? ' (exit ' + d.exitCode + ')' : '')));
+  wc.on('unresponsive', () => { const page = seqoPage(wc); if (page) errorlog.record(page, 'window stopped responding'); });
+});
+app.on('will-quit', () => errorlog.flush());
+
 // Base design size: content is authored against this size and uniformly
 // scaled up/down as the window is resized, preserving its internal ratio.
 const BASE_W = 480;
@@ -389,6 +439,7 @@ function pruneGameDB() {
   } catch { /* never let housekeeping break startup */ }
 }
 
+let lastDbWrite = 0;   // when SEQO itself last wrote a database (the shared-folder watcher skips those)
 function saveGameDBSoon() {
   clearTimeout(gameSaveTimer);
   gameSaveTimer = setTimeout(() => {
@@ -480,6 +531,12 @@ ipcMain.handle('history-import-logs', async () => {
   if (!files.length) return { error: 'no eqlog files found next to your log' };
   files.sort((a, b) => a.mtime - b.mtime);
   historyImporting = true;
+  // the spell files tell which classes cast what: your class makeup per kill (2.7). Without them, no makeup.
+  let spellDB = null;
+  try {
+    const root = gameRootFromLog(logPath);
+    if (root) spellDB = await spelldb.getSpellDB(root, app.getPath('userData'));
+  } catch { spellDB = null; }
   const parser = require('./parser.js');
   const { createImporter } = require('./historyimport.js');
   const readline = require('readline');
@@ -488,7 +545,7 @@ ipcMain.handle('history-import-logs', async () => {
   let doneBytes = 0;
   try {
     for (const f of files) {
-      if (!byChar.has(f.char)) byChar.set(f.char, createImporter({ parser, char: f.char, prices: require('./prices.js') }));
+      if (!byChar.has(f.char)) byChar.set(f.char, createImporter({ parser, char: f.char, prices: require('./prices.js'), spellDB }));
       const imp = byChar.get(f.char);
       const rl = readline.createInterface({ input: fs.createReadStream(f.p, { encoding: 'latin1' }), crlfDelay: Infinity });
       let n = 0;
@@ -512,7 +569,10 @@ ipcMain.handle('history-import-logs', async () => {
     let prices = 0;
     for (const [, imp] of byChar) prices += priceStore.add(imp.offers());
     priceStore.flush();
-    return { ok: true, added, skipped, files: files.length, prices };
+    // when each kill happened, for mobs you already have kill records for (2.7)
+    let killTimes = 0;
+    for (const [, imp] of byChar) killTimes += lootStore.addKillTimes(imp.killTimes());
+    return { ok: true, added, skipped, files: files.length, prices, killTimes };
   } catch (e) {
     return { error: e.message || String(e) };
   } finally { historyImporting = false; }
@@ -530,7 +590,11 @@ ipcMain.handle('import-gina-file', async () => {
   try {
     const A = require('./alerts.js');
     const buf = fs.readFileSync(res.filePaths[0]);
-    const xml = buf.readUInt32LE(0) === 0x04034b50 ? A.unzipFirstXml(buf) : buf.toString('utf8');
+    // GINA writes UTF-8 or UTF-16 (with a byte-order mark) depending on how it was exported
+    const text = (b) => b[0] === 0xff && b[1] === 0xfe ? b.slice(2).toString('utf16le')
+      : b[0] === 0xfe && b[1] === 0xff ? Buffer.from(b.slice(2)).swap16().toString('utf16le')
+      : b.toString('utf8').replace(/^\uFEFF/, '');
+    const xml = buf.readUInt32LE(0) === 0x04034b50 ? A.unzipFirstXml(buf) : text(buf);
     if (!xml) return { error: 'no trigger XML found in that file' };
     const rules = A.ginaToRules(xml);
     return rules.length ? { rules, file: path.basename(res.filePaths[0]) } : { error: 'no triggers found in that file' };
@@ -602,7 +666,7 @@ function watchSharedDBs() {
       loadLootDB();
       loadGameDB();
       if (win) {
-        win.webContents.send('loot-db', lootDB);
+        win.webContents.send('loot-db', lootStore.db);
         win.webContents.send('shared-reload');
       }
     });
@@ -993,6 +1057,17 @@ ipcMain.on('set-item-knowledge', (_e, { key, entry }) => {
   saveGameDBSoon();
 });
 ipcMain.handle('get-item-knowledge', () => gameDB.itemKnowledge || {});
+// your own corrections from the game (2.7, itemfix.js): they win over eqlwiki everywhere,
+// live in the game DB (synced with your data folder) and no wiki refresh touches them
+ipcMain.handle('get-item-fixes', () => gameDB.itemFixes || {});
+ipcMain.handle('set-item-fix', (_e, { key, fix }) => {
+  if (!key || typeof key !== 'string' || key.length > 120) return false;
+  gameDB.itemFixes = gameDB.itemFixes || {};
+  if (fix && typeof fix === 'object') gameDB.itemFixes[key] = JSON.parse(JSON.stringify(fix));
+  else delete gameDB.itemFixes[key];
+  saveGameDBSoon();
+  return true;
+});
 
 // ---- spell database from the game's own files (spelldb.js) ----
 // Parsed once per game patch, cached locally (machine-specific — NEVER in the
@@ -1039,6 +1114,14 @@ ipcMain.handle('spell-wiki-check', async (_e, names) => {
   return { pages: out, error };
 });
 
+// Cleanup (2.7): items eqlwiki has no page for — eqlegendstools, your loot records, then
+// the P99 wiki (classic EQ), each answer naming its source. See itemsources.js.
+const itemSources = require('./itemsources.js').create({
+  updater, getGameDB: () => gameDB, getLootDB: () => lootStore.db
+});
+ipcMain.handle('item-alt-source', async (_e, name) => {
+  try { return await itemSources.lookup(String(name || '')); } catch (e) { return { src: '', error: e.message || String(e) }; }
+});
 ipcMain.handle('check-pages-exist', async (_e, titles) => {
   try {
     return await updater.pagesExist((titles || []).filter(Boolean).slice(0, 400));
@@ -1050,6 +1133,28 @@ ipcMain.handle('check-pages-exist', async (_e, titles) => {
 // clipboard for the copy-to-chat buttons (renderer is sandboxed)
 ipcMain.on('copy-text', (_e, text) => {
   try { require('electron').clipboard.writeText(String(text || '')); } catch { /* ok */ }
+});
+
+// ⚙ → 📋 Copy problem report: versions, recent errors, settings (no passwords,
+// notes or user-folder paths), straight to the clipboard
+ipcMain.handle('problem-report', () => {
+  const os = require('os');
+  let exports = 'none found';
+  try { exports = ['inventory', 'achievements', 'factions', 'spellbook'].filter((k) => gameData[k]).join(', ') || 'none found'; } catch { /* ok */ }
+  const text = errorlog.buildReport({
+    version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node,
+    os: (os.version ? os.version() : os.type()) + ' (' + os.release() + ', ' + process.arch + ')', locale: app.getLocale(),
+    settings,
+    extras: {
+      'Log file': (settings && settings.logPath) || '(none picked)',
+      'Log being read': tail ? 'yes' : 'no',
+      'Data folder': dataDir(),
+      'Loot DB': Object.keys((lootStore.db && lootStore.db.mobs) || {}).length + ' mobs',
+      'Game exports found': exports
+    }
+  });
+  try { require('electron').clipboard.writeText(text); } catch (e) { return { error: e.message }; }
+  return { ok: true, lines: text.split('\n').length, errors: errorlog.recent(1000).length };
 });
 
 async function refreshToolsPages() {
@@ -1188,9 +1293,15 @@ async function refreshItemKnowledge(cap = 25) {
 }
 
 // Local search across everything cached: item cache, zone drops, loot DB
+const mobstats = require('./mobstats.js');
 ipcMain.handle('search-local', (_e, query) => {
   const q = query.toLowerCase();
   const results = [];
+  // mobs YOU killed (wiki page or not) come first: their own kill card
+  for (const m of mobstats.search(lootStore.db, query, 8))
+    results.push({ kind: 'kills', name: m.name,
+      detail: 'your kills: ' + m.kills + ' · ' + m.items + ' item' + (m.items === 1 ? '' : 's') + ' looted' +
+        (m.zones.length ? ' · ' + m.zones[0] + (m.zones.length > 1 ? ' +' + (m.zones.length - 1) + ' more' : '') : '') });
   for (const it of Object.values(gameDB.items)) {
     if (it.pageTitle && it.pageTitle.toLowerCase().includes(q))
       results.push({ kind: 'item', name: it.pageTitle, detail: 'cached item page' });
@@ -1205,7 +1316,7 @@ ipcMain.handle('search-local', (_e, query) => {
       }
     }
   }
-  for (const m of Object.values(lootDB.mobs || {})) {
+  for (const m of Object.values(lootStore.db.mobs || {})) {
     for (const d of Object.values(m.drops || {})) {
       if (d.name.toLowerCase().includes(q))
         results.push({ kind: 'seen', name: d.name, detail: 'looted from ' + m.name + ' ' + d.count + '/' + m.kills + ' (' + (m.kills ? Math.round(d.count / m.kills * 100) : 0) + '%)' });
@@ -1401,122 +1512,15 @@ ipcMain.handle('get-quest-index', () => gameDB.questIndex || null);
 // comparison records. Built on demand (a few minutes, with progress), cached
 // in the game DB (synced between computers), refreshed by the same button.
 // ---------------------------------------------------------------------------
-let gearBuilding = false;
-ipcMain.handle('build-gear-catalog', async (_e, opts = {}) => {
-  if (gearBuilding) return { error: 'a catalog build is already running' };
-  gearBuilding = true;
-  const progress = (msg) => { try { win.webContents.send('gear-progress', msg); } catch { /* window gone */ } };
-  try {
-    const prior = gameDB.gearCatalog;
-
-    // ---- incremental update: only pages that CHANGED since the last build ----
-    if (prior && prior.items && prior.built && !opts.full) {
-      progress('Asking the wiki what changed since the last build…');
-      let changed = null;
-      try { changed = await updater.getRecentChangeTitles(prior.built - 3600 * 1000); } catch { changed = null; }
-      if (changed) {
-        if (!changed.length) {
-          prior.built = Date.now();
-          saveGameDBSoon();
-          progress('');
-          gearBuilding = false;
-          return { items: prior.items.length, unchanged: true };
-        }
-        progress(changed.length + ' wiki pages changed — re-reading only those…');
-        // the banner verdicts settled at full-build time (incl. inventory proof)
-        const futureSet = new Set(prior.futureBanners || []);
-        const byName = new Map(prior.items.map(it => [it.n, it]));
-        let updated = 0, added = 0, dropped = 0;
-        for (let i = 0; i < changed.length; i += 50) {
-          const pages = await updater.fetchPagesContent(changed.slice(i, i + 50));
-          for (const [title, text] of Object.entries(pages)) {
-            const res = updater.parseGearPage(title, text, futureSet);
-            if (!res || res.future) { // no longer gear (or provably future-era)
-              if (byName.delete(title)) dropped++;
-              continue;
-            }
-            if (byName.has(title)) updated++; else added++;
-            byName.set(title, res);
-          }
-          progress('Re-reading changed pages… ' + Math.min(i + 50, changed.length) + ' / ' + changed.length);
-        }
-        gameDB.gearCatalog = { ...prior, built: Date.now(), items: [...byName.values()] };
-        saveGameDBSoon();
-        progress('');
-        gearBuilding = false;
-        return { items: gameDB.gearCatalog.items.length, updated, added, dropped, incremental: true };
-      }
-      progress('A lot changed since the last build — doing a full rebuild…');
-    }
-
-    // ---- full build ----
-    // Era banners mark eras, CURRENT ones included — only banners whose own
-    // template text says "not yet available / future" skip items. And if the
-    // player OWNS an item from a "future" banner, that banner is provably
-    // current: all its items come back in.
-    progress('Reading the wiki\'s era banners…');
-    let futureBanners = new Set();
-    try {
-      const eb = await updater.getEraBanners();
-      futureBanners = eb.future;
-      progress(eb.future.size + ' of ' + eb.all.size + ' era banners mark FUTURE content — only those skip items');
-    } catch { progress('era banner list unavailable — keeping everything'); }
-    progress('Listing every item on the wiki…');
-    const titles = await updater.getAllCategoryMembers('Items', (n) => progress('Listing items… ' + n));
-    if (!titles.length) throw new Error('the wiki returned no item list');
-    progress(titles.length + ' item pages — reading in batches of 50…');
-    const items = [];
-    const futureStash = new Map(); // banner -> parsed entries held aside
-    let read = 0, skipped = 0, futureSkipped = 0;
-    for (let i = 0; i < titles.length; i += 50) {
-      const pages = await updater.fetchPagesContent(titles.slice(i, i + 50));
-      for (const [title, text] of Object.entries(pages)) {
-        read++;
-        const res = updater.parseGearPage(title, text, futureBanners);
-        if (!res) { skipped++; continue; }             // not wearable gear
-        if (res.future) {                              // held aside, maybe reinstated below
-          futureSkipped++;
-          if (res.entry) {
-            if (!futureStash.has(res.future)) futureStash.set(res.future, []);
-            futureStash.get(res.future).push(res.entry);
-          }
-          continue;
-        }
-        items.push(res);
-      }
-      progress('Reading item pages… ' + Math.min(i + 50, titles.length) + ' / ' + titles.length +
-               ' (' + items.length + ' wearable, ' + futureSkipped + ' future-era held aside)');
-    }
-    // inventory ground truth: a banner whose item the player HOLDS is current
-    const ownedBase = new Set();
-    const invItems = gameData.inventory && gameData.inventory.items;
-    if (invItems) for (const k of Object.keys(invItems))
-      ownedBase.add(k.replace(/\s*\+\d+$/, '').replace(/`/g, "'").trim());
-    const reinstSet = new Set();
-    let reinstated = 0;
-    for (const [banner, list] of futureStash) {
-      if (list.some(e => ownedBase.has(e.n.toLowerCase().replace(/`/g, "'").trim()))) {
-        items.push(...list);
-        futureSkipped -= list.length;
-        reinstated += list.length;
-        reinstSet.add(banner);
-      }
-    }
-    if (reinstated) progress('You own items from ' + reinstSet.size + ' "future" banner(s) — ' + reinstated + ' items reinstated as current content');
-    gameDB.gearCatalog = {
-      built: Date.now(), total: titles.length, items, futureSkipped,
-      futureBanners: [...futureBanners].filter(b => !reinstSet.has(b))
-    };
-    saveGameDBSoon();
-    progress('');
-    gearBuilding = false;
-    return { items: items.length, pages: read, skipped, futureSkipped, reinstated };
-  } catch (err) {
-    gearBuilding = false;
-    progress('');
-    return { error: err.message || String(err) };
-  }
+// The builder lives in gearcatalog.js.
+const gearcatalog = require('./gearcatalog.js').create({
+  getGameDB: () => gameDB,
+  saveGameDBSoon,
+  updater,
+  getGameData: () => gameData,
+  getWin: () => win
 });
+ipcMain.handle('build-gear-catalog', (_e, opts = {}) => gearcatalog.buildGearCatalog(opts));
 ipcMain.handle('get-gear-catalog', () => gameDB.gearCatalog || null);
 
 // ---------------------------------------------------------------------------
@@ -1551,6 +1555,9 @@ async function checkAppUpdate() {
       newer: cmpVersions(latest, app.getVersion()) > 0,
       url: j.html_url || ('https://github.com/' + repo + '/releases/latest'),
       setupUrl: setup ? setup.browser_download_url : null,
+      setupName: setup ? setup.name : null,
+      setupSize: setup ? setup.size : 0,
+      setupDigest: setup ? setup.digest || null : null,   // "sha256:…" on newer GitHub releases
       notes: String(j.body || '').slice(0, 400)
     };
   } catch (err) {
@@ -1558,6 +1565,35 @@ async function checkAppUpdate() {
   }
 }
 ipcMain.handle('check-app-update', () => checkAppUpdate());
+
+// one-click update (v2.7): download the new installer, check it (selfupdate.js),
+// start it and close SEQO; the installer reopens SEQO when it's done. Running from
+// source or the portable exe, there's nothing to install: the renderer opens the
+// release page instead.
+const selfupdate = require('./selfupdate.js').create({
+  tempDir: () => app.getPath('temp'),
+  onProgress: (p) => { if (win) win.webContents.send('update-progress', p); }
+});
+let updateDownloading = false;
+ipcMain.handle('install-update', async () => {
+  if (!app.isPackaged) return { manual: true, reason: 'SEQO is running from source' };
+  if (process.env.PORTABLE_EXECUTABLE_DIR) return { manual: true, reason: 'this is the portable SEQO — download the new portable exe' };
+  if (updateDownloading) return { error: 'already downloading' };
+  updateDownloading = true;
+  try {
+    const info = await checkAppUpdate();
+    if (info.error) return { error: info.error };
+    if (!info.newer) return { error: 'you already have the latest version (v' + info.current + ')' };
+    const r = await selfupdate.download(info, String(settings.updateRepo || '').trim());
+    require('child_process').spawn(r.file, [], { detached: true, stdio: 'ignore' }).unref();
+    setTimeout(() => app.quit(), 1000);
+    return { ok: true, version: info.latest, verified: r.verified };
+  } catch (e) {
+    return { error: e.message || String(e) };
+  } finally {
+    updateDownloading = false;
+  }
+});
 
 // auto-check shortly after launch, quietly
 app.whenReady().then(() => setTimeout(async () => {
@@ -1567,194 +1603,22 @@ app.whenReady().then(() => setTimeout(async () => {
 }, 10000));
 
 // ---------------------------------------------------------------------------
-// Data-source freshness: the Epics / Unlocks views are built from wiki pages
-// that were verified on a fixed date (META.captured in epics.js/unlocks.js).
-// This asks the wiki's revisions API whether those pages changed since, so
-// the user knows when the shipped data is out of date. BiS gear has its own
-// live Update button, so it isn't checked here.
+// Live quest data: Epics / race unlocks / Plane of Sky refreshed from the wiki,
+// wiki freshness checks and the dock's guide pages — see datasources.js.
 // ---------------------------------------------------------------------------
-const DATA_SOURCES = [
-  { label: 'Epic checklists', meta: require('./epics.js').META },
-  { label: 'Race unlock guide', meta: require('./unlocks.js').META }
-];
-
-// The epic checklists can be re-read STRAIGHT FROM THE WIKI at runtime (like
-// the BiS Update button): fetch the page's wikitext and parse the bullet
-// lists back into the same shape epics.js ships with. The parsed result is
-// stored in gameDB.epicsData and overrides the built-in list.
-function parseEpicsWikitext(text) {
-  const byClass = {};
-  let cur = null;
-  text = String(text).replace(/[’‘]/g, "'").replace(/[“”]/g, '"');
-  for (const raw of text.split(/\r?\n/)) {
-    const h = /^=+\s*(.+?)\s*=+\s*$/.exec(raw.trim());
-    if (h) {
-      cur = BIS_CLASSES.includes(h[1]) ? h[1] : null;
-      if (cur && !byClass[cur]) byClass[cur] = [];
-      continue;
-    }
-    if (!cur) continue;
-    const line = raw.trim();
-    if (!/^:*\*/.test(line)) continue;                      // items are bullet lines
-    const links = [...line.matchAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g)];
-    if (!links.length) continue;
-    const last = links[links.length - 1];                   // the ITEM is the last link
-    const item = (last[2] || last[1]).trim();
-    if (!item || /Epic Quest$/i.test(item)) continue;       // "[[X Epic Quest]]" header link
-    const u = /\(unverified\)/i.test(line) || /doesn'?t drop|does not drop/i.test(line);
-    // quantity: "2x [[Item]]" before the link, or "[[Item]] x2" after it
-    let q = 1;
-    const beforeQ = /(\d+)\s*x\s*$/i.exec(line.slice(0, last.index).trimEnd());
-    const afterQ = /^\s*x\s*(\d+)/i.exec(line.slice(last.index + last[0].length));
-    if (beforeQ) q = +beforeQ[1]; else if (afterQ) q = +afterQ[1];
-    // source: the rest of the line, links flattened, markup stripped
-    let src = (line.slice(0, last.index) + line.slice(last.index + last[0].length))
-      .replace(/^:*\*+\s*/, '')
-      .replace(/\(unverified\)\s*/ig, '')
-      .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a)
-      .replace(/\{\{[^}]*\}\}/g, '')
-      .replace(/'{2,}/g, '')
-      .replace(/\s+/g, ' ')
-      .replace(/[\s\-–—.,:]+$/, '')
-      .replace(/\b\d+\s*x$/i, '')
-      .replace(/[\s\-–—.,:]+$/, '')
-      .replace(/\bfor$/i, '')
-      .replace(/[\s\-–—.,:]+$/, '')
-      .trim();
-    const prev = byClass[cur].find(it => it.n === item);
-    if (prev) { if (q > (prev.q || 1)) prev.q = q; continue; }
-    const entry = { n: item, src };
-    if (q > 1) entry.q = q;
-    if (u) entry.u = true;
-    byClass[cur].push(entry);
-  }
-  return byClass;
-}
-
-async function fetchEpicsFromWiki() {
-  const title = DATA_SOURCES[0].meta.sources[0];
-  const url = 'https://eqlwiki.com/api.php?action=parse&prop=wikitext&format=json&redirects=1&page=' +
-              encodeURIComponent(title);
-  const res = await fetch(url, { headers: { 'User-Agent': updater.UA } });
-  if (!res.ok) throw new Error('wiki answered HTTP ' + res.status);
-  const j = await res.json();
-  const text = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
-  if (!text) throw new Error('wiki gave no page text');
-  const byClass = parseEpicsWikitext(text);
-  const withItems = Object.keys(byClass).filter(c => byClass[c].length);
-  // sanity: the page has ~14 populated class sections today; refuse a thin
-  // parse rather than wiping good data because the page layout changed
-  if (withItems.length < 10) {
-    throw new Error('page did not parse cleanly (only ' + withItems.length +
-                    ' classes found) — its layout may have changed, keeping current data');
-  }
-  return byClass;
-}
-
-async function checkDataSources() {
-  const titles = [...new Set(DATA_SOURCES.flatMap(c => c.meta.sources))];
-  const url = 'https://eqlwiki.com/api.php?action=query&prop=revisions&rvprop=timestamp' +
-              '&format=json&redirects=1&titles=' + encodeURIComponent(titles.join('|'));
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': updater.UA } });
-    if (!res.ok) return { error: 'wiki answered HTTP ' + res.status };
-    const j = await res.json();
-    const revByTitle = {};
-    for (const p of Object.values((j.query && j.query.pages) || {}))
-      if (p.title && p.revisions && p.revisions[0])
-        revByTitle[p.title.replace(/_/g, ' ')] = p.revisions[0].timestamp;
-    if (!Object.keys(revByTitle).length) return { error: 'wiki gave no page data' };
-    // a requested title may be a redirect: follow query.normalized + query.redirects
-    const alias = {};
-    for (const r of [...((j.query && j.query.normalized) || []), ...((j.query && j.query.redirects) || [])])
-      alias[r.from.replace(/_/g, ' ')] = r.to.replace(/_/g, ' ');
-    const resolve = (t) => {
-      t = t.replace(/_/g, ' ');
-      for (let i = 0; i < 4 && alias[t]; i++) t = alias[t];
-      return t;
-    };
-    // baseline = the date of the data we're actually running on: a stored
-    // live update if one exists, otherwise the date baked into the js files
-    const baselines = {
-      'Epic checklists': (gameDB.epicsData && gameDB.epicsData.revised) || DATA_SOURCES[0].meta.captured,
-      'Race unlock guide': (gameDB.unlocksData && gameDB.unlocksData.revised) || DATA_SOURCES[1].meta.captured
-    };
-    const checks = DATA_SOURCES.map(c => {
-      const revs = c.meta.sources.map(s => revByTitle[resolve(s)]).filter(Boolean);
-      const revised = revs.sort().pop() || null;
-      const base = baselines[c.label] || c.meta.captured;
-      return {
-        label: c.label, captured: base,
-        revised: revised ? revised.slice(0, 10) : null,
-        stale: !!(revised && revised.slice(0, 10) > base)
-      };
-    });
-    return { checks, checkedAt: Date.now() };
-  } catch (e) {
-    return { error: e.message || String(e) };
-  }
-}
+const datasources = require('./datasources.js').create({
+  getSettings: () => settings,
+  saveSettings,
+  getGameDB: () => gameDB,
+  saveGameDBSoon,
+  updater,
+  BIS_CLASSES,
+  refreshCachedPages,
+  refreshItemKnowledge
+});
+const { updateQuestData, fetchGuidePage, sliceWikiSection, wikitextToText } = datasources;
 
 // ---- dock "guide" mode: any wiki page (or one section) as readable text ----
-// Cached in the game DB, so after the first click it opens instantly and
-// works offline; a stale cache (>7 days) refreshes in the same call.
-function sliceWikiSection(text, anchor) {
-  if (!anchor) return null;
-  const want = String(anchor).replace(/_/g, ' ').trim().toLowerCase();
-  const lines = String(text).split(/\r?\n/);
-  let start = -1, level = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const h = /^(={2,5})\s*(.+?)\s*={2,5}\s*$/.exec(lines[i].trim());
-    if (!h) continue;
-    const name = h[2].replace(/\[\[|\]\]/g, '').replace(/.*\|/, '').trim().toLowerCase();
-    if (start < 0) { if (name === want) { start = i; level = h[1].length; } continue; }
-    if (h[1].length <= level) return lines.slice(start, i).join('\n');
-  }
-  return start >= 0 ? lines.slice(start).join('\n') : null;
-}
-
-function wikitextToText(src) {
-  let t = String(src);
-  for (let i = 0; i < 4; i++) t = t.replace(/\{\{[^{}]*\}\}/g, '');  // templates (simple nesting)
-  t = t.replace(/\[\[(?:File|Image|Category):[^\]]*\]\]/gi, '')
-       .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
-       .replace(/\[\[([^\]]+)\]\]/g, '$1')
-       .replace(/\[https?:\/\/\S+ ([^\]]+)\]/g, '$1')
-       .replace(/\[https?:\/\/\S+\]/g, '')
-       .replace(/'{2,}/g, '')
-       .replace(/<br\s*\/?>/gi, '\n')
-       .replace(/<ref[\s\S]*?<\/ref>/gi, '')
-       .replace(/<[^>]+>/g, '')
-       .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
-  const out = [];
-  for (const raw of t.split('\n')) {
-    let line = raw.trimEnd();
-    const trimmed = line.trim();
-    const h = /^(={2,5})\s*(.+?)\s*=+\s*$/.exec(trimmed);
-    if (h) { out.push('', (h[1].length <= 2 ? '━ ' : '— ') + h[2] + (h[1].length <= 2 ? ' ━' : ' —'), ''); continue; }
-    if (/^\{\||^\|\}|^\|-/.test(trimmed)) continue;   // table plumbing
-    if (/^[|!]/.test(trimmed)) {                       // table cells → one line
-      out.push('  ' + trimmed.replace(/^[|!]\s*/, '').split(/\s*\|\|\s*|\s*!!\s*/).join(' · '));
-      continue;
-    }
-    line = line.replace(/^(\*+)\s*/, (m, s) => '  '.repeat(s.length - 1) + '• ')
-               .replace(/^(#+)\s*/, (m, s) => '  '.repeat(s.length - 1) + '· ');
-    out.push(line);
-  }
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-}
-
-async function fetchGuidePage(title) {
-  const url = 'https://eqlwiki.com/api.php?action=parse&prop=wikitext|revid&format=json&redirects=1&page=' +
-              encodeURIComponent(title);
-  const res = await fetch(url, { headers: { 'User-Agent': updater.UA } });
-  if (!res.ok) throw new Error('wiki answered HTTP ' + res.status);
-  const j = await res.json();
-  const wikitext = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
-  if (!wikitext) return null;
-  return { wikitext, pageTitle: (j.parse.title || title), revid: j.parse.revid, updated: Date.now() };
-}
-
 ipcMain.handle('get-guide-page', async (_e, { title, anchor, refresh, source } = {}) => {
   if (!title) return { error: 'no page requested' };
   gameDB.guidePages = gameDB.guidePages || {};
@@ -1802,171 +1666,6 @@ ipcMain.handle('get-guide-page', async (_e, { title, anchor, refresh, source } =
   };
 });
 
-// ---- Alanna's Race Unlock Guide → per-faction grind hints -----------------
-// Guide layout: "== Race ==" sections, each with "=== Requirements ==="
-// ("Get maximum faction with [[X]]" bullets) and "=== Recommended Method ==="
-// (numbered steps). The hint for each of a race's factions is that race's
-// recommended-method steps.
-function parseUnlocksWikitext(text) {
-  const byFaction = {};
-  text = String(text).replace(/[’‘]/g, "'").replace(/[“”]/g, '"');
-  const flat = (s) => s
-    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a)
-    .replace(/\{\{[^}]*\}\}/g, '').replace(/'{2,}/g, '').replace(/\s+/g, ' ').trim();
-  let race = null, sub = null, factions = [], steps = [], needs = {};
-  const flush = () => {
-    if (race && factions.length && steps.length) {
-      const entry = { hint: steps.join(' → '), needs };
-      for (const f of factions) byFaction[f] = entry;
-    }
-    factions = []; steps = []; needs = {};
-  };
-  for (const raw of String(text).split(/\r?\n/)) {
-    const line = raw.trim();
-    const h2 = /^==\s*([^=].*?)\s*==$/.exec(line);
-    if (h2) { flush(); race = h2[1]; sub = null; continue; }
-    const h3 = /^===+\s*(.+?)\s*===+$/.exec(line);
-    if (h3) { sub = h3[1].toLowerCase(); continue; }
-    if (!race || !sub) continue;
-    if (/^requirements/.test(sub)) {
-      const m = /Get maximum faction with \[\[([^\]|]+)(?:\|[^\]]+)?\]\]/i.exec(line);
-      if (m) factions.push(m[1].trim());
-    } else if (/^recommended method/.test(sub)) {
-      if (/^#+\s*\S/.test(line)) {
-        steps.push(flat(line.replace(/^#+\s*/, '')));
-        // turn-in totals: "200 [[Lion Delight]]" (a number BEFORE an item
-        // link; links ending in "Quest" are quest names, not items)
-        let m2;
-        const cre = /(\d+)\s*x?\s*\[\[([^\]|]+?)(?:\|([^\]]+))?\]\]/g;
-        while ((m2 = cre.exec(line))) {
-          const item = (m2[3] || m2[2]).trim();
-          if (/quest$/i.test(item)) continue;
-          needs[item] = Math.max(needs[item] || 0, +m2[1]);
-        }
-      }
-    }
-  }
-  flush();
-  return byFaction;
-}
-
-async function fetchUnlocksFromWiki() {
-  const title = DATA_SOURCES[1].meta.sources[0];
-  const url = 'https://eqlwiki.com/api.php?action=parse&prop=wikitext&format=json&redirects=1&page=' +
-              encodeURIComponent(title);
-  const res = await fetch(url, { headers: { 'User-Agent': updater.UA } });
-  if (!res.ok) throw new Error('wiki answered HTTP ' + res.status);
-  const j = await res.json();
-  const text = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
-  if (!text) throw new Error('wiki gave no page text');
-  const byFaction = parseUnlocksWikitext(text);
-  if (Object.keys(byFaction).length < 15)
-    throw new Error('guide did not parse cleanly (' + Object.keys(byFaction).length +
-                    ' factions found) — its layout may have changed, keeping current data');
-  return byFaction;
-}
-
-// ---- eqlegendstools Plane of Sky quests → posquests rows ------------------
-// The page is server-rendered. Rather than depend on its exact tags, strip
-// it to a text stream (cells tab-separated, rows on their own lines) and
-// parse the repeating pattern: reward heading · "Turn in to <NPC>" ·
-// "<Class> N item(s)" · item|location rows ("Wind Rune X" rows set the rune).
-function htmlToTextStream(html) {
-  return String(html)
-    .replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
-    .replace(/<\/(?:td|th)>/gi, '\t')
-    .replace(/<\/(?:tr|p|div|h\d|li|table)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(?:span|a|strong|b|em|button|label)>/gi, ' ')  // spans butt together otherwise
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&#0?39;|&rsquo;|&#8217;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ')
-    .replace(/[’‘]/g, "'").replace(/[“”]/g, '"'); // the site's curly quotes → the game's straight ones
-}
-
-function parsePosText(text) {
-  const rows = []; // [class, npc, reward, [[item, loc]...], rune]
-  const lines = text.split(/\n/).map(l => l.replace(/[  ]+/g, ' ').trim());
-  let reward = null, npc = null, cls = null, items = [], rune = null, prev = '';
-  const flush = () => {
-    if (reward && npc && cls && (items.length || rune))
-      rows.push([cls, npc, reward, items, rune || '']);
-    reward = npc = cls = rune = null; items = [];
-  };
-  for (const line of lines) {
-    if (!line) continue;
-    let m;
-    if ((m = /^Turn in to (.+?)\.?$/.exec(line))) {
-      flush();
-      npc = m[1].trim();
-      reward = prev.replace(/[⚖⚖©®™]+/g, '').trim(); // reward name precedes the turn-in line
-    } else if (npc && (m = new RegExp('(?:^|[^A-Za-z])(' + BIS_CLASSES.join('|') + ')\\s+(\\d+)\\s*items?').exec(line))) {
-      cls = m[1];
-    } else if (npc && cls && /\t/.test(line) && !/turn in quest items/i.test(line)) {
-      const [item, loc] = line.split('\t').map(s => s.trim());
-      if (!item || !loc) continue;
-      const rm = /^Wind Rune (\w+)/i.exec(item);
-      if (rm) rune = rm[1];
-      else items.push([item, loc]);
-    }
-    prev = line;
-  }
-  flush();
-  return rows;
-}
-
-async function fetchPosFromSite() {
-  const res = await fetch('https://eqlegendstools.com/plane-of-sky-quests/',
-                          { headers: { 'User-Agent': updater.UA } });
-  if (!res.ok) throw new Error('eqlegendstools answered HTTP ' + res.status);
-  const rows = parsePosText(htmlToTextStream(await res.text()));
-  const classes = new Set(rows.map(r => r[0]));
-  if (rows.length < 60 || classes.size < 12)
-    throw new Error('page did not parse cleanly (' + rows.length + ' quests / ' + classes.size +
-                    ' classes) — its layout may have changed, keeping current data');
-  return rows;
-}
-
-// ---- one entry point: refresh everything, report what changed --------------
-async function updateQuestData() {
-  const out = { checkedAt: Date.now() };
-  const fresh = await checkDataSources();               // wiki revision dates
-  out.checks = fresh.checks || null;
-  const revOf = (label) => {
-    const c = fresh.checks && fresh.checks.find(x => x.label === label);
-    return c ? c.revised : null;
-  };
-  const one = async (key, fn, store, revised) => {
-    try {
-      const data = await fn();
-      const changed = JSON.stringify(data) !== JSON.stringify((gameDB[store] || {}).data);
-      gameDB[store] = { data, updated: Date.now(), revised: revised || null };
-      out[key] = { ok: true, changed, revised: revised || null,
-                   count: Array.isArray(data) ? data.length : Object.keys(data).length };
-    } catch (e) {
-      out[key] = { error: e.message || String(e) };
-    }
-  };
-  await one('epics', fetchEpicsFromWiki, 'epicsData', revOf('Epic checklists'));
-  await one('unlocks', fetchUnlocksFromWiki, 'unlocksData', revOf('Race unlock guide'));
-  await one('pos', fetchPosFromSite, 'posData', null);
-  // cached zone + item pages: revision-compare, re-fetch changed only
-  try { out.cached = await refreshCachedPages(); } catch (e) { out.cached = { error: e.message }; }
-  // long-tail: re-check old "no quest found" item-knowledge entries
-  try { out.knowledge = await refreshItemKnowledge(); } catch (e) { out.knowledge = { error: e.message }; }
-  saveGameDBSoon();
-  if (!fresh.error) settings.lastDataCheckAt = fresh.checkedAt;
-  // remember which sources we could NOT refresh although the wiki moved on
-  settings.staleData = (fresh.checks || [])
-    .filter(c => c.stale)
-    .filter(c => (c.label === 'Epic checklists' && out.epics.error) ||
-                 (c.label === 'Race unlock guide' && out.unlocks.error))
-    .map(c => c.label);
-  saveSettings(settings);
-  return out;
-}
-
 ipcMain.handle('update-questdata', () => updateQuestData());
 ipcMain.handle('get-questdata', () => ({
   epicsData: gameDB.epicsData || null,
@@ -2007,129 +1706,26 @@ ipcMain.handle('import-inventory', async () => {
 // mode 'sandbox': one page (User:<name>/SEQO Drop Data), replaced wholesale.
 // mode 'talk': a new dated section on each mob's talk page.
 // ---------------------------------------------------------------------------
-ipcMain.handle('wiki-submit', async (_e, { mode, fullText, perMob }) => {
-  if (!settings.wikiUser || !settings.wikiPass) {
-    return { error: 'Set your wiki username and bot password in Settings first' };
-  }
-  try {
-    const realUser = await updater.wikiLogin(settings.wikiUser, settings.wikiPass);
-    const csrf = await updater.getCsrfToken();
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-    if (mode === 'sandbox') {
-      const title = 'User:' + realUser + '/SEQO Drop Data';
-      await updater.wikiEdit({ title, text: fullText, csrf });
-      return { edited: 1, url: updater.WIKI_PAGE(title), user: realUser };
-    }
-
-    // talk pages: one new section per mob, politely rate-limited
-    const results = [];
-    let edited = 0;
-    const date = new Date().toISOString().slice(0, 10);
-    for (const m of (perMob || []).slice(0, 30)) {
-      try {
-        const title = 'Talk:' + m.mob.charAt(0).toUpperCase() + m.mob.slice(1);
-        await updater.wikiEdit({
-          title, text: m.text + '\n~~~~',
-          newSectionTitle: 'Observed drop rates (SEQO, ' + date + ')',
-          csrf
-        });
-        edited++;
-        results.push(m.mob + ' ✓');
-      } catch (err) {
-        results.push(m.mob + ' ⚠ ' + err.message);
-      }
-      if (win) win.webContents.send('wiki-submit-progress', { done: results.length, total: Math.min((perMob || []).length, 30) });
-      await sleep(1800);
-    }
-    return { edited, results, user: realUser };
-  } catch (err) {
-    return { error: err.message };
-  }
-});
+// The upload lives in wikisubmit.js.
+const wikisubmit = require('./wikisubmit.js').create({ getSettings: () => settings, updater, getWin: () => win });
+ipcMain.handle('wiki-submit', (_e, { mode, fullText, perMob }) => wikisubmit.wikiSubmit({ mode, fullText, perMob }));
 
 // ---------------------------------------------------------------------------
-// Loot database (persistent drop tracking per mob)
+// Loot database (persistent drop tracking per mob) — see lootdb.js.
 // ---------------------------------------------------------------------------
-const lootDbPath = () => path.join(dataDir(), 'lootdb.json');
-let lootDB = { mobs: {} };
-let lootSaveTimer = null;
-
-function loadLootDB() {
-  try { lootDB = JSON.parse(fs.readFileSync(lootDbPath(), 'utf8')); } catch { lootDB = { mobs: {} }; }
-  if (!lootDB.mobs) lootDB.mobs = {};
-  // migrate pre-zone entries: keep their data, mark zone unknown
-  for (const [k, m] of Object.entries(lootDB.mobs)) {
-    if (m.zone === undefined) m.zone = '';
-  }
-  // sanitize item names recorded by older parsers (stack counts, corpse
-  // suffixes, +N upgrade levels) and merge duplicates
-  for (const m of Object.values(lootDB.mobs)) {
-    const fixed = {};
-    for (const d of Object.values(m.drops || {})) {
-      const name = d.name
-        .replace(/^\d+ /, '')
-        .replace(/ from .+?'s corpse$/i, '')
-        .replace(/ \+\d+$/, '');
-      const f = fixed[name] || (fixed[name] = { name, count: 0 });
-      f.count += d.count;
-    }
-    m.drops = fixed;
-  }
-}
-
-let lastDbWrite = 0;
-function saveLootDBSoon() {
-  clearTimeout(lootSaveTimer);
-  lootSaveTimer = setTimeout(() => {
-    try { lastDbWrite = Date.now(); fs.writeFileSync(lootDbPath(), JSON.stringify(lootDB)); } catch (e) { console.error(e); }
-  }, 1000);
-}
-
-let lootPushTimer = null;
-function pushLootDBSoon() {
-  clearTimeout(lootPushTimer);
-  lootPushTimer = setTimeout(() => { if (win) win.webContents.send('loot-db', lootDB); }, 400);
-}
-
-const mobKey = (name) => name.replace(/^(A|An|The) /, (m) => m.toLowerCase());
-
-// kills and drops are keyed per zone+mob: the same mob name can have
-// different loot tables in different zones, and the wiki wants zone data
-function lootEntry(mob, zone) {
-  const k = (zone || '') + '|' + mobKey(mob);
-  return lootDB.mobs[k] ||
-    (lootDB.mobs[k] = { name: mobKey(mob), zone: zone || '', kills: 0, drops: {} });
-}
-
-ipcMain.on('record-kill', (_e, { mob, zone }) => {
-  lootEntry(mob, zone).kills += 1;
-  saveLootDBSoon(); pushLootDBSoon();
+const lootStore = require('./lootdb.js').create({
+  dataDir,
+  getWin: () => win,
+  noteWrite: () => { lastDbWrite = Date.now(); }
 });
+const { lootDbPath, loadLootDB } = lootStore;
 
-ipcMain.on('record-drop', (_e, { mob, item, zone }) => {
-  const m = lootEntry(mob, zone);
-  const d = m.drops[item] || (m.drops[item] = { name: item, count: 0 });
-  d.count += 1;
-  saveLootDBSoon(); pushLootDBSoon();
-});
-
+ipcMain.on('record-kill', (_e, { mob, zone, when, secs, variant, makeup, group }) => lootStore.recordKill(mob, zone, when, secs, mobstats.tierNum(variant), { c: makeup, g: group }));
+ipcMain.on('record-drop', (_e, { mob, item, zone }) => lootStore.recordDrop(mob, item, zone));
 // batched mob combat observations: max melee hit, hit counts, casts seen
-ipcMain.on('record-mob-stats', (_e, entries) => {
-  for (const s of entries || []) {
-    const m = lootEntry(s.mob, s.zone);
-    m.maxHit = Math.max(m.maxHit || 0, s.maxHit || 0);
-    m.hitCount = (m.hitCount || 0) + (s.hits || 0);
-    m.hitTotal = (m.hitTotal || 0) + (s.total || 0);
-    if (s.level) m.level = s.level;   // latest /con wins
-    if (s.spells && s.spells.length) {
-      m.spells = [...new Set([...(m.spells || []), ...s.spells])].slice(0, 25);
-    }
-  }
-  saveLootDBSoon(); pushLootDBSoon();
-});
+ipcMain.on('record-mob-stats', (_e, entries) => lootStore.recordMobStats(entries));
 
-ipcMain.handle('get-loot-db', () => lootDB);
+ipcMain.handle('get-loot-db', () => lootStore.db);
 
 // ---------------------------------------------------------------------------
 // Locked-mode hover interactivity: renderer asks to become clickable while
@@ -2188,247 +1784,17 @@ function sendLogStatus() {
 }
 
 // ---------------------------------------------------------------------------
-// Zero-click game data sync: EQ's /outputfile writes land in the game root
-// (one level above Logs\). We derive the character's file names from the log
-// path, parse them, and watch the folder so a fresh /outputfile inventory /
-// achievements / faction refreshes SEQO within a second — no clicks.
+// Zero-click game data sync (/outputfile inventory, achievements, factions,
+// spellbook): see gameexports.js.
 // ---------------------------------------------------------------------------
-let gameData = { inventory: null, factions: null, achievements: null };
-let outputWatcher = null;
-let outputDebounce = null;
-
-function charServerFromLog(logPath) {
-  const m = /^eqlog_(.+?)_(.+?)\.txt$/i.exec(path.basename(logPath || ''));
-  return m ? { name: m[1], server: m[2] } : null;
-}
-
-function gameRootFromLog(logPath) {
-  // <game>\Logs\eqlog_Name_server.txt -> <game>
-  const dir = path.dirname(logPath);
-  return /logs$/i.test(path.basename(dir)) ? path.dirname(dir) : dir;
-}
-
-function discoverOutputFiles() {
-  const logPath = settings.logPath;
-  const cs = charServerFromLog(logPath);
-  if (!logPath || !cs) return null;
-  const root = gameRootFromLog(logPath);
-  const prefix = (cs.name + '_' + cs.server).toLowerCase();
-  const found = { root, prefix, inventory: null, achievements: null, factions: null, spellbook: null };
-  let entries = [];
-  try { entries = fs.readdirSync(root); } catch { return found; }
-  for (const f of entries) {
-    const lf = f.toLowerCase();
-    if (!lf.startsWith(prefix) || !lf.endsWith('.txt')) continue;
-    if (lf.includes('inventory')) found.inventory = pickNewer(found.inventory, path.join(root, f));
-    else if (lf.includes('achievements')) found.achievements = pickNewer(found.achievements, path.join(root, f));
-    else if (lf.includes('factions')) found.factions = pickNewer(found.factions, path.join(root, f));
-    else if (lf.includes('spellbook')) found.spellbook = pickNewer(found.spellbook, path.join(root, f));
-  }
-  return found;
-}
-
-function pickNewer(a, b) {
-  if (!a) return b;
-  try { return fs.statSync(b).mtimeMs > fs.statSync(a).mtimeMs ? b : a; } catch { return a; }
-}
-
-// Inventory: TSV  Location \t Name \t ID \t Count \t Slots
-// plus a KeyRing section (KeyRing \t Name \t ID) with Equipment/Augmentation/
-// Activated rows. Bank/SharedBank slots ARE included by the game.
-// which storage bucket a location prefix belongs to. Real prefixes seen in
-// the game's file: "General ", "General 1-Slot" (note the space variants),
-// "Personal-Depot" (character storage), "Bank"/"Bank5-Slot", "SharedBank",
-// and worn gear (Equipment / Augmentation / "Any Slot" / slot names).
-// The game only writes the Personal-Depot section into /outputfile inventory
-// while the depot is accessible (at the banker) — an export run in the field
-// silently drops everything in storage, cratering counters and emptying the
-// Cleanup storage section. So: remember the last export that HAD the depot
-// and carry its contents forward whenever a newer export lacks the section;
-// a fresh depot-bearing export replaces the carried copy on the spot.
-function applyDepotCarry(inv) {
-  if (!inv || !inv.items) return inv;
-  const hasDepot = Object.values(inv.items).some(it => it.by && it.by.depot > 0);
-  if (hasDepot) {
-    const snap = {};
-    for (const [k, it] of Object.entries(inv.items))
-      if (it.by.depot > 0) snap[k] = { name: it.name, count: it.by.depot };
-    gameDB.lastDepot = { at: inv.mtime || Date.now(), items: snap };
-    saveGameDBSoon();
-    return inv;
-  }
-  const last = gameDB.lastDepot;
-  if (!last || !last.items) return inv;
-  for (const [k, s] of Object.entries(last.items)) {
-    const it = inv.items[k] ||
-      (inv.items[k] = { name: s.name, count: 0, locs: [], by: { bags: 0, depot: 0, bank: 0, shared: 0, stored: 0, worn: 0 } });
-    it.by = it.by || { bags: 0, depot: 0, bank: 0, shared: 0, stored: 0, worn: 0 };
-    it.count += s.count;
-    it.by.depot += s.count;
-    if (it.locs.length < 6 && !it.locs.includes('Personal-Depot (carried)'))
-      it.locs.push('Personal-Depot (carried)');
-  }
-  inv.depotCarried = { at: last.at };
-  return inv;
-}
-
-function invBucketOf(loc) {
-  if (/^(General|Held)/i.test(loc)) return 'bags';
-  if (/^Personal-?Depot/i.test(loc)) return 'depot';
-  if (/^SharedBank/i.test(loc)) return 'shared';
-  if (/^Bank/i.test(loc)) return 'bank';
-  if (/^Equipment/i.test(loc)) return 'stored';   // the storage's gear tab (trailing section)
-  return 'worn';
-}
-
-function parseInventoryFile(text) {
-  const items = {};   // lower name -> { name, count, locs: [], by: {bags,depot,bank,shared,stored,worn} }
-  const keyring = []; // trailing-section names (PoS reward detection keys on these)
-  let inKeyRing = false;
-  const addItem = (name, loc, count) => {
-    const k = name.toLowerCase();
-    if (!items[k]) items[k] = { name, count: 0, locs: [], by: { bags: 0, depot: 0, bank: 0, shared: 0, stored: 0, worn: 0 } };
-    items[k].count += count;
-    items[k].by[invBucketOf(loc)] += count;
-    if (items[k].locs.length < 6 && !items[k].locs.includes(loc)) items[k].locs.push(loc);
-  };
-  for (const raw of text.split(/\r?\n/)) {
-    const cols = raw.replace(/\r$/, '').split('\t');
-    if (!cols.length || !cols[0]) continue;
-    if (cols[0] === 'Location' || cols[0] === 'KeyRing') { inKeyRing = cols[0] === 'KeyRing'; continue; }
-    const name = (cols[1] || '').trim();
-    if (!name || name === 'Empty') continue;
-    if (inKeyRing) {
-      // the file's trailing sections are real belongings, not just markers:
-      // Equipment = the character storage's GEAR tab, Augmentation = the
-      // exaltation collection, Activated = claimed activatables. No count
-      // column down here — one each. Names also stay in keyring[] because
-      // the PoS tracker marks quests done off obtained rewards listed here.
-      keyring.push(name);
-      addItem(name, cols[0], 1);
-      continue;
-    }
-    addItem(name, cols[0], parseInt(cols[3], 10) || 1);
-  }
-  return { items, keyring };
-}
-
-// Factions: TSV  ID \t Name \t StandingValue \t PointsToMax   (max = 2000)
-function parseFactionsFile(text) {
-  const factions = {};
-  for (const raw of text.split(/\r?\n/)) {
-    const cols = raw.replace(/\r$/, '').split('\t');
-    if (cols.length < 4 || cols[0] === 'ID') continue;
-    const value = parseInt(cols[2], 10), toMax = parseInt(cols[3], 10);
-    if (isNaN(value)) continue;
-    factions[cols[1].trim()] = { value, toMax: isNaN(toMax) ? null : toMax };
-  }
-  return { factions };
-}
-
-// Spellbook (/outputfile spellbook): "<level>\t<spell name>" per line, written as
-// <Char>_<server>-<CLASS>-Spellbook.txt. It lists the whole book (every class the
-// character has), so the class in the file name is only the one active at export.
-function parseSpellbookFile(text) {
-  const spells = {};
-  for (const raw of text.split(/\r?\n/)) {
-    const cols = raw.replace(/\r$/, '').split('\t');
-    if (cols.length < 2) continue;
-    const lv = parseInt(cols[0], 10), name = cols[1].trim();
-    if (!name || isNaN(lv)) continue;
-    spells[name] = lv;
-  }
-  return { spells };
-}
-
-// Achievements: section headers have no prefix; achievements are
-// "[IC]\t<name>"; objectives are "[IC]\t\t<text>".  C = complete.
-function parseAchievementsFile(text) {
-  const sections = [];
-  let sec = null, ach = null;
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.replace(/\r$/, '');
-    if (!line.trim()) continue;
-    const m = /^([IC])\t(\t?)(.*)$/.exec(line);
-    if (!m) {                       // section header
-      sec = { name: line.trim(), achievements: [] };
-      sections.push(sec);
-      ach = null;
-    } else if (!m[2]) {             // achievement line
-      ach = { name: m[3].trim(), done: m[1] === 'C', objectives: [] };
-      if (sec) sec.achievements.push(ach);
-    } else if (ach) {               // objective line
-      // Slayer-style rows carry a progress column: "<text>\t1187/5000"
-      let text = m[3].trim(), cur, max;
-      const c = /^(.*?)\t(\d[\d,]*)\s*\/\s*(\d[\d,]*)$/.exec(text);
-      if (c) { text = c[1].trim(); cur = +c[2].replace(/,/g, ''); max = +c[3].replace(/,/g, ''); }
-      const o = { text, done: m[1] === 'C' };
-      if (cur !== undefined && !isNaN(cur) && !isNaN(max)) { o.cur = cur; o.max = max; }
-      ach.objectives.push(o);
-    }
-  }
-  return { sections };
-}
-
-function refreshGameData(notify) {
-  const found = discoverOutputFiles();
-  if (!found) return;
-  const readOne = (p, parse) => {
-    if (!p) return null;
-    try {
-      const st = fs.statSync(p);
-      const parsed = parse(fs.readFileSync(p, 'latin1'));
-      return { ...parsed, path: p, mtime: st.mtimeMs };
-    } catch { return null; }
-  };
-  gameData.inventory = applyDepotCarry(readOne(found.inventory, parseInventoryFile));
-  gameData.achievements = readOne(found.achievements, parseAchievementsFile);
-  gameData.factions = readOne(found.factions, parseFactionsFile);
-  gameData.spellbook = readOne(found.spellbook, parseSpellbookFile);
-  if (notify && win) {
-    win.webContents.send('gamedata-updated', {
-      inventory: !!gameData.inventory, achievements: !!gameData.achievements,
-      factions: !!gameData.factions, spellbook: !!gameData.spellbook
-    });
-  }
-}
-
-// A half-written export must never be parsed: the game writes these files
-// over a second or two and the Personal-Depot section lands near the END,
-// so an eager read sees bags and bank but no storage. Wait until the file's
-// size has held still for two checks before reading it.
-async function waitForStableFile(p, tries = 25) {
-  let last = -1;
-  for (let i = 0; i < tries; i++) {
-    let size = -2;
-    try { size = fs.statSync(p).size; } catch { /* file may appear shortly */ }
-    if (size >= 0 && size === last) return;
-    last = size;
-    await new Promise(r => setTimeout(r, 400));
-  }
-}
-
-function watchOutputFiles() {
-  if (outputWatcher) { try { outputWatcher.close(); } catch { /* ok */ } outputWatcher = null; }
-  const found = discoverOutputFiles();
-  if (!found) return;
-  refreshGameData(true);
-  try {
-    outputWatcher = fs.watch(found.root, (_ev, fname) => {
-      if (!fname) return;
-      const lf = fname.toLowerCase();
-      if (!lf.startsWith(found.prefix)) return;
-      if (!/inventory|achievements|factions|spellbook/.test(lf)) return;
-      clearTimeout(outputDebounce);
-      outputDebounce = setTimeout(async () => {
-        const f = discoverOutputFiles();
-        for (const p of [f && f.inventory, f && f.achievements, f && f.factions, f && f.spellbook].filter(Boolean))
-          await waitForStableFile(p);
-        refreshGameData(true);
-      }, 700);
-    });
-  } catch (e) { console.error('outputfile watch failed:', e.message); }
-}
+const gameexports = require('./gameexports.js');
+const { gameRootFromLog } = gameexports;
+const { gameData, watchOutputFiles } = gameexports.create({
+  getSettings: () => settings,
+  getGameDB: () => gameDB,
+  saveGameDBSoon,
+  getWin: () => win
+});
 
 ipcMain.handle('get-gamedata', () => gameData);
 

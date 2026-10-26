@@ -46,5 +46,13 @@ for (const [ach, kq] of Object.entries(U.KEY_QUESTS || {})) {
   }
 }
 
+for (const [race, rq] of Object.entries(U.RACE_QUESTS || {})) {
+  ok(rq.giver && Array.isArray(rq.steps) && rq.steps.length, 'race quest incomplete: ' + race);
+  for (const st of rq.steps) {
+    ok(st.text && st.text.length > 10, race + ': step without text');
+    if (st.zone) ok(Z.zones[st.zone] || idx.get(norm(st.zone)), race + ': step zone not recognised: ' + st.zone);
+  }
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

@@ -107,5 +107,43 @@ for (const line of [
   if (ev && (ev.type === 'damage' || ev.type === 'miss')) { fail++; console.error('FAIL  should not be combat: ' + line); } else pass++;
 }
 
+// --- meter: damage per mob in one fight (2.7) ---
+{
+  const { FightTracker } = require('../parser.js');
+  const tr = new FightTracker();
+  const at = (sec, line) => '[Sat Oct 24 22:24:' + String(sec).padStart(2, '0') + ' 2026] ' + line;
+  const lines = [];
+  for (let i = 0; i < 20; i++) {
+    lines.push(at(i, 'You slash Lord Rikantus Everling for 300 points of damage.'));
+    lines.push(at(i, 'Deathwish backstabs Lord Rikantus Everling for 500 points of damage.'));
+    if (i >= 10) lines.push(at(i, 'You slash Guardian Golem for 200 points of damage.'));
+    if (i >= 10 && i % 2) lines.push(at(i, 'You try to slash Guardian Golem, but miss!'));
+  }
+  lines.push(at(19, 'Lord Rikantus Everling punches YOU for 120 points of damage.'));
+  lines.push(at(19, 'Guardian Golem punches YOU for 80 points of damage.'));
+  for (const l of lines) { const ev = parseLine(l); if (ev) tr.feed ? tr.feed(ev) : tr.handle(ev); }
+  const all = tr.summary();
+  const t = (c, m) => { if (c) pass++; else { fail++; console.error('FAIL  ' + m); } };
+  t(all.targets.map(x => x.name).join() === 'Lord Rikantus Everling,Guardian Golem' && all.target === null, 'fight lists every mob, biggest first');
+  t(Math.round(all.targets[0].pct * 100) === 89, 'mob share of the fight: ' + all.targets[0].pct);
+  const g = tr.summary(undefined, 'Guardian Golem');
+  t(g.title === 'Guardian Golem' && g.target === 'Guardian Golem', 'filtered title is the mob');
+  t(g.rows.length === 1 && g.rows[0].name === 'You' && g.rows[0].total === 2000, 'only damage to that mob');
+  t(g.durS === 9 && Math.round(g.rows[0].dps) === 222, 'DPS over the time that mob was fought: ' + g.durS);
+  t(g.rows[0].misses === 5 && all.rows.find(r => r.name === 'You').misses === 5, 'misses on that mob');
+  t(g.youTaken === 80 && all.youTaken === 200, 'damage taken from that mob');
+  t(tr.attackerSources('You', undefined, 'Guardian Golem')[0].total === 2000, 'spell breakdown filtered too');
+  const sum = all.targets.reduce((a, x) => a + tr.summary(undefined, x.name).rows.reduce((b, r) => b + r.total, 0), 0);
+  t(sum === all.rows.reduce((a, r) => a + r.total, 0), 'per-mob totals add up to the fight');
+  t(tr.summary(undefined, 'Nobody').target === null, 'unknown mob = the whole fight');
+  t(tr.engagedSecs('Guardian Golem', Date.parse('Sat Oct 24 22:24:25 2026')) === 15 && tr.engagedSecs('Lord Rikantus Everling', Date.parse('Sat Oct 24 22:24:20 2026')) === 20, 'time to kill: first hit on that mob to its death');
+  t(tr.engagedSecs('Nobody', Date.now()) === null, 'time to kill unknown for a mob not in the fight');
+  t(JSON.stringify(tr.othersInFight()) === '["Deathwish"]', 'other players in the fight (group kill)');
+  const solo = new FightTracker();
+  for (const l of ['[Sat Oct 24 17:03:15 2026] You shoot Lord Rikantus Everling for 269 points of damage. (Double Bow Shot)',
+                   '[Sat Oct 24 17:04:59 2026] Lord Rikantus Everling punches YOU for 153 points of damage.']) solo.feed(parseLine(l));
+  t(solo.othersInFight().length === 0, 'nobody else hit it: solo');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

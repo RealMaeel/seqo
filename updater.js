@@ -4,6 +4,7 @@
 // when the user explicitly clicks Update (or enables auto-update on zone entry).
 
 const WIKI_API = 'https://eqlwiki.com/api.php';
+const { cleanStatsBlock } = require('./itemtext.js');
 const UA = 'SEQO/' + require('./package.json').version + ' (personal overlay tool; https://github.com/RealMaeel/seqo)';
 const WIKI_PAGE = (title) => 'https://eqlwiki.com/' + encodeURIComponent(title.replace(/ /g, '_'));
 
@@ -259,10 +260,7 @@ function parseGearPage(title, wikitext, bannerSet) {
 }
 
 function parseGearStats(title, wikitext) {
-  const sb = extractTemplateParam(wikitext, 'statsblock')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/\[\[([^\]|#]+?)\|([^\]]*)\]\]/g, '$2')
-    .replace(/\[\[([^\]|#]+?)\]\]/g, '$1');
+  const sb = cleanStatsBlock(extractTemplateParam(wikitext, 'statsblock'));
   const g = parseStatsBlock(sb);
   if (!g) return null;
   const dropsfrom = wikitextToText(extractTemplateParam(wikitext, 'dropsfrom'))
@@ -690,11 +688,7 @@ async function fetchZoneData(zoneName, aliases = []) {
 async function fetchItemData(itemName) {
   const page = await resolvePage(itemName);
   if (!page) throw new Error('No wiki page found for "' + itemName + '"');
-  const statsblock = extractTemplateParam(page.wikitext, 'statsblock')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/\[\[([^\]|#]+?)\|([^\]]*)\]\]/g, '$2')
-    .replace(/\[\[([^\]|#]+?)\]\]/g, '$1')
-    .trim();
+  const statsblock = cleanStatsBlock(extractTemplateParam(page.wikitext, 'statsblock'));
   const dropsfrom = wikitextToText(extractTemplateParam(page.wikitext, 'dropsfrom')).slice(0, 300);
   const dropsList = parseDropSections(page.wikitext);
   const dropZones = parseDropZones(page.wikitext); // zone -> mobs, for zone needs
@@ -841,7 +835,9 @@ async function searchP99(query) {
 }
 // -> { wikitext, pageTitle, revid, updated } or null. Exact title first; if there
 // is no such page, the best search hit ("Poacher's Head" -> "Poacher's Head Quest").
-async function fetchP99Page(title) {
+// opts.exact: only that exact title (Cleanup must not take a search guess for an item)
+async function fetchP99Page(title, opts = {}) {
+  let offline = false;
   const get = async (t) => {
     try {
       const j = await p99Api({ action: 'parse', page: t, prop: 'wikitext|revid', redirects: '1' });
@@ -851,11 +847,12 @@ async function fetchP99Page(title) {
     try {
       const res = await fetch(P99_BASE + 'index.php?action=raw&title=' + encodeURIComponent(t.replace(/ /g, '_')), { headers: { 'User-Agent': UA } });
       if (res.ok) { const wt = await res.text(); if (wt && !/^\s*<!DOCTYPE/i.test(wt)) return { wikitext: wt, pageTitle: t, revid: 0, updated: Date.now() }; }
-    } catch { /* offline */ }
+    } catch { offline = true; /* offline */ }
     return null;
   };
   let page = await get(title);
-  if (!page) {
+  if (!page && opts.exact && offline) throw new Error('P99 wiki unreachable');
+  if (!page && !opts.exact) {
     const hits = await searchP99(title).catch(() => []);
     if (hits.length) page = await get(hits[0]);
   }

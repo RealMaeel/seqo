@@ -213,7 +213,7 @@
     'Kerran': "Complete the 'Aid the Kerrans of Kerra Isle' task chain — hail a class GM on Kerra Isle.",
     'Iksar': 'Single faction: New Sebilisian Expedition (the Legends Kunark outpost in North Ro).',
     'Ogre': 'Alanna rates this the longest grind in the game — consider starting as an Ogre instead.',
-    'Half Dark Elves': "Dorian G`Wyn's quest chain in Lake Nerius (five tasks, no faction grind) — walkthrough below. The achievement is still a placeholder: it completes, but the race doesn't unlock yet."
+    'Half Dark Elves': "Dorian G`Wyn's quest chain in Lake Nerius (five tasks, no faction grind) — walkthrough below. Finishing the chain unlocks the race."
   };
 
   // Race unlocks that are quest chains rather than faction grinds, keyed by the
@@ -223,10 +223,9 @@
     'Half Dark Elves': {
       giver: 'Dorian G`Wyn',
       zone: 'Lake Nerius',
-      // the game completes the achievement, but it's still "Future Placeholder
-      // for Half Dark Elves" and does NOT make the race playable (Ed, Oct 24
-      // 2026). Remove this flag the day finishing it really unlocks the race.
-      placeholder: 'The game marks this achievement complete, but it is still a placeholder: finishing the chain does not unlock the race yet.',
+      // The achievement's only objective still reads "Future Placeholder for Half
+      // Dark Elves" in the export, but finishing the chain DOES unlock the race now
+      // (Ed confirmed, Oct 25 2026), so no `placeholder` flag any more.
       tasks: ['Something Fishy', 'Alchemical Solution', 'What`s going on here?', 'Call for Aid', 'Unfortunate news'],
       steps: [
         { zone: 'Lake Nerius', text: 'Something Fishy: hail Nikko Canti by the lake and say "not", "haven`t seen", "feed", "help". He lends you a fishing pole and bait.' },
@@ -241,7 +240,7 @@
         { zone: 'Neriak - Commons', item: 'Exorbitant Commission', text: 'Give the Appeal of Neriak to Pishtian F`Lok for the Exorbitant Commission.' },
         { zone: 'North Freeport', item: 'A Curt Dismissal', text: 'Give the Plea to Freeport to Sir Mollin for A Curt Dismissal.' },
         { zone: 'The Temple of Solusek Ro', item: 'Ordination of Might', text: 'Give the Solusek Petition to Lord Lyfyx of Burwood for the Ordination of Might.' },
-        { zone: 'Lake Nerius', text: 'Unfortunate news: hand all three replies to Dorian. That completes the Race Unlock - Half Dark Elves achievement (still a placeholder, so no playable race yet); he points you to the Undercroft.' }
+        { zone: 'Lake Nerius', text: 'Unfortunate news: hand all three replies to Dorian. That completes the Race Unlock - Half Dark Elves achievement and unlocks the race; he points you to the Undercroft, the Half Dark Elves\' home under Nektropos Castle.' }
       ],
       source: 'Walked through Oct 22–23 2026 (SEQO maintainer log)'
     }
@@ -285,8 +284,11 @@
       zone: 'Nektropos Castle',
       steps: [
         { zone: 'Nektropos Castle', text: 'Hail Lord Ollix Everling inside the castle for the task The Tragic Tale of House Everling.' },
-        { zone: 'Nektropos Castle', item: 'Harpsichord Plectrum', text: 'Find the ruined harpsichord and gather its four missing pieces (a black key, a white key, a string and a Harpsichord Plectrum). They are glowing pickups on the first floor.' },
-        { zone: 'Nektropos Castle', text: 'Put all four pieces into the harpsichord. The hammer strikes, a hidden panel opens and the Nektropos Library Key goes onto your key ring.' },
+        { zone: 'Nektropos Castle', item: 'Harpsichord Plectrum', text: 'Find the ruined harpsichord and gather its four missing pieces: Harpsichord Black Key, Harpsichord White Key, Harpsichord Plectrum and a string. They are glowing pickups on the first floor.' },
+        { zone: 'Nektropos Castle', item: 'Harpsichord Black Key', text: 'Harpsichord Black Key.' },
+        { zone: 'Nektropos Castle', item: 'Harpsichord White Key', text: 'Harpsichord White Key.' },
+        { zone: 'Nektropos Castle', unverified: true, text: 'The string\'s exact item name isn\'t in our logs yet.' },
+        { zone: 'Nektropos Castle', text: 'Put all four pieces into the harpsichord and combine them: "You press the keys in order. The piano hammer strikes, a panel slides aside" and the Nektropos Library Key is yours. Add it to your key ring.' },
         { zone: 'Nektropos Castle', unverified: true, text: 'Take the key up to the library on the second floor.' }
       ],
       source: 'Harpsichord steps from the Oct 22 2026 launch-night run (SEQO maintainer log); library location from player reports'
@@ -304,9 +306,11 @@
         { zone: 'Nektropos Castle', unverified: true, text: 'Sister kills only counted in Nektropos Castle 1 (Awakened) in our run, not on the regular floor.' },
         { zone: 'Nektropos Castle', item: 'Nektropos Private Chamber Key', text: 'Kill Alexa Everling in the great room, the seventh sister. The task updates and she drops the Nektropos Private Chamber Key.' },
         { zone: 'Nektropos Castle', text: 'The hilt now wants "the Lord of this house": Lord Rikantus Everling, down in the basement (Nektropos Basement Key). When he falls, say "end" at his body — you soak the blade in his blood, it is fully reforged, and The Betrayer and The Tragic Tale of House Everling both update.' },
-        { zone: 'Nektropos Castle', unverified: true, text: 'The blade then says there is "one task left to complete" — not walked through yet.' }
+        { zone: 'Nektropos Castle', text: 'The blade says there is "one task left to complete": go back to Lady Sileniu Everling. She has to be indifferent and facing away from you (we used sneak to get behind her). Hail her and say "dead" ("It is over? You killed him?") — she turns to face you, so get behind her again — then say "confess".' },
+        { zone: 'Nektropos Castle', text: 'She turns on you ("You were meant to kill the betrayer, not make the souls of my children suffer!"): kill Lady Sileniu Everling (level 63, rare). The Tragic Tale task updates.' },
+        { zone: 'Nektropos Castle', text: 'Last, hail Lord Ollix Everling, say "dead", then "tragic". He lays his family to rest and The Tragic Tale of House Everling completes (achievement).' }
       ],
-      source: 'Walked through on Oct 22–24 2026 (SEQO maintainer log)'
+      source: 'Walked through on Oct 22–24 2026 (SEQO maintainer log; the ending from the Oct 24 log)'
     },
     'Nektropos Basement Key': {
       keyItem: 'Nektropos Basement Key',
@@ -315,10 +319,10 @@
       giver: 'Lady Sileniu Everling',
       zone: 'Nektropos Castle',
       steps: [
-        { zone: 'Nektropos Castle', item: 'Nektropos Basement Key', text: 'Drops from the castle\'s named mobs as a normal item in your bags — loot it from the corpse (ours came off Deirdre Everling).' },
+        { zone: 'Nektropos Castle', item: 'Nektropos Basement Key', text: 'Drops from The Juggernaught, a named in the castle, as a normal item in your bags — it dropped on every one of our kills. Check your advanced-loot filter: ours auto-sold it for 1 copper.' },
         { zone: 'Nektropos Castle', text: 'The basement holds Lord Rikantus Everling — the "Lord of this house" the reforged hilt asks for.' }
       ],
-      source: 'Oct 24 2026 (SEQO maintainer run + log); basement details from player chat'
+      source: 'Oct 24 2026 (SEQO maintainer log: 9 Juggernaught kills); basement details from player chat'
     },
     'Nektropos Private Chamber Key': {
       keyItem: 'Nektropos Private Chamber Key',
@@ -327,7 +331,7 @@
       giver: 'Lady Sileniu Everling',
       zone: 'Nektropos Castle',
       steps: [
-        { zone: 'Nektropos Castle', item: 'Nektropos Private Chamber Key', text: 'Drops from Alexa Everling (dropped on both of our kills). It stays in your bags; it does not go on the key ring. See the Great Room Key steps for reaching her during The Betrayer.' },
+        { zone: 'Nektropos Castle', item: 'Nektropos Private Chamber Key', text: 'Drops from Alexa Everling (it dropped on every one of our kills) into your bags. Check your advanced-loot filter: ours auto-sold it for 1 copper. See the Great Room Key steps for reaching her during The Betrayer.' },
         { zone: 'Nektropos Castle', unverified: true, text: 'Which door it opens isn\'t confirmed yet.' }
       ],
       source: 'Looted Oct 23 2026 (SEQO maintainer log + inventory export)'
