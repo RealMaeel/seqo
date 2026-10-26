@@ -265,8 +265,9 @@
     // pet speech addresses you as Master - covers summoned AND charmed pets:
     //   "Xonektik says, 'Sorry, Master... calming down.'"
     //   "A wan ghoul knight told you, 'Attacking a ghoul savant Master.'"
-    if ((m = /^(.+?) (?:says|tells you|told you),? '(?:Attacking .+ [Mm]aster|At your service|Sorry,? [Mm]aster|I am unable to wake|Following you|Guarding with my life|As you wish|Changing position|Waiting here|I live again|Consider it done|It will be done|By your command)[^']*'\.?$/.exec(msg)))
-      return { type: 'petsay', when, name: m[1] };
+    if ((m = /^(.+?) (says|tells you|told you),? '(?:Attacking .+ [Mm]aster|At your service|Sorry,? [Mm]aster|I am unable to wake|Following you|Guarding with my life|As you wish|Changing position|Waiting here|I live again|Consider it done|It will be done|By your command)[^']*'\.?$/.exec(msg)))
+      // direct = a tell to YOU (only your own pet does that); "says" is heard by everyone nearby
+      return { type: 'petsay', when, name: m[1], direct: m[2] !== 'says' };
 
     if ((m = /^You have entered (.+?)\.$/.exec(msg)) && !/^an area\b|^the Arena\b/i.test(m[1])) {
       // "Temple of Cazic-Thule 4 (Refined)": the number is an instance id
@@ -400,8 +401,13 @@
 
       if (ev.type === 'damage') {
         this._maybeEnd(ev.when);
-        const attacker = ev.attacker === YOU ? YOU : normName(ev.attacker);
+        let attacker = ev.attacker === YOU ? YOU : normName(ev.attacker);
         const target = ev.target === YOU ? YOU : normName(ev.target);
+        // another player's charmed mob (2.7, charms.js): its damage is THAT player's
+        let petOf = null;
+        if (attacker !== YOU && this.petOwners && this.petOwners.has(attacker) && !(this.petNames && this.petNames.has(attacker))) {
+          petOf = attacker; attacker = this.petOwners.get(attacker);
+        }
 
         // Bystander filter: other groups fighting nearby must not start
         // fights for you or stretch your fight's clock. Combat matters only
@@ -418,7 +424,7 @@
         this.lastFeedWallclock = Date.now();
 
         const proc = this._isProc(ev);
-        const source =
+        const source = petOf ? 'Pet: ' + petOf :
           ev.kind === 'melee' ? 'Melee' :
           ev.kind === 'proc' ? 'Damage Shield' :
           (ev.spell || 'Unknown');
@@ -439,7 +445,8 @@
         const healer = ev.healer === YOU ? YOU : normName(ev.healer);
         this.current.healingBy.set(healer, (this.current.healingBy.get(healer) || 0) + ev.amount);
       } else if (ev.type === 'miss' && this.current && ev.target !== YOU) {
-        const attacker = ev.attacker === YOU ? YOU : normName(ev.attacker);
+        let attacker = ev.attacker === YOU ? YOU : normName(ev.attacker);
+        if (attacker !== YOU && this.petOwners && this.petOwners.has(attacker) && !(this.petNames && this.petNames.has(attacker))) attacker = this.petOwners.get(attacker);
         const target = normName(ev.target);
         // same bystander rule: only swings at this fight's mobs count
         if (attacker === YOU || (this.petNames && this.petNames.has(attacker)) ||

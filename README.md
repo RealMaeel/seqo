@@ -14,6 +14,7 @@ SEQO reads the log file the game already writes and turns it into the stuff you 
 > **⏳ Spawn heads-up** for ★ pinned camps a set number of seconds before they spawn — or before the spawn window opens. Custom-alert timers get a **⏳ warn** too (GINA's "timer ending"), plus *Spawn soon* starters.
 > **⚔ Meter & items.** 🎯 Damage per mob in multi-mob fights. Weapon damage, delay and **ratio** on the upgrade slider, and regen stats now scale with it. 📋 chat / full item copies. Every copy for chat or Discord ends with a short credit line.
 > **🕐 Clock** in the title bar and lock pill for full-screen play. **⬆ One-click update** from here on, **📋 Problem report** that names the file an error came from, ▶ Fire to hear a custom alert, custom alerts under 🔔 Alerts & Sounds with one volume slider, GINA import fixes, Half Dark Elves unlock live, and The Betrayer, Basement Key and Library Key steps from real logs.
+> **v2.7.1** — other players' charmed pets no longer land on your meter: a charm is yours only when you cast it, and someone else's charm counts for them.
 
 <details><summary><b>Earlier: v2.6</b></summary>
 

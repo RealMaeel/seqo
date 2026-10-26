@@ -46,13 +46,14 @@
   const petNames = new Set();   // summoned pets + the one active charm; shared with the tracker
   let activeCharm = null;       // only ONE charm at a time; generic names must not linger
   let lastYouCast = null;       // {spell, when} - to learn which spells are charms
-  // curated only - auto-learning got poisoned by spells cast near pet commands
-  const CHARM_SPELLS = new Set(['Charm', 'Beguile', 'Cajoling Whispers', 'Allure',
-    "Boltran's Agacerie", 'Dictate', 'Charm Animals', 'Beguile Animals', 'Befriend Animal',
-    'Beguile Undead', 'Dominate Undead', 'Cajole Undead', 'Enslave Death', 'Thrall of Bones',
-    'Charm Animal', 'Call of Karana', "Tunare's Request", 'Command of Druzzil']);
+  // curated charm list + whose charm a landing is: charms.js (2.7). A charm only becomes
+  // YOUR pet when you cast it; another player's charm counts for that player.
+  const CHARM_SPELLS = { has: (s) => window.EQLCharms ? EQLCharms.isCharmSpell(s) : false };
+  const charms = window.EQLCharms ? EQLCharms.create() : null;
+  const petOwners = new Map();  // another player's charmed mob -> that player (the meter credits them)
   window.overlay.getPets().then(p => { for (const n of p || []) petNames.add(n); });
   tracker.petNames = petNames; // tracker must not filter same-named charm pets as enemies
+  tracker.petOwners = petOwners;
 
   function setActiveCharm(name) {
     if (activeCharm && activeCharm !== name) petNames.delete(activeCharm);

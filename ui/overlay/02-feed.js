@@ -40,10 +40,12 @@
       }
       if (ev.type === 'cast') {
         lastAnyCast = { spell: ev.spell, when: Date.now() };
+        if (charms) charms.cast(ev.caster === 'You' ? 'You' : ev.caster, ev.spell, ev.when);   // whose charm lands next
         if (ev.caster === 'You') onYouCast(ev.spell);
         else noteMobSpell(ev.caster, ev.spell);
       } else if (ev.type === 'castfail') {
         onCastFail(ev.spell);
+        if (charms && (CHARM_SPELLS.has(ev.spell) || (!ev.spell && lastYouCast && CHARM_SPELLS.has(lastYouCast.spell)))) charms.failed('You');
         if (ev.reason === 'interrupted' || ev.reason === 'fizzled') cancelCooldown(ev.spell || (lastYouCast && lastYouCast.spell));
       }
       if (ev.type === 'cast' && ev.caster === 'You') { startCooldown(ev.spell); const g = trioGuess(); if (g) g.cast(ev.spell, now); }
@@ -95,6 +97,7 @@
         killNeedHeadsUp(ev.target); // "this corpse can hold something you need"
         // your charm pet died (killed by someone else - killing it yourself
         // means it was an ordinary enemy with the same name)
+        petOwners.delete(mobKey(ev.target));   // another player's charmed mob died
         if (activeCharm && mobKey(ev.target) === activeCharm && ev.killer !== 'You') {
           toast('💀 Your charmed ' + activeCharm + ' died');
           setActiveCharm(null);
@@ -224,12 +227,16 @@
       } else if (ev.type === 'petsay') {
         const pname = mobKey(ev.name);
         if (/^(a|an|the) /.test(pname)) {
-          // article name = charmed mob: replaces any previous charm
-          if (activeCharm !== pname) {
+          // article name = charmed mob: replaces any previous charm. Only a pet that TELLS you
+          // is yours — "says" lines from other players' pets are heard by everyone nearby
+          if (!ev.direct && activeCharm !== pname) { /* someone else's pet */ }
+          else if (activeCharm !== pname) {
             setActiveCharm(pname);
             meterDirty = true;
           }
-        } else if (!petNames.has(pname)) {
+        } else if (!petNames.has(pname) && !petOwners.has(pname) && (ev.direct || !/\s/.test(pname))) {
+          // summoned pet (one-word name, or one that tells YOU): persists. A charmed named mob
+          // another player owns ("Innoruuk`s Chosen says, 'Attacking … Master'") is not yours
           petNames.add(pname);            // summoned pet: persists
           window.overlay.learnPet(pname);
           meterDirty = true;
@@ -278,10 +285,19 @@
           ccAlert(mk, 'mez', '😳 Mez broke: ' + mk + (ev.by && ev.by !== mk ? ' (woken by ' + ev.by + ')' : '') + '!');
         }
       } else if (ev.type === 'charmed') {
-        // direct charm landing line: bulletproof charm identity
-        setActiveCharm(mobKey(ev.target));
+        // "<mob> has been charmed." shows for every charm nearby: yours only if YOU cast one just
+        // before; another player's goes on their meter row; unknown caster = nobody's pet
+        const mk = mobKey(ev.target);
+        const own = charms ? charms.landed(mk, ev.when).owner : 'You';
+        if (own === 'You') {
+          petOwners.delete(mk);
+          setActiveCharm(mk);
+          toast('🐾 Charmed: ' + mk);
+        } else {
+          if (activeCharm === mk) setActiveCharm(null);
+          if (own) petOwners.set(mk, own); else petOwners.delete(mk);
+        }
         meterDirty = true;
-        toast('🐾 Charmed: ' + mobKey(ev.target));
       } else if (ev.type === 'wornoff') {
         // a tracked spell wore off one mob: retire that mob's timer chip
         onSpellWornOff(ev.spell, ev.target);
