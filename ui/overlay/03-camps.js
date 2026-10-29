@@ -196,6 +196,37 @@
     window.overlay.setPhLinks(currentZone, camp.mob, [...camp.phs]);
   }
 
+  // 2.7.2: a camp must be a real mob name — kills are matched by the exact name the log
+  // prints ("the Game Master"), so "game master" would wait forever. Typed names are
+  // resolved against the mobs SEQO knows (EQLMobName); an unknown one gets suggestions,
+  // and pressing ★ Camp again with the same text adds it anyway (a mob you've never killed).
+  let campForce = null;   // { text, at } — the unknown name you were warned about
+  function knownMobs() {
+    const out = [];
+    for (const nm of ((zoneData && zoneData.named) || [])) if (nm.mob && nm.mob !== '(zone drops)') out.push({ name: nm.mob, zone: currentZone });
+    for (const m of Object.values((lootDB && lootDB.mobs) || {})) if (m.name) out.push({ name: m.name, zone: m.zone });
+    for (const t of timers.values()) out.push({ name: t.mob, zone: t.zone });
+    for (const k of Object.keys(respawnDB || {})) { const i = k.indexOf('|'); if (i > 0) out.push({ name: k.slice(i + 1), zone: k.slice(0, i) }); }
+    return out;
+  }
+  // → true when a camp was added (the box can be cleared); otherwise a toast says why
+  function addCampTyped(text) {
+    const typed = String(text || '').trim();
+    if (!typed) return false;
+    const r = EQLMobName.resolve(typed, knownMobs(), { zone: currentZone });
+    if (r.name) { campForce = null; addCamp(r.name); if (EQLMobName.norm(r.name) !== EQLMobName.norm(typed)) toast('★ Camping ' + r.name); return true; }
+    if (campForce && campForce.text === EQLMobName.norm(typed) && Date.now() - campForce.at < 30000) { campForce = null; addCamp(typed); return true; }
+    campForce = { text: EQLMobName.norm(typed), at: Date.now() };
+    if (r.suggest.length) {
+      $('t-add').value = r.suggest[0];
+      campForce = null;
+      toast('No mob called "' + typed + '" — did you mean ' + r.suggest.map(n => '"' + n + '"').join(' or ') + '? The first is in the box: press ★ Camp.', true);
+    } else {
+      toast('No mob called "' + typed + '" in your kills or this zone — check the spelling as the game prints it. Press ★ Camp again to add it anyway.', true);
+    }
+    return false;
+  }
+
   function addCamp(name) {
     const mob = mobKey(name.trim());
     if (!mob) return;

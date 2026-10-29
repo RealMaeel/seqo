@@ -8,7 +8,9 @@
   // file and race-unlock progress).
   const SLY = window.EQLSlayer;
   const slyExpanded = new Set();
-  const slyGroupOpen = { general: false, conquest: true, special: true, skill: false };
+  const slyGroupOpen = { closest: true, general: false, conquest: true, special: true, skill: false };
+  let slySearch = '';   // 🔎 box text, kept across redraws (2.7.2)
+  const slySearchOpen = new Set();   // search hits opened to show their objectives
   let slyScrollTo = null;
 
   const SLY_SECTIONS = [
@@ -22,14 +24,84 @@
   const slyObjs = (a) => a.objectives.filter(o => !/^This achievement/i.test(o.text));
 
   // completion fraction: counted objectives contribute cur/max, completed
-  // uncounted ones contribute 1, untouched uncounted ones 0
-  function slyPct(a) {
-    if (a.done) return 1;
-    const objs = slyObjs(a);
-    if (!objs.length) return 0;
-    let got = 0;
-    for (const o of objs) got += o.done ? 1 : (o.max ? Math.min(1, (o.cur || 0) / o.max) : 0);
-    return got / objs.length;
+  // uncounted ones contribute 1, untouched uncounted ones 0 (slayerfind.js)
+  const slyPct = (a) => EQLSlayerFind.pct(a);
+
+  // 🔎 "Do I still need to kill X?" — every achievement (any section, not just Slayer)
+  // whose name or objectives mention the words, with a plain verdict on top (2.7.2)
+  function renderSlySearch(box, data, q) {
+    box.innerHTML = '';
+    const word = String(q || '').trim();
+    if (word.length < 2) return;
+    const r = EQLSlayerFind.search(data, word, { live: achDoneLive });
+    const v = document.createElement('div');
+    v.className = 'q-npc';
+    v.style.cssText = 'font-size:11.5px;font-weight:600;margin:2px 0;color:' +
+      (r.verdict === 'needed' ? '#ffd766' : r.verdict === 'done' ? '#7c7' : '#aab');
+    const needN = r.hits.filter(h => h.needed).length;
+    v.textContent = r.verdict === 'needed' ? '⚔ Still needed — "' + word + '" counts toward ' + needN + ' unfinished achievement' + (needN === 1 ? '' : 's') + ':'
+      : r.verdict === 'done' ? '✔ You can stop — every achievement that names "' + word + '" is done.'
+      : 'No achievement names "' + word + '". Its kills can still count toward a family counter (Conquest / Special) — try the family, e.g. "dragons".';
+    box.appendChild(v);
+    for (const h of r.hits.slice(0, 30)) {
+      const row = document.createElement('div');
+      row.className = 'q-it' + (h.needed ? '' : ' have');
+      row.innerHTML = '<span class="box"></span><span class="nm"></span><span class="loc"></span>';
+      const what = h.objs.length ? h.objs.map(o => o.text + (o.max && !o.done ? ' ' + (o.cur || 0).toLocaleString() + '/' + o.max.toLocaleString() : '')).join(' · ') + ' — ' : '';
+      row.querySelector('.nm').textContent = what + h.ach.name + (h.done ? ' (done)' : '');
+      row.querySelector('.nm').style.whiteSpace = 'normal';
+      row.querySelector('.loc').textContent = h.section;
+      // click: the whole achievement — every objective with its progress — right here (any section)
+      const k = h.section + '|' + h.ach.name;
+      const open = slySearchOpen.has(k);
+      row.querySelector('.box').textContent = (open ? '▾ ' : '▸ ') + (h.needed ? '☐' : '☑');
+      row.style.cursor = 'pointer';
+      row.title = open ? 'Hide the details' : 'Show every objective of ' + h.ach.name + ' and your progress';
+      row.addEventListener('click', () => {
+        open ? slySearchOpen.delete(k) : slySearchOpen.add(k);
+        renderSlySearch(box, data, q);
+      });
+      box.appendChild(row);
+      if (open) {
+        const det = document.createElement('div');
+        det.className = 'q-items';
+        det.style.margin = '0 0 4px 18px';
+        const all = EQLSlayerFind.objs(h.ach);
+        const pct = EQLSlayerFind.pct(h.ach, achDoneLive);
+        const sum = document.createElement('div');
+        sum.className = 'q-npc';
+        sum.innerHTML = unlBar(pct) + ' <span></span>';
+        sum.querySelector('span').textContent = h.done ? 'DONE' : Math.floor(pct * 100) + '% — ' + all.filter(o => o.done).length + '/' + all.length + ' objectives';
+        det.appendChild(sum);
+        for (const o of all) {
+          const r2 = document.createElement('div');
+          r2.className = 'q-it' + (o.done ? ' have' : '');
+          r2.innerHTML = '<span class="box">' + (o.done ? '☑' : '☐') + '</span><span class="nm"></span><span class="loc"></span>';
+          r2.querySelector('.nm').textContent = o.text.replace(/^Complete the achievement "(.+)"$/, '$1');
+          if (o.text.toLowerCase().includes(word.toLowerCase())) r2.querySelector('.nm').style.color = '#ffd766';
+          if (o.max) r2.querySelector('.loc').innerHTML = unlBar((o.cur || 0) / o.max) + ' <span style="color:#9ab">' + (o.cur || 0).toLocaleString() + '/' + o.max.toLocaleString() + '</span>';
+          det.appendChild(r2);
+        }
+        if (/^Slayer:/i.test(h.section)) {
+          const j = document.createElement('div');
+          j.className = 'q-npc';
+          j.style.cssText = 'cursor:pointer;color:#7da7d9';
+          j.textContent = '↓ open it in the list below (🧭 hunting spots)';
+          j.addEventListener('click', () => slyFindAndExpand(h.ach.name));
+          det.appendChild(j);
+        }
+        box.appendChild(det);
+      }
+    }
+    if (r.hits.length > 30) { const m = document.createElement('div'); m.className = 'q-npc'; m.textContent = '… ' + (r.hits.length - 30) + ' more — type more of the name'; box.appendChild(m); }
+    const ach = gameFiles && gameFiles.achievements;
+    if (r.hits.length && ach && ach.mtime) {
+      const age = document.createElement('div');
+      age.className = 'q-npc';
+      age.style.opacity = '.7';
+      age.textContent = 'As of your achievements export from ' + fmtAge(ach.mtime) + ' — run /outputfile achievements after a hunt to refresh.';
+      box.appendChild(age);
+    }
   }
 
   function slyProgressText(a) {
@@ -162,12 +234,57 @@
       return;
     }
     setQuestEmpty('');
+    const achData = { sections: achSections() };
+
+    // 🔎 search box (2.7.2): kept in place while you type; a redraw keeps the focus
+    const hadFocus = document.activeElement && document.activeElement.id === 'sly-search';
+    const caret = hadFocus ? document.activeElement.selectionStart : null;
+    const si = document.createElement('input');
+    si.id = 'sly-search';
+    si.type = 'search';
+    si.placeholder = '🔎 Do I still need to kill…? Search a mob, zone or family (e.g. Vox)';
+    si.value = slySearch;
+    si.style.cssText = 'width:100%;box-sizing:border-box;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:11px;padding:3px 6px;margin:2px 0';
+    const sr = document.createElement('div');
+    si.addEventListener('input', () => { slySearch = si.value; renderSlySearch(sr, achData, si.value); });
+    list.appendChild(si);
+    list.appendChild(sr);
+    renderSlySearch(sr, achData, slySearch);
+    if (hadFocus) { si.focus(); try { si.setSelectionRange(caret, caret); } catch { /* ok */ } }
+
+    // 🎯 closest to done (2.7.2): the unfinished Slayer achievements nearest the finish line
+    const near = EQLSlayerFind.closest(achData, { re: /^Slayer:/i, count: 8, live: achDoneLive });
+    if (near.length) {
+      qGroup(slyGroupOpen, 'closest');
+      const ch = document.createElement('div');
+      ch.className = 'l-divider';
+      ch.style.cursor = 'pointer';
+      ch.textContent = (slyGroupOpen.closest ? '▾ ' : '▸ ') + '🎯 Closest to done — work on these first';
+      ch.title = 'Unfinished Slayer achievements, nearest the finish line first. Click one to open it below.';
+      ch.addEventListener('click', () => { slyGroupOpen.closest = !slyGroupOpen.closest; renderQuests(); });
+      list.appendChild(ch);
+      if (slyGroupOpen.closest) for (const c of near) {
+        const row = document.createElement('div');
+        row.className = 'q-it';
+        row.style.cursor = 'pointer';
+        row.innerHTML = '<span class="box">' + Math.floor(c.pct * 100) + '%</span><span class="nm"></span><span class="loc"></span>';
+        row.querySelector('.box').style.cssText = 'min-width:30px;color:#ffd766;font-size:10px';
+        row.querySelector('.nm').textContent = c.ach.name + (c.left ? ' — left: ' + c.left : '');
+        row.querySelector('.nm').style.whiteSpace = 'normal';
+        row.querySelector('.loc').textContent = c.section.replace(/^Slayer:\s*/i, '');
+        row.title = 'Open ' + c.ach.name;
+        row.addEventListener('click', () => slyFindAndExpand(c.ach.name));
+        list.appendChild(row);
+      }
+    }
+
     let anySec = false;
     for (const s of SLY_SECTIONS) {
       const sec = achSection(s.re);
       if (!sec) continue;
       anySec = true;
       const doneCount = sec.achievements.filter(a => a.done).length;
+      qGroup(slyGroupOpen, s.key);
       const hdr = document.createElement('div');
       hdr.className = 'l-divider';
       hdr.style.cursor = 'pointer';
@@ -184,6 +301,7 @@
 
       for (const a of achs) {
         const key = s.key + '|' + a.name;
+        qCard(slyExpanded, key);
         const card = document.createElement('div');
         card.className = 'q-quest' + (a.done ? ' done' : '');
         const head = document.createElement('div');

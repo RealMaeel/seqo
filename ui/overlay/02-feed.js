@@ -35,11 +35,13 @@
         // and check it against the game's exact cast-on-you lines (a lasting
         // effect landing on you -> the live buff tracker)
         const msg = l.slice(l.indexOf('] ') + 2);
+        if (/ singing /.test(msg)) noteSpellSeen(EQLSpellProof.castInLine(l));   // songs aren't parser casts
         if (msg) { noteBuffLand(msg); noteFlavor(msg, Date.now()); const g = trioGuess(); if (g && !g.groupLine(msg)) g.landed(msg, now, now - lastGroupT > SOLO_MS); }
         continue;
       }
       if (ev.type === 'cast') {
         lastAnyCast = { spell: ev.spell, when: Date.now() };
+        noteSpellSeen(ev.spell);   // 2.7.2: proof the spell is in Legends
         if (charms) charms.cast(ev.caster === 'You' ? 'You' : ev.caster, ev.spell, ev.when);   // whose charm lands next
         if (ev.caster === 'You') onYouCast(ev.spell);
         else noteMobSpell(ev.caster, ev.spell);

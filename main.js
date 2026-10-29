@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS = {
   fontColor: '#ffd766',
   baseFontSize: 22,         // px at base design size; scales with window
   keepAspectRatio: true,
+  windowMode: 'zoom',       // 'zoom' = the layout scales with the window · 'room' = a bigger window shows more (2.7.2)
+  uiZoom: 100,              // More room: how big everything is, 70–150 %
   locked: false,
   showNotes: false,
   logPath: '',
@@ -184,7 +186,7 @@ function createWindow() {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-  if (settings.keepAspectRatio) {
+  if (settings.keepAspectRatio && settings.windowMode !== 'room') {
     win.setAspectRatio(BASE_W / BASE_H);
   }
 
@@ -327,6 +329,10 @@ function createWindow() {
   win.on('moved', rememberBounds);
   win.on('resized', rememberBounds);
   win.on('move', () => snapDock());
+  // clicking the overlay must not bury its popups (same always-on-top layer): keep them above it
+  win.on('focus', () => {
+    for (const w of [needsWin, dockWin]) if (w && !w.isDestroyed()) { try { w.moveTop(); } catch { /* ok */ } }
+  });
   win.on('restore', () => { // back from taskbar: overlay mode again
     win.setSkipTaskbar(true);
     win.setAlwaysOnTop(true, 'screen-saver');
@@ -409,13 +415,48 @@ function dataDir() {
 const gameDbPath = () => path.join(dataDir(), 'gamedb.json');
 let gameDB = { zones: {}, items: {} };
 let gameSaveTimer = null;
+// 2.7.2: never save over a database that couldn't be read (Oct 28: a Drive hiccup at startup
+// let SEQO save an empty gamedb.json/lootdb.json over the real ones) — see safestore.js
+const safestore = require('./safestore.js');
+const dbLog = (msg) => { try { errorlog.record('safestore', msg); } catch { /* ok */ } };
+const backupHome = () => app.getPath('userData');   // backups stay on this PC, never in the shared folder
+const gameStore = safestore.create({
+  name: 'gamedb', file: gameDbPath,
+  backupDir: () => path.join(backupHome(), 'backups'),
+  createDir: () => !settings.dataDir
+});
 
-function loadGameDB() {
-  try { gameDB = JSON.parse(fs.readFileSync(gameDbPath(), 'utf8')); } catch { gameDB = { zones: {}, items: {} }; }
+// startup: the file, or (if it can't be read yet) an empty one with saves held until it can
+// reload (the shared folder changed on disk): the file, or keep what's in memory → true if reloaded
+function loadGameDB({ reload = false } = {}) {
+  if (reload) {
+    const r = gameStore.read();
+    if (r.state !== 'ok') { dbLog('gamedb: reload skipped (' + r.state + ')'); return false; }
+    gameDB = r.data;
+  } else {
+    const g = safestore.loadGuarded(gameStore, {
+      fresh: () => ({ zones: {}, items: {} }),
+      missingGraceMs: settings.dataDir ? 120000 : 0,
+      log: dbLog,
+      onRecovered: (data) => {
+        gameDB = safestore.mergeGame(data, gameDB);
+        tidyGameDB();
+        saveGameDBSoon();
+        if (win) win.webContents.send('shared-reload');
+      }
+    });
+    gameDB = g.data;
+    if (g.state === 'ok') gameStore.dailyBackup();
+  }
+  tidyGameDB();
+  return true;
+}
+function tidyGameDB() {
+  if (!gameDB || typeof gameDB !== 'object' || Array.isArray(gameDB)) gameDB = { zones: {}, items: {} };
   gameDB.zones = gameDB.zones || {};
   gameDB.items = gameDB.items || {};
   delete gameDB.charmSpells; // v1.1.1: purge poisoned auto-learned "charm spells"
-  pruneGameDB(); // v2.5.0: keep the DB lean — it loads, saves and syncs whole
+  if (!gameStore.blockedWhy()) pruneGameDB(); // v2.5.0: keep the DB lean — it loads, saves and syncs whole
 }
 
 // Months of play grow two caches without bound: item-knowledge (every junk
@@ -443,7 +484,23 @@ let lastDbWrite = 0;   // when SEQO itself last wrote a database (the shared-fol
 function saveGameDBSoon() {
   clearTimeout(gameSaveTimer);
   gameSaveTimer = setTimeout(() => {
-    try { lastDbWrite = Date.now(); fs.writeFileSync(gameDbPath(), JSON.stringify(gameDB)); } catch (e) { console.error(e); }
+    try {
+      lastDbWrite = Date.now();
+      let r = gameStore.write(JSON.stringify(gameDB));
+      if (r.conflict) {
+        // changed on disk since we read it (another PC via Drive, a restore): merge, newer entries
+        // from this session win, then save
+        const d = gameStore.read();
+        if (d.state !== 'ok') { dbLog('gamedb: file changed and can\'t be read — save held'); return; }
+        gameDB = safestore.mergeGame(d.data, gameDB);
+        tidyGameDB();
+        dbLog('gamedb: file changed on disk — merged before saving');
+        lastDbWrite = Date.now();
+        r = gameStore.write(JSON.stringify(gameDB));
+      }
+      if (!r.ok) dbLog('gamedb: save held — ' + (r.skipped || 'file changed'));
+      else if (r.backup) dbLog('gamedb: saved much smaller than before; old copy kept at ' + r.backup);
+    } catch (e) { dbLog('gamedb: save failed — ' + (e.message || e)); }
   }, 1000);
 }
 
@@ -475,7 +532,8 @@ ipcMain.handle('choose-data-folder', async () => {
 
 ipcMain.handle('data-dir-status', () => ({
   dir: dataDir(),
-  shared: !!settings.dataDir
+  shared: !!settings.dataDir,
+  held: [lootStore.savesHeld() && 'loot', gameStore.blockedWhy() && 'game data'].filter(Boolean).join(' + ') + ((lootStore.savesHeld() || gameStore.blockedWhy()) ? ': ' + (lootStore.savesHeld() || gameStore.blockedWhy()) : '')
 }));
 
 // ---------------------------------------------------------------------------
@@ -572,7 +630,12 @@ ipcMain.handle('history-import-logs', async () => {
     // when each kill happened, for mobs you already have kill records for (2.7)
     let killTimes = 0;
     for (const [, imp] of byChar) killTimes += lootStore.addKillTimes(imp.killTimes());
-    return { ok: true, added, skipped, files: files.length, prices, killTimes };
+    // spells seen cast or sung (2.7.2): proof they exist in Legends, for the buff planner
+    let spells = 0;
+    const seen = gameDB.spellsSeen = gameDB.spellsSeen || {};
+    for (const [, imp] of byChar) for (const [n, t] of Object.entries(imp.spellsSeen())) if (spellproof.noteSeen(seen, n, t)) spells++;
+    if (spells) saveGameDBSoon();
+    return { ok: true, added, skipped, files: files.length, prices, killTimes, spells };
   } catch (e) {
     return { error: e.message || String(e) };
   } finally { historyImporting = false; }
@@ -663,8 +726,11 @@ function watchSharedDBs() {
     fs.watchFile(p, { interval: 3000 }, (curr, prev) => {
       if (curr.mtimeMs === prev.mtimeMs) return;
       if (Date.now() - lastDbWrite < 4000) return; // our own write, not a sync
-      loadLootDB();
-      loadGameDB();
+      // 2.7.2: a file caught mid-sync (half written) is skipped, not loaded as empty —
+      // the next change notice reloads it once Drive has finished
+      const a = loadLootDB({ reload: true });
+      const b = loadGameDB({ reload: true });
+      if (!a && !b) return;
       if (win) {
         win.webContents.send('loot-db', lootStore.db);
         win.webContents.send('shared-reload');
@@ -871,14 +937,19 @@ function applyChildOpacity() {
 // uniformly scaled; the 30px toolbar strip only exists in edit mode). Snapping
 // children to the WINDOW bottom leaves a gap in locked mode — snap to the
 // drawn panel instead. Mirrors rescale() in overlay.html exactly.
+// 2.7.2: More room fills the whole window — use layout.js, the same math as rescale(), or the
+// popups snapped to a 480×290 panel in the MIDDLE of a big window and sat behind it (Ed).
+const EQLLayoutMain = require('./layout.js');
 function panelRect() {
   const b = win.getBounds();
   const tb = settings.locked ? 0 : 30;
   const availW = b.width, availH = b.height - tb;
-  const s = Math.min(availW / 480, availH / 290);
-  const w = Math.round(480 * s), h = Math.round(290 * s);
+  const room = settings.windowMode === 'room';
+  const box = EQLLayoutMain.contentBox({ mode: room ? 'room' : 'zoom', zoom: settings.uiZoom, availW, availH, baseW: 480, baseH: 290 });
+  const w = Math.round((room ? box.width : 480) * box.scale), h = Math.round((room ? box.height : 290) * box.scale);
   return {
     x: b.x + Math.round((availW - w) / 2),
+    top: b.y + tb + Math.round((availH - h) / 2),
     bottom: b.y + tb + Math.round((availH + h) / 2),
     w
   };
@@ -889,6 +960,16 @@ function snapDock() {
   const r = panelRect();
   const width = Math.max(320, r.w);
   let y = r.bottom;
+  // no room under the overlay on its screen (a tall More room window): stack ABOVE it instead,
+  // and as a last resort inside the screen — popups must never end up hidden or off-screen
+  const attachedH = ((needsWin && !needsWin.isDestroyed() && !needsDetached) ? needsHeight() : 0) +
+    ((dockWin && !dockWin.isDestroyed() && !dockDetached) ? Math.max(160, settings.dockHeight || 300) : 0);
+  if (attachedH) {
+    try {
+      const wa = screen.getDisplayMatching(win.getBounds()).workArea;
+      if (y + attachedH > wa.y + wa.height) y = r.top - attachedH >= wa.y ? r.top - attachedH : Math.max(wa.y, wa.y + wa.height - attachedH);
+    } catch { /* keep below */ }
+  }
   // the zone-needs strip rides directly under the overlay's drawn panel…
   if (needsWin && !needsWin.isDestroyed() && !needsDetached) {
     const h = needsHeight();
@@ -915,6 +996,7 @@ function openDock(mode, payload) {
     dockWin.loadFile('dock.html');
     dockWin.on('closed', () => {
       dockWin = null;
+      dockDetached = false;   // the next popup opens attached again (the 📌 in it detaches)
       if (win) win.webContents.send('cleanup-state', false);
     });
     dockWin.on('resized', () => { // user dragged: keep the height, re-snap position/width
@@ -925,6 +1007,7 @@ function openDock(mode, payload) {
     });
     dockWin.webContents.once('did-finish-load', () => {
       snapDock();
+      dockWin.moveTop();
       applyChildOpacity();
       dockWin.webContents.send('ui-scale', settings.textScale || 'normal');
       if (settings.locked) { // born locked: click-through with hover-to-interact
@@ -937,6 +1020,7 @@ function openDock(mode, payload) {
     return;
   }
   snapDock();
+  dockWin.moveTop();   // never open behind the overlay
   dockWin.focus();
   dockWin.webContents.send('dock-mode', { mode, payload });
   if (win && mode === 'cleanup') win.webContents.send('cleanup-state', true);
@@ -967,7 +1051,7 @@ ipcMain.on('cleanup-cmd', (_e, cmd) => {
 // dock simply stacks below it. Open state and size survive restarts.
 // ---------------------------------------------------------------------------
 function openNeeds() {
-  if (needsWin && !needsWin.isDestroyed()) { snapDock(); needsWin.focus(); return; }
+  if (needsWin && !needsWin.isDestroyed()) { snapDock(); needsWin.moveTop(); needsWin.focus(); return; }
   needsWin = new BrowserWindow({
     width: 480, height: needsHeight(), minWidth: 320, minHeight: NEEDS_MIN_H,
     frame: false, transparent: false, backgroundColor: '#14141c',
@@ -978,6 +1062,7 @@ function openNeeds() {
   needsWin.loadFile('needs.html');
   needsWin.on('closed', () => {
     needsWin = null;
+    needsDetached = false;
     settings.needsPanelOpen = false;
     saveSettings(settings);
     if (win) win.webContents.send('needs-state', false);
@@ -993,6 +1078,7 @@ function openNeeds() {
   });
   needsWin.webContents.once('did-finish-load', () => {
     snapDock();
+    needsWin.moveTop();
     applyChildOpacity();
     needsWin.webContents.send('ui-scale', settings.textScale || 'normal');
     needsWin.webContents.send('needs-min', !!settings.needsPanelMin);
@@ -1087,6 +1173,18 @@ ipcMain.handle('get-spell-db', async () => {
   }
 });
 
+// 2.7.2: spells seen cast/sung in your logs (anyone's casts) — evidence a spell is really in
+// Legends (spellproof.js). { base name: last seen ms } in gameDB.spellsSeen.
+const spellproof = require('./spellproof.js');
+ipcMain.handle('get-spells-seen', () => gameDB.spellsSeen || {});
+ipcMain.on('spells-seen', (_e, list) => {
+  const seen = gameDB.spellsSeen = gameDB.spellsSeen || {};
+  let changed = false;
+  for (const x of Array.isArray(list) ? list.slice(0, 500) : [])
+    if (x && typeof x.n === 'string' && spellproof.noteSeen(seen, x.n, +x.t || Date.now())) changed = true;
+  if (changed) saveGameDBSoon();
+});
+
 // bulk wiki existence pre-check for the cleanup scan: one query per 50 titles
 // instead of parse + search fallbacks per missing item
 // Spellbook check: which client spells really exist in Legends? The client ships
@@ -1150,6 +1248,7 @@ ipcMain.handle('problem-report', () => {
       'Log being read': tail ? 'yes' : 'no',
       'Data folder': dataDir(),
       'Loot DB': Object.keys((lootStore.db && lootStore.db.mobs) || {}).length + ' mobs',
+      'Saves held': [lootStore.savesHeld() && 'lootdb: ' + lootStore.savesHeld(), gameStore.blockedWhy() && 'gamedb: ' + gameStore.blockedWhy()].filter(Boolean).join('; ') || 'no',
       'Game exports found': exports
     }
   });
@@ -1716,7 +1815,10 @@ ipcMain.handle('wiki-submit', (_e, { mode, fullText, perMob }) => wikisubmit.wik
 const lootStore = require('./lootdb.js').create({
   dataDir,
   getWin: () => win,
-  noteWrite: () => { lastDbWrite = Date.now(); }
+  noteWrite: () => { lastDbWrite = Date.now(); },
+  backupDir: backupHome,
+  shared: () => !!settings.dataDir,
+  log: dbLog
 });
 const { lootDbPath, loadLootDB } = lootStore;
 
@@ -1798,6 +1900,13 @@ const { gameData, watchOutputFiles } = gameexports.create({
 
 ipcMain.handle('get-gamedata', () => gameData);
 
+// 2.7.2: kills and loot from while SEQO was closed — see logcatchup.js
+const logCatchup = require('./logcatchup.js').create({
+  parser: require('./parser.js'), lootStore, tierNum: mobstats.tierNum,
+  cleanZone: require('./historyimport.js').cleanZone,
+  file: () => path.join(app.getPath('userData'), 'logpos.json')
+});
+
 function startTail(logPath) {
   stopTail();
   let size = 0;
@@ -1809,6 +1918,10 @@ function startTail(logPath) {
     return;
   }
   tail = { path: logPath, offset: size, remainder: '' };
+  // read what happened while SEQO was closed (up to where the live tail starts)
+  logCatchup.catchUp(logPath, size).then((r) => {
+    if (r && (r.kills || r.drops) && win) win.webContents.send('catchup-done', r);
+  }).catch((e) => { try { errorlog.record('logcatchup', 'catch-up failed: ' + (e.message || e)); } catch { /* ok */ } });
   watchOutputFiles(); // game data files live next to this character's game root
 
   fs.watchFile(logPath, { interval: 250 }, (curr) => {
@@ -1828,6 +1941,7 @@ function startTail(logPath) {
       tail.remainder = lines.pop(); // last element may be a partial line
       const complete = lines.filter(l => l.length);
       if (complete.length && win) win.webContents.send('log-lines', complete);
+      if (complete.length) logCatchup.seen(logPath, complete);
     });
     stream.on('error', (e) => console.error('Log read error:', e.message));
   });
@@ -1886,9 +2000,10 @@ ipcMain.handle('choose-log', async () => {
 ipcMain.on('update-settings', (_evt, partial) => {
   settings = { ...settings, ...partial };
   saveSettings(settings);
-  if (win && Object.prototype.hasOwnProperty.call(partial, 'keepAspectRatio')) {
-    win.setAspectRatio(settings.keepAspectRatio ? BASE_W / BASE_H : 0);
+  if (win && (Object.prototype.hasOwnProperty.call(partial, 'keepAspectRatio') || Object.prototype.hasOwnProperty.call(partial, 'windowMode'))) {
+    win.setAspectRatio(settings.keepAspectRatio && settings.windowMode !== 'room' ? BASE_W / BASE_H : 0);
   }
+  if (['windowMode', 'uiZoom'].some((k) => Object.prototype.hasOwnProperty.call(partial, k))) snapDock();
   if (Object.prototype.hasOwnProperty.call(partial, 'textScale')) {
     for (const w of [dockWin, needsWin])
       if (w && !w.isDestroyed()) w.webContents.send('ui-scale', settings.textScale);
@@ -1967,7 +2082,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
-  try { history.flush(); chatlog.flush(); priceStore.flush(); } catch { /* never block quitting */ }
+  try { history.flush(); chatlog.flush(); priceStore.flush(); logCatchup.flush(); } catch { /* never block quitting */ }
   if (settings && settings.autoClearLog) clearLogFile();
   if (settings && settings.dataDir && (settings.syncFiles || []).length) syncGameFiles();
 });

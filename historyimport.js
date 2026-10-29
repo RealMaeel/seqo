@@ -13,6 +13,7 @@ const MARKET = new Set(['chan', 'auction', 'shout', 'ooc', 'say']);
 // the zone name the overlay files kills under (same rule as its cleanZoneName)
 const { tierNum } = require('./mobstats.js');
 const trioguess = require('./trioguess.js');
+const spellproof = require('./spellproof.js');
 function cleanZone(z) {
   if (!z) return '';
   let zone = String(z).replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+\d+\s*$/, '').trim();
@@ -29,6 +30,7 @@ function createImporter({ parser, char, prices, spellDB }) {
   let lastGroupT = 0;    // last time another player hit something you were fighting
   let zoneNow = '', tierNow = 0;   // tier: 0-4 difficulty of the zone copy (2.7)
   const offers = [];      // WTS/WTB lines seen in chat (when a prices parser is given)
+  const spellsSeen = {};  // 2.7.2: base spell name -> last time anyone cast/sang it (spellproof.js)
   let cur = null, tracker = null, lastT = 0;
   const YOU = parser.YOU;
 
@@ -81,6 +83,7 @@ function createImporter({ parser, char, prices, spellDB }) {
     const welcome = raw.includes('] Welcome to EverQuest');
     if (!cur || t - lastT > GAP_MS || welcome || t < lastT - 60000) { close(); open(t); if (guess) guess.newSession(); }
     lastT = t; cur.end = t; cur.lines++;
+    { const sp = spellproof.castInLine(raw); if (sp) spellproof.noteSeen(spellsSeen, sp, t); }
     if (!ev) {
       if (guess) { const msg = raw.slice(raw.indexOf('] ') + 2); if (!guess.groupLine(msg)) guess.landed(msg, t, t - lastGroupT > SOLO_MS); }
       return;
@@ -134,7 +137,7 @@ function createImporter({ parser, char, prices, spellDB }) {
   }
   function finish() { close(); return sessions; }
   return {
-    line, finish, offers: () => offers,
+    line, finish, offers: () => offers, spellsSeen: () => spellsSeen,
     killTimes: () => [...killTimes].map(([k, times]) => { const [zone, mob] = k.split('\u0001'); return { zone, mob, times }; })
   };
 }

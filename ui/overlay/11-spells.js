@@ -30,6 +30,20 @@
   }
   setTimeout(spellDbInit, 2500); // off the startup path; cached loads are instant
 
+  // 2.7.2: spells anyone casts or sings near you — proof they exist in Legends (spellproof.js);
+  // the buff planner only uses spells with proof. Batched to main every 30 s.
+  let spellsSeen = {};
+  const spellsSeenQueue = [];
+  setTimeout(() => { window.overlay.getSpellsSeen().then((s) => { spellsSeen = Object.assign(s || {}, spellsSeen); }).catch(() => {}); }, 3000);
+  function noteSpellSeen(name) {
+    if (!name) return;
+    const t = Date.now();
+    if (EQLSpellProof.noteSeen(spellsSeen, name, t)) {
+      spellsSeenQueue.push({ n: name, t });
+      if (spellsSeenQueue.length === 1) setTimeout(() => { window.overlay.spellsSeen(spellsSeenQueue.splice(0)); }, 30000);
+    }
+  }
+
   // classic duration formulas (ticks of 6s), capped at base
   function durTicks(formula, base, level) {
     let t;

@@ -70,6 +70,7 @@
       const st = spqState(q.key);
       const hunted = q.items.filter(it => it.kind === 'drop' || it.kind === 'ground');
       const got = q.items.filter(it => spqHave(st, it)).length;
+      qCard(spqExpanded, q.key);
       const card = document.createElement('div');
       card.className = 'q-quest' + (st.done ? ' done' : '');
       const head = document.createElement('div');
@@ -213,6 +214,7 @@
         (UNL.RACE_QUESTS[a.name.replace(g.strip, '')] || {}).placeholder;
       const doneCount = sec.achievements.filter(a => (a.done || achDoneLive.has(a.name)) && !isPlaceholder(a)).length;
 
+      qGroup(unlGroupOpen, g.key);
       const hdr = document.createElement('div');
       hdr.className = 'l-divider';
       hdr.style.cursor = 'pointer';
@@ -229,6 +231,7 @@
         const achDone = !!(ach.done || achDoneLive.has(ach.name));   // live: the log line beats the next export
         const got = objs.filter(o => o.done).length;
         const key = g.key + '|' + ach.name;
+        qCard(unlExpanded, key);
 
         const card = document.createElement('div');
         card.className = 'q-quest' + (achDone ? ' done' : '');
@@ -425,6 +428,7 @@
       for (const a of achs) if (KQ[a.name] && !isDone(a)) unlExpanded.add('keys|' + a.name);
     }
 
+    qGroup(unlGroupOpen, 'keys');
     const hdr = document.createElement('div');
     hdr.className = 'l-divider';
     hdr.style.cursor = 'pointer';
@@ -438,6 +442,7 @@
       const kq = KQ[ach.name];
       const done = isDone(ach);
       const key = 'keys|' + ach.name;
+      qCard(unlExpanded, key);
       const card = document.createElement('div');
       card.className = 'q-quest' + (done ? ' done' : '');
       const head = document.createElement('div');

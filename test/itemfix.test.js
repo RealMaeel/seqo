@@ -8,15 +8,15 @@ const wiki = 'Attunable\n\nSlot: EAR\n\nAC: 6\n\nWIS: +8  INT: +5  CHA: +5  MANA
 const game5 = [['AC', 11], ['MANA', 15], ['INT', 10], ['WIS', 10], ['CHA', 10], ['SV MAGIC', 10], ['SV FIRE', 10], ['MANA REGEN', 7], ['SV VOID', 5]].map(([stat, value]) => ({ stat, value }));
 {
   ok(F.baseFrom('AC', 11, 5) === 6 && F.baseFrom('WIS', 10, 5) === 5 && F.baseFrom('MANA REGEN', 7, 5) === 2 && F.baseFrom('DMG', 20, 9) === 11, 'game value at +T → the +0 value');
-  ok(F.baseFrom('SV VOID', 5, 5) === null, 'a value no +0 number explains is not guessed');
+  ok(F.baseFrom('SV VOID', 5, 5) === 0 && F.baseFrom('DMG', 81, 8) === 45 && F.baseFrom('WIS', 10, 5) === 5, 'SV Void comes from the tier (2.7.2); DMG +10%/tier');
   const r = F.fromGame(game5, [{ type: 'Focus', name: 'Improved Damage III' }], 5, 1000);
   const fix = F.trim(r.fix, wiki);
   ok(JSON.stringify(fix.stats) === '{"WIS":5}', 'only what differs from the wiki is kept: ' + JSON.stringify(fix.stats));
-  ok(fix.seen['SV VOID'].value === 5 && fix.seen['SV VOID'].tier === 5 && fix.effects[0].name === 'Improved Damage III' && fix.by === 'you', 'SV Void kept as seen at +5; the focus kept');
+  ok(!Object.keys(fix.seen).length && fix.effects[0].name === 'Improved Damage III' && fix.by === 'you', 'SV Void needs no fix any more (the tier grants it); the focus kept');
   const a5 = F.apply(wiki, fix, 5), a0 = F.apply(wiki, fix, 0);
   ok(/WIS: \+5/.test(a0.block) && a0.diffs[0].stat === 'WIS' && a0.diffs[0].wiki === 8 && a0.diffs[0].you === 5, 'fix applied, with what the wiki said');
-  ok(/SV VOID: \+5/.test(a5.block) && /SV VOID: \(\+5 at \+5\)/.test(a0.block), 'SV Void shows as seen at +5, and where it was seen at other tiers');
-  ok(/Focus Effect: Improved Damage III/.test(a0.block) && a0.block.indexOf('SV VOID') < a0.block.indexOf('Size:'), 'focus added; new stat line goes before Size');
+  ok(!/SV VOID/.test(a0.block) && !F.apply(wiki, { stats: {}, seen: { 'SV VOID': { tier: 5, value: 5 } }, effects: [] }, 5).added.length, 'an old saved "seen SV Void" is not added twice');
+  ok(/Focus Effect: Improved Damage III/.test(a0.block) && /SV CORRUPTION: \+3/.test(F.apply(wiki, { stats: { 'SV CORRUPTION': 3 } }).block) && F.apply(wiki, { stats: { 'SV CORRUPTION': 3 } }).block.indexOf('SV CORRUPTION') < F.apply(wiki, { stats: { 'SV CORRUPTION': 3 } }).block.indexOf('Size:'), 'focus added; a stat the wiki lacks goes before Size');
   ok(F.trim(F.fromGame([{ stat: 'AC', value: 6 }], [], 0).fix, wiki) === null, 'a fix that matches the wiki = no fix');
   ok(F.apply(wiki, null).block === wiki, 'no fix: the wiki block as is');
   ok(F.exaltSource('Checkmate (Exaltation)') === 'Checkmate', 'an exaltation carries its source item’s effect');

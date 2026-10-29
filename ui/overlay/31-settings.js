@@ -42,6 +42,11 @@
     $('loginremind').checked = settings.loginReminder !== false;
     $('bisflag').checked = !!settings.bisFlag;
     $('textscale').value = settings.textScale === 'large' ? 'large' : 'normal';
+    $('winmode').value = settings.windowMode === 'room' ? 'room' : 'zoom';
+    $('uizoom').value = EQLLayout.clampZoom(settings.uiZoom);
+    $('uizoom-val').textContent = EQLLayout.clampZoom(settings.uiZoom) + '%';
+    $('uizoom-row').style.display = settings.windowMode === 'room' ? '' : 'none';
+    $('aspect-row').style.display = settings.windowMode === 'room' ? 'none' : '';
     const vol = settings.alertVolume !== undefined ? settings.alertVolume : 60;
     $('alertvol').value = vol;
     $('alertvol-val').textContent = vol + '%';
@@ -79,8 +84,21 @@
     const availW = window.innerWidth;
     const availH = window.innerHeight - (editing ? TOOLBAR_H : 0);
     const baseH = BASE_H - TOOLBAR_H;
-    const s = Math.min(availW / BASE_W, availH / baseH);
+    // Zoom to fit (default) or More room (layout.js, 2.7.2): room keeps your text size and gives a
+    // bigger window more space instead of bigger everything
+    const room = settings && settings.windowMode === 'room';
+    const box = EQLLayout.contentBox({ mode: room ? 'room' : 'zoom', zoom: settings && settings.uiZoom, availW, availH, baseW: BASE_W, baseH });
+    const s = box.scale;
+    $('content').style.width = room ? box.width + 'px' : '';
+    $('content').style.height = room ? box.height + 'px' : '';
+    document.body.classList.toggle('room', room);
     $('content').style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+    if (typeof syncWideLists === 'function') syncWideLists();
+    // a big window in Zoom mode: point at More room, once
+    if (!room && s > 1.6 && settings && !settings.roomTipShown && typeof toast === 'function') {
+      settings.roomTipShown = true; save({ roomTipShown: true });
+      toast('Tip: want more on screen instead of bigger text? ⚙ Appearance → Window size → More room', true);
+    }
     if (typeof activeTab !== 'undefined' && activeTab === 'map') requestAnimationFrame(sizeCanvas);
   }
   window.addEventListener('resize', rescale);
@@ -218,6 +236,17 @@
   $('buffalerts').addEventListener('change', (e) => save({ buffAlerts: e.target.checked }));
   $('loginremind').addEventListener('change', (e) => save({ loginReminder: e.target.checked }));
   $('bisflag').addEventListener('change', (e) => { save({ bisFlag: e.target.checked }); cleanupDirty = true; needsDirty = true; });
+  $('winmode').addEventListener('change', (e) => {
+    const room = e.target.value === 'room';
+    save({ windowMode: room ? 'room' : 'zoom' });
+    toast(room ? 'More room: drag the window bigger to see more — the text size slider sets how big things are'
+               : 'Zoom to fit: the layout grows and shrinks with the window', true);
+  });
+  $('uizoom').addEventListener('input', (e) => {
+    $('uizoom-val').textContent = e.target.value + '%';
+    if (settings) { settings.uiZoom = +e.target.value; rescale(); }
+  });
+  $('uizoom').addEventListener('change', (e) => save({ uiZoom: EQLLayout.clampZoom(e.target.value) }));
   $('textscale').addEventListener('change', (e) => {
     save({ textScale: e.target.value });
     document.body.classList.toggle('large', e.target.value === 'large');
@@ -471,16 +500,29 @@
 
   async function refreshDataStatus() {
     const st = await window.overlay.dataDirStatus();
-    $('data-status').textContent = st.shared
+    $('data-status').textContent = (st.shared
       ? '🔗 shared — ' + st.dir.split(/[\\/]/).slice(-2).join('/')
-      : 'local only';
+      : 'local only') +
+      // 2.7.2: the data file couldn't be read (Drive not ready?) — SEQO holds saves until it can
+      (st.held ? '\n⏸ waiting for your data file (' + st.held + ') — nothing is saved over it; new kills are kept and added when it comes back' : '');
+    if (st.held && !dataHeldTold) { dataHeldTold = true; toast('⏸ Your data file isn’t readable yet — SEQO is waiting for it and won’t save over it', true); }
+    if (st.held) setTimeout(refreshDataStatus, 20000);
   }
+  let dataHeldTold = false;
   $('btn-datadir').addEventListener('click', async () => {
     const res = await window.overlay.chooseDataFolder();
     if (res && res.error) $('data-status').textContent = '⚠ ' + res.error;
     // on success the app relaunches itself
   });
   refreshDataStatus();
+
+  // 2.7.2: kills and loot read from the log for the time SEQO was closed
+  window.overlay.onCatchup((r) => {
+    if (!r) return;
+    const when = new Date(r.from).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+    toast('📥 Caught up while SEQO was closed (since ' + when + '): ' + r.kills + ' kill' + (r.kills === 1 ? '' : 's') + ', ' + r.drops + ' drop' + (r.drops === 1 ? '' : 's'));
+    lootDirty = true;
+  });
 
   // another computer's changes synced in: refresh all cached DB-derived state
   window.overlay.onSharedReload(async () => {
@@ -543,7 +585,7 @@
     if (!resizing) return;
     let w = Math.max(180, resizing.startW + (e.screenX - resizing.startX));
     let h = Math.max(120, resizing.startH + (e.screenY - resizing.startY));
-    if (settings && settings.keepAspectRatio) h = Math.round(w * BASE_H / BASE_W);
+    if (settings && settings.keepAspectRatio && settings.windowMode !== 'room') h = Math.round(w * BASE_H / BASE_W);
     window.overlay.resizeWindow(w, h);
   });
   window.addEventListener('mouseup', () => { resizing = null; });

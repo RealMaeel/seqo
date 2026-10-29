@@ -165,6 +165,7 @@
       if (r && r.ok) {
         toast('📥 Added ' + r.added + ' past session' + (r.added === 1 ? '' : 's') + (r.prices ? ' and ' + r.prices.toLocaleString() + ' WTS/WTB prices' : '') +
           (r.killTimes ? ', ' + r.killTimes.toLocaleString() + ' kill times' : '') +
+          (r.spells ? ', ' + r.spells.toLocaleString() + ' spells seen cast' : '') +
           ' from ' + r.files + ' log file' + (r.files === 1 ? '' : 's') + (r.skipped ? ' (' + r.skipped + ' sessions already saved live)' : ''));
         refreshPriceMed();
         histList = (await window.overlay.historyList()) || [];

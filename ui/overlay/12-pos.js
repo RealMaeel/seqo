@@ -87,9 +87,45 @@
   }
   const isPosZone = (z) => /plane of sky/i.test(z || '');
 
+  // More room (2.7.2): a wide quest list shows its quests side by side (every Quests view but Exalts)
+  function syncWideLists() {
+    const ql = $('q-list');
+    if (!ql) return;
+    const wide = activeTab === 'quests' && ql.dataset.wide === '1';
+    ql.classList.toggle('wide', wide && ql.clientWidth >= 600);
+  }
+
+  // ▾ expand all / ▸ collapse all (2.7.2) — on every Quests view with fold-out cards.
+  // Views register each card (qCard) and each foldable group header (qGroup) as they draw;
+  // qFinishView then adds the link on top. "Expand all" opens every group and card on the
+  // next draw; "collapse all" folds the cards (groups stay as they are).
+  let qOpenAll = false, qShownCards = [], qShownGroups = [];
+  function qCard(set, key) { if (qOpenAll) set.add(key); qShownCards.push([set, key]); return set.has(key); }
+  function qGroup(obj, key) { if (qOpenAll) obj[key] = true; qShownGroups.push([obj, key]); return !!obj[key]; }
+  function qFinishView() {
+    const list = $('q-list');
+    if (!qShownCards.length && !qShownGroups.length) return;
+    const allOpen = qShownGroups.every(([o, k]) => o[k]) && qShownCards.length > 0 && qShownCards.every(([s, k]) => s.has(k));
+    const all = document.createElement('div');
+    all.className = 'q-wide-full';
+    all.style.cssText = 'margin:4px 0 2px;font-size:10px;color:#7da7d9;cursor:pointer';
+    all.textContent = allOpen ? '▸ collapse all' : '▾ expand all';
+    all.title = allOpen ? 'Fold every card back up' : 'Open every group and card to see everything at once';
+    const cards = qShownCards.slice();
+    all.addEventListener('click', () => {
+      if (allOpen) { for (const [s, k] of cards) s.delete(k); renderQuests(); return; }
+      qOpenAll = true;
+      try { renderQuests(); } finally { qOpenAll = false; }
+      renderQuests();   // redraw once more so the link reads "collapse all"
+    });
+    list.insertBefore(all, list.firstChild);
+  }
   function renderQuests() {
     keepScroll($('q-list'));
     const zone = questZone();
+    qShownCards = []; qShownGroups = [];
+    $('q-list').dataset.wide = zone === '__exalts' ? '' : '1';
+    syncWideLists();
     renderSyncLine();
     const special = zone === '__unlocks' || zone === '__slayer' || zone === '__spellq' || zone === '__epics' || zone === '__exalts';
     const pos = !special && isPosZone(zone);
@@ -111,9 +147,9 @@
     if (special) {
       $('q-progress').textContent = '';
       setQuestEmpty('');
-      if (zone === '__unlocks') return renderUnlocks();
-      if (zone === '__slayer') return renderSlayer();
-      if (zone === '__spellq') return renderSpellQuests();
+      if (zone === '__unlocks') { renderUnlocks(); return qFinishView(); }
+      if (zone === '__slayer') { renderSlayer(); return qFinishView(); }
+      if (zone === '__spellq') { renderSpellQuests(); return qFinishView(); }
       if (zone === '__epics') return renderEpics();
       return renderExalts();
       // (the old 🏆 BiS view is gone — the ⚔ Class tab's Gear advisor replaced
@@ -175,6 +211,7 @@
         const got = q.items.filter(it => st.items[it.name]).length;
         const ready = !st.done && got === q.items.length;
 
+        qCard(qExpanded, q.reward);
         const card = document.createElement('div');
         card.className = 'q-quest' + (st.done ? ' done' : ready ? ' ready' : '');
 
@@ -235,6 +272,8 @@
       }
     }
     $('q-progress').textContent = done + '/' + total + ' turned in';
+    qFinishView();
+    syncWideLists();
   }
 
   // ---- loot verdicts: "should I keep this?" ----

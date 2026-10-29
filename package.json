@@ -1,14 +1,14 @@
 {
   "name": "seqo",
   "productName": "SEQO",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "description": "SEQO - Simple EQ Overlay for EverQuest Legends",
   "main": "main.js",
   "author": "Ed",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node test/parser.test.js && node test/gamesync.test.js && node test/worldmap.test.js && node test/history.test.js && node test/alerts.test.js && node test/prices.test.js && node test/preload.test.js && node test/gameexports.test.js && node test/datasources.test.js && node test/errorlog.test.js && node test/mobstats.test.js && node test/trioguess.test.js && node test/spawnwarn.test.js && node test/itemtext.test.js && node test/cleanupview.test.js && node test/itemsources.test.js && node test/itemfix.test.js && node test/charms.test.js && node test/seqoshare.test.js && node test/lootdb.test.js && node test/gearcatalog.test.js && node test/wikisubmit.test.js && node test/selfupdate.test.js",
+    "test": "node test/parser.test.js && node test/gamesync.test.js && node test/worldmap.test.js && node test/history.test.js && node test/alerts.test.js && node test/prices.test.js && node test/preload.test.js && node test/gameexports.test.js && node test/datasources.test.js && node test/errorlog.test.js && node test/mobstats.test.js && node test/trioguess.test.js && node test/spawnwarn.test.js && node test/itemtext.test.js && node test/cleanupview.test.js && node test/itemsources.test.js && node test/itemfix.test.js && node test/charms.test.js && node test/layout.test.js && node test/safestore.test.js && node test/spellproof.test.js && node test/slayerfind.test.js && node test/logcatchup.test.js && node test/mobname.test.js && node test/seqoshare.test.js && node test/lootdb.test.js && node test/gearcatalog.test.js && node test/wikisubmit.test.js && node test/selfupdate.test.js",
     "dist": "electron-builder --win"
   },
   "devDependencies": {
@@ -54,9 +54,15 @@
       "itemsources.js",
       "itemfix.js",
       "charms.js",
+      "layout.js",
       "cleanupview.js",
       "slotcalc.js",
       "lootdb.js",
+      "safestore.js",
+      "spellproof.js",
+      "slayerfind.js",
+      "logcatchup.js",
+      "mobname.js",
       "gearcatalog.js",
       "wikisubmit.js",
       "selfupdate.js",

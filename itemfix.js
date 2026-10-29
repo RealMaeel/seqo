@@ -24,14 +24,16 @@
   }
   // stats that don't change with upgrade tiers
   const FIXED = new Set(['ATK DELAY', 'BACKSTAB', 'DMG BON']);
-  const upFor = (stat) => stat === 'DMG' ? IT.upDmg : stat === 'ACCURACY' ? ((n, T) => Math.floor(n * (1 + 0.025 * T))) : FIXED.has(stat) ? ((n) => n) : IT.upStat;
+  // the upgrade math per stat (itemtext.js, checked against the game in 2.7.2)
+  const upFor = (stat) => stat === 'DMG' ? IT.upDmg : stat === 'ACCURACY' ? IT.upAccuracy : stat === 'SV VOID' ? IT.upVoid :
+    stat === 'RANGE' ? IT.upRange : FIXED.has(stat) ? ((n) => n) : IT.upStat;
 
   // the +0 value that shows as `seen` at tier T (smallest that fits; null = no +0 value can)
   function baseFrom(stat, seen, T) {
     seen = +seen;
     if (!T || !(seen > 0)) return seen;
     const f = upFor(key(stat));
-    for (let b = 0; b <= seen; b++) if (f(b, T) === seen) return b;
+    for (let b = 0; b <= seen; b++) if (+f(b, T) === seen) return b;
     return null;
   }
 
@@ -54,7 +56,7 @@
     const extra = Object.entries(fix.stats || {}).filter(([k, v]) => !seen.has(key(k)) && +v !== 0)
       .map(([k, v]) => k + ': ' + (v > 0 ? '+' : '') + v);
     for (const [k, o] of Object.entries(fix.seen || {})) {
-      if (seen.has(key(k)) || !o) continue;
+      if (seen.has(key(k)) || !o || baseFrom(k, o.value, o.tier) != null) continue;   // the tier math explains it now (SV Void)
       extra.push(k + ': ' + (+o.tier === +(T || 0) ? '+' + o.value : '(+' + o.value + ' at +' + o.tier + ')'));
     }
     if (extra.length) {

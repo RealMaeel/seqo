@@ -206,9 +206,9 @@
     }
   }
 
-  $('t-addbtn').addEventListener('click', () => { addCamp($('t-add').value); $('t-add').value = ''; });
+  $('t-addbtn').addEventListener('click', () => { if (addCampTyped($('t-add').value)) $('t-add').value = ''; });
   $('t-add').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { addCamp($('t-add').value); $('t-add').value = ''; }
+    if (e.key === 'Enter') { if (addCampTyped($('t-add').value)) $('t-add').value = ''; }
   });
 
   // manual countdown timers: label + duration -> chip on every tab

@@ -55,7 +55,7 @@
   const gearObtainSel = () => (settings && settings.gearObtain) || { drop: true, quest: true, craft: true, vendor: true, unknown: false };
 
   // upgrade-tier scaling — same math as the item panel's slider (wiki Item
-  // Upgrade System): stats +10%/tier, DMG +5%/tier, round DOWN, minimum +1 per
+  // Upgrade System, checked in game 2.7.2): stats and DMG +10%/tier, round DOWN, minimum +1 per
   // tier. Only positive values improve.
   const upStat = (n, T) => window.EQLItemText ? EQLItemText.upStat(n, T) : n;   // itemtext.js: one copy of the upgrade math
   const upDmg = (n, T) => window.EQLItemText ? EQLItemText.upDmg(n, T) : n;
@@ -100,11 +100,46 @@
     return gearByName.get(normItemName(name)) || null;
   }
 
+  // ---------- 2.7.2: is the spell really in Legends? (spellproof.js) ----------
+  // the game's spell file is live EQ's; the planner uses a spell only with proof:
+  // your ✓, your spellbook export, a cast seen in your logs, or an eqlwiki page
+  let plannerWiki = null, plannerWikiBusy = false, plannerWikiErr = null, plannerWikiAsked = false;
+  let scribedFor = null, scribedBase = null;   // the export's names AND their base names (Allure VIII → Allure)
+  function scribedSet() {
+    const sb = gameFiles && gameFiles.spellbook && gameFiles.spellbook.spells;
+    if (sb !== scribedFor) {
+      scribedFor = sb;
+      scribedBase = new Set();
+      for (const n of Object.keys(sb || {})) { scribedBase.add(n); scribedBase.add(EQLSpellProof.baseName(n)); }
+    }
+    return scribedBase;
+  }
+  function legendsVerdict(n) {
+    return EQLSpellProof.verdict(n, {
+      mine: (settings && settings.confirmedSpells) || [],
+      hidden: (settings && settings.hiddenSpells) || [],
+      notInLegends: (spellDB && spellDB.notInLegends) || [],
+      scribed: scribedSet(),
+      seen: spellsSeen,
+      wiki: plannerWiki || {}
+    });
+  }
+  // one wiki check for EVERY class's spells (cached 30 days by main), once per session
+  function checkPlannerWiki() {
+    if (plannerWikiAsked || !spellDB) return;
+    plannerWikiAsked = true; plannerWikiBusy = true;
+    const names = [...new Set(Object.values(spellDB.spells).filter(sp => sp.cls).map(sp => sp.n))];
+    window.overlay.spellWikiCheck(names)
+      .then((r) => { plannerWiki = (r && r.pages) || {}; plannerWikiErr = (r && r.error) || null; })
+      .catch((e) => { plannerWikiErr = e.message || String(e); })
+      .finally(() => { plannerWikiBusy = false; classDirty = true; if (activeTab === 'class') renderClassTab(); });
+  }
+
   // ---------- buffs chip: live buffs + trio lineup ----------
   function plannerModel(trio) {
     const lvl = myLevel();
     applyEffLevel(lvl); // stat values at YOUR level, not a baked-in 50
-    const pool = [];
+    const pool = [], unconfirmed = [];
     for (const recs of spellByName.values()) {
       let best = null;
       for (const r of recs) {
@@ -114,7 +149,11 @@
           if (lv && lv <= lvl && (!best || lv < best.lv)) best = { sp: r, cls: c, lv };
         }
       }
-      if (best && !isHiddenSpell(best.sp.n)) pool.push(best);   // you said it isn't in Legends
+      if (!best) continue;
+      // no proof it's in Legends (or you hid it): left out — listed under 🔎 so you can ✓ it
+      best.proof = legendsVerdict(best.sp.n);
+      if (best.proof.ok === false) { if (!isHiddenSpell(best.sp.n)) unconfirmed.push(best); continue; }
+      pool.push(best);
     }
     const groups = new Map(), solo = [];
     for (const e of pool) {
@@ -130,7 +169,7 @@
     const effSum = (sp) => Object.values(sp.eff || {}).reduce((s, v) => s + v, 0);
     for (const list of groups.values())
       list.sort((a, b) => (b.rank - a.rank) || (effSum(b.sp) - effSum(a.sp)) || (b.lv - a.lv));
-    return { groups, solo, pool };
+    return { groups, solo, pool, unconfirmed };
   }
 
   const fmtBuffDur = (sp) => {
@@ -277,6 +316,17 @@
     return Math.min(1, Math.pow(s / 3600, 0.4));   // 1h+ counts full; 10m ≈ half
   };
 
+  // 2.7.2: with ⏳ Long buffs on, a buff of 5 minutes or less (songs aside) is not a long
+  // buff at all — it's left out of the lineup entirely (no discount games) and shown in
+  // its own "short buffs" list instead. A stacking group whose best member is short
+  // offers its best LONG member to the lineup.
+  const SHORT_BUFF_S = 300;
+  const isShortBuff = (sp) => {
+    if (isSong(sp)) return false;
+    const s = buffDurS(sp, myLevel());
+    return s != null && s <= SHORT_BUFF_S;
+  };
+
   const POISON_CAP = { combat: 3, utility: 1 };
   // rogue poisons, classified from the game's own descriptions: up to 3 combat
   // poisons at once (one per stacking line — Cobra replaces Asp) + 1 utility
@@ -300,8 +350,11 @@
   function buildLoadout(trio, focus, gems, mode, songCap, longPref) {
     const model = plannerModel(trio);
     const cands = [];
-    for (const list of model.groups.values()) cands.push(list[0]); // group winners
-    cands.push(...model.solo);
+    for (const list of model.groups.values()) {   // group winners
+      const win = longPref ? list.find(e => !isShortBuff(e.sp)) : list[0];
+      if (win) cands.push(win);
+    }
+    cands.push(...(longPref ? model.solo.filter(e => !isShortBuff(e.sp)) : model.solo));
     // utility-only spells (invis, levitate…) never spend a gem — see the
     // utility list — and /disc abilities live in the disciplines list;
     // a spell must bring at least one STAT to compete here
@@ -392,6 +445,77 @@
     d.appendChild(x);
   }
 
+  // the spells your trio could use that have no proof of being in Legends — left out of
+  // every list above; ✓ one you know is in the game and it joins the planner
+  function renderLegendsCheck(root, trio) {
+    const model = plannerModel(trio);
+    const un = model.unconfirmed.sort((a, b) => a.cls.localeCompare(b.cls) || a.lv - b.lv || a.sp.n.localeCompare(b.sp.n));
+    const mine = (settings && settings.confirmedSpells) || [];
+    const unknown = model.pool.filter(e => e.proof && e.proof.ok === null).length;
+    const open = !!(settings && settings.buffUnconfOpen);
+    const h = document.createElement('div');
+    h.className = 'l-divider';
+    h.style.cursor = 'pointer';
+    h.textContent = (open ? '▾' : '▸') + ' 🔎 LEGENDS CHECK — ' + un.length + ' left out, no proof they\'re in Legends' +
+      (plannerWikiBusy ? ' (checking eqlwiki…)' : '');
+    h.title = 'The game\'s spell file is live EverQuest\'s and lists spells Legends doesn\'t have. A spell is used only with proof: ' +
+      'it\'s in your spellbook export, someone cast it in your logs, eqlwiki has a page, or you ✓ it here.';
+    h.addEventListener('click', () => { save({ buffUnconfOpen: !open }); settings.buffUnconfOpen = !open; renderClassTab(); });
+    root.appendChild(h);
+    const notes = [];
+    if (plannerWikiErr) notes.push('⚠ eqlwiki check failed (' + plannerWikiErr + ') — ' + unknown + ' unchecked spells are kept for now.');
+    else if (unknown) notes.push(unknown + ' spells not checked yet — kept for now.');
+    if (mine.length) notes.push(mine.length + ' confirmed by you');
+    if (notes.length) {
+      const n = document.createElement('div');
+      n.className = 'q-npc';
+      n.textContent = notes.join(' · ');
+      if (mine.length) {
+        const r = document.createElement('span');
+        r.style.cssText = 'margin-left:6px;color:#778;cursor:pointer';
+        r.textContent = '(reset)';
+        r.title = 'You confirmed: ' + mine.join(', ') + '. Click to clear your confirmations.';
+        r.addEventListener('click', () => { save({ confirmedSpells: [] }); settings.confirmedSpells = []; renderClassTab(); });
+        n.appendChild(r);
+      }
+      root.appendChild(n);
+    }
+    if (!open) return;
+    const cap = legendsShowAll ? un.length : 60;
+    for (const e of un.slice(0, cap)) {
+      const d = document.createElement('div');
+      d.className = 'q-it';
+      d.style.cssText = 'cursor:default;opacity:.75';
+      d.innerHTML = '<span class="box">?</span><span class="nm"></span><span class="loc" style="flex:none"></span>';
+      d.querySelector('.nm').textContent = e.sp.n + (e.sp.eff && statKeys(e.sp).length ? ' — ' + effTextShort(e.sp, 3) : '');
+      d.querySelector('.nm').style.whiteSpace = 'normal';
+      d.querySelector('.loc').textContent = e.cls + ' L' + e.lv;
+      d.title = e.proof.why + (spellDB.desc[e.sp.id] ? '\n' + spellDB.desc[e.sp.id] : '');
+      const ok = document.createElement('span');
+      ok.textContent = '✓ in Legends';
+      ok.style.cssText = 'flex:none;cursor:pointer;color:#7c7;padding:0 4px;font-size:10px';
+      ok.title = 'You know ' + e.sp.n + ' is in Legends: use it in the planner';
+      ok.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const next = [...new Set([...mine, e.sp.n])];
+        save({ confirmedSpells: next }); settings.confirmedSpells = next;
+        toast('✓ ' + e.sp.n + ' is back in your planner');
+        renderClassTab();
+      });
+      d.appendChild(ok);
+      root.appendChild(d);
+    }
+    if (un.length > cap) {
+      const m = document.createElement('div');
+      m.className = 'q-npc';
+      m.style.cursor = 'pointer';
+      m.textContent = '… ' + (un.length - cap) + ' more — show all';
+      m.addEventListener('click', () => { legendsShowAll = true; renderClassTab(); });
+      root.appendChild(m);
+    }
+  }
+  let legendsShowAll = false;
+
   // a lineup spell that's on you right now: name goes green, time left on hover
   function markOnYou(d, sp) {
     if (!sp) return;
@@ -411,6 +535,7 @@
 
   function renderBuffsChip(root) {
     const trio = currentTrio();
+    checkPlannerWiki();
     if (!spellDB) {
       const d = document.createElement('div');
       d.className = 'q-npc';
@@ -489,7 +614,7 @@
       const lt = document.createElement('span');
       lt.className = 'qview-chip' + (longOn ? ' active' : '');
       lt.textContent = '⏳ Long buffs';
-      lt.title = 'Prefer buffs that LAST: trade a little stat strength for durations you don\'t have to babysit. Songs are unaffected — Symphonic Aura keeps them running.';
+      lt.title = 'Prefer buffs that LAST: trade a little stat strength for durations you don\'t have to babysit. Buffs of 5 minutes or less are left out of the lineup (listed separately). Songs are unaffected — Symphonic Aura keeps them running.';
       lt.addEventListener('click', () => { save({ buffLong: !longOn }); settings.buffLong = !longOn; renderClassTab(); });
       ctl.append(glab, gin, ft, lt);
       root.appendChild(ctl);
@@ -575,6 +700,16 @@
               : 'No stat lost — the long set is just as strong') +
               ' — avg spell duration ' + fm(md(strongest)) + ' → ' + fm(md(picked)) + '.';
             root.appendChild(tr);
+            // the strong-but-short ones the long set left out: worth a cast right before a pull
+            const shorts = strongest.filter(e => isShortBuff(e.sp));
+            if (shorts.length) {
+              const sh = document.createElement('div');
+              sh.className = 'q-npc';
+              sh.textContent = '⚡ Short buffs (5 min or less) — not in the long set; cast right before a big pull:';
+              sh.title = 'These made the strongest set but last 5 minutes or less, so ⏳ Long buffs leaves them out of the lineup.';
+              root.appendChild(sh);
+              shorts.forEach((e) => row(e, '⚡'));
+            }
           }
           const note = document.createElement('div');
           note.className = 'q-npc';
@@ -673,6 +808,9 @@
         }
       }
     }
+
+    // --- 🔎 Legends check: what was left out for lack of proof (2.7.2) ---
+    if (spellDB && trio) renderLegendsCheck(root, trio);
 
     // --- the full list, out of the way: collapsed unless you open it ---
     if (!spellDB || !trio) return;

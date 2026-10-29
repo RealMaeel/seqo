@@ -187,6 +187,9 @@
   }
   #c-rows::-webkit-scrollbar, #b-rows::-webkit-scrollbar { width: 6px; }
   #c-rows::-webkit-scrollbar-thumb, #b-rows::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 3px; }
+  /* More room (2.7.2): a wide quest list lays its quests out side by side */
+  #q-list.wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 0 10px; align-content: start; }
+  #q-list.wide > :not(.q-quest) { grid-column: 1 / -1; }
   #q-list::-webkit-scrollbar { width: 8px; }
   #q-list::-webkit-scrollbar-thumb { background: rgba(255,215,102,.35); border-radius: 4px; }
   #q-list::-webkit-scrollbar-track { background: rgba(255,255,255,.05); }
@@ -901,6 +904,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         <label>Opacity <span class="val" id="opacity-val"></span></label>
         <input type="range" id="opacity" min="5" max="100" step="1">
         <div class="setrow"><span>Clock<span class="sub">your PC's time in the title bar — and top-right while locked, for full-screen play</span></span><input type="checkbox" id="showclock"></div>
+        <div class="setrow"><span>Window size<span class="sub">Zoom to fit: a bigger window makes everything bigger · More room: a bigger window shows more (longer lists, Plane of Sky quests side by side)</span></span>
+          <select id="winmode"><option value="zoom">Zoom to fit</option><option value="room">More room</option></select></div>
+        <div id="uizoom-row"><label>Size of everything (More room) <span class="val" id="uizoom-val"></span></label>
+          <input type="range" id="uizoom" min="70" max="150" step="5"></div>
         <div class="setrow"><span>Text size<span class="sub">the fine print, here and in the attached windows</span></span>
           <select id="textscale"><option value="normal">Normal</option><option value="large">Large</option></select></div>
         <label>Font size (notes) <span class="val" id="fontsize-val"></span></label>
@@ -914,7 +921,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         </select>
         <label>Accent / text color</label>
         <input type="color" id="fontcolor">
-        <div class="setrow"><span>Keep window aspect ratio</span><input type="checkbox" id="aspect"></div>
+        <div class="setrow" id="aspect-row"><span>Keep window aspect ratio<span class="sub">Zoom to fit only — More room lets the window take any shape</span></span><input type="checkbox" id="aspect"></div>
         <div class="setrow"><span>Show notes text<span class="sub">the free-floating text block on the overlay</span></span><input type="checkbox" id="shownotes"></div>
         <div class="setrow"><span>Merge pet damage into yours<span class="sub">on the meter and in copied lines</span></span><input type="checkbox" id="mergepets"></div>
       </details>
@@ -1079,6 +1086,10 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 <script defer src="spawnwarn.js"></script>
 <script defer src="itemtext.js"></script>
 <script defer src="charms.js"></script>
+<script defer src="layout.js"></script>
+<script defer src="spellproof.js"></script>
+<script defer src="slayerfind.js"></script>
+<script defer src="mobname.js"></script>
 <script defer src="slotcalc.js"></script>
 <script defer src="posquests.js"></script>
 <script defer src="unlocks.js"></script>

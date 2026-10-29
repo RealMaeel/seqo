@@ -7,17 +7,62 @@
 
 const fs = require('fs');
 const path = require('path');
+const safestore = require('./safestore.js');
 
 // deps: dataDir() -> data folder (local or the shared one), getWin() -> overlay or null,
 //       noteWrite() -> tells main.js a database was just written, so the shared-folder
 //       watcher doesn't mistake SEQO's own save for a sync from another PC
-function create({ dataDir, getWin, noteWrite }) {
+//       backupDir() -> SEQO's own folder on this PC for backups (2.7.2), shared() -> true when
+//       dataDir is a shared (Drive/Dropbox) folder, log(msg) -> the error log
+// 2.7.2: loading and saving go through safestore.js — a file that couldn't be read is never
+// saved over (see the Oct 28 note there).
+function create({ dataDir, getWin, noteWrite, backupDir = dataDir, shared = () => false, log = () => {} }) {
   const lootDbPath = () => path.join(dataDir(), 'lootdb.json');
+  const store = safestore.create({
+    name: 'lootdb', file: lootDbPath,
+    backupDir: () => path.join(backupDir(), 'backups'),
+    createDir: () => !shared()
+  });
   let lootDB = { mobs: {} };
   let lootSaveTimer = null;
+  // 2.7.2: what this session recorded since the last save, so it can be re-applied to a newer file
+  const journal = [];
+  let replaying = false;
+  const note = (fn, args) => { if (!replaying) journal.push([fn, args]); };
 
-  function loadLootDB() {
-    try { lootDB = JSON.parse(fs.readFileSync(lootDbPath(), 'utf8')); } catch { lootDB = { mobs: {} }; }
+  // startup: the file, or (if it can't be read yet) an empty one with saves held until it can
+  // reload (the shared folder changed on disk): the file, or keep what's in memory → true if reloaded
+  function loadLootDB({ reload = false } = {}) {
+    if (reload) {
+      const r = store.read();
+      if (r.state !== 'ok') { log('lootdb: reload skipped (' + r.state + ')'); return false; }
+      lootDB = r.data;
+      tidy();
+      // anything this session recorded but hadn't saved yet goes on top of the new copy
+      if (journal.length) {
+        replaying = true;
+        try { for (const [fn, args] of journal) api[fn](...args); } finally { replaying = false; }
+      }
+    } else {
+      const g = safestore.loadGuarded(store, {
+        fresh: () => ({ mobs: {} }),
+        missingGraceMs: shared() ? 120000 : 0,
+        log,
+        onRecovered: (data) => {
+          lootDB = safestore.mergeLoot(data, lootDB);
+          tidy();
+          saveLootDBSoon(); pushLootDBSoon();
+        }
+      });
+      lootDB = g.data;
+      if (g.state === 'ok') store.dailyBackup();
+    }
+    tidy();
+    return true;
+  }
+
+  function tidy() {
+    if (!lootDB || typeof lootDB !== 'object') lootDB = { mobs: {} };
     if (!lootDB.mobs) lootDB.mobs = {};
     // migrate pre-zone entries: keep their data, mark zone unknown
     for (const [k, m] of Object.entries(lootDB.mobs)) {
@@ -42,7 +87,27 @@ function create({ dataDir, getWin, noteWrite }) {
   function saveLootDBSoon() {
     clearTimeout(lootSaveTimer);
     lootSaveTimer = setTimeout(() => {
-      try { noteWrite(); fs.writeFileSync(lootDbPath(), JSON.stringify(lootDB)); } catch (e) { console.error(e); }
+      try {
+        noteWrite();
+        let r = store.write(JSON.stringify(lootDB));
+        if (r.conflict) {
+          // someone else changed the file since we read it (Drive synced another PC, a restore):
+          // take theirs and re-apply only what this session recorded since its last save
+          const d = store.read();
+          if (d.state !== 'ok') { log('lootdb: file changed and can\'t be read — save held'); return; }
+          lootDB = d.data; tidy();
+          replaying = true;
+          try { for (const [fn, args] of journal) api[fn](...args); } finally { replaying = false; }
+          clearTimeout(lootSaveTimer);
+          log('lootdb: file changed on disk — merged ' + journal.length + ' new change(s) into it');
+          noteWrite();
+          r = store.write(JSON.stringify(lootDB));
+          pushLootDBSoon();
+        }
+        if (r.ok) journal.length = 0;
+        if (!r.ok) log('lootdb: save held — ' + (r.skipped || 'file changed'));
+        else if (r.backup) log('lootdb: saved much smaller than before; old copy kept at ' + r.backup);
+      } catch (e) { log('lootdb: save failed — ' + (e.message || e)); }
     }, 1000);
   }
 
@@ -89,6 +154,7 @@ function create({ dataDir, getWin, noteWrite }) {
   }
 
   function recordKill(mob, zone, when, secs, tier, extra) {
+    note('recordKill', [mob, zone, when, secs, tier, extra]);
     const m = lootEntry(mob, zone);
     m.kills += 1;
     noteKillTime(m, when, secs, tier, extra);
@@ -100,6 +166,7 @@ function create({ dataDir, getWin, noteWrite }) {
   // list: [{ mob, zone, times: [ms or { t, s, d }…] }]; returns how many new times were added
   // (a time to kill or a tier filled in on a kill already there saves too, but isn't counted)
   function addKillTimes(list) {
+    note('addKillTimes', [list]);
     let added = 0, changed = false;
     for (const k of list || []) {
       const m = lootDB.mobs[(k.zone || '') + '|' + mobKey(k.mob || '')];
@@ -114,7 +181,21 @@ function create({ dataDir, getWin, noteWrite }) {
     return added;
   }
 
+  // the newest kill time in the records (2.7.2: where a first log catch-up starts)
+  function newestKillTime() {
+    let t = 0;
+    for (const m of Object.values(lootDB.mobs)) for (const k of m.killTimes || []) { const x = asKill(k).t; if (x > t) t = x; }
+    return t;
+  }
+
+  // is a kill of this mob at exactly this time already recorded? (2.7.2: log catch-up)
+  function hasKillAt(mob, zone, when) {
+    const m = lootDB.mobs[(zone || '') + '|' + mobKey(mob)];
+    return !!(m && (m.killTimes || []).some((k) => asKill(k).t === when));
+  }
+
   function recordDrop(mob, item, zone) {
+    note('recordDrop', [mob, item, zone]);
     const m = lootEntry(mob, zone);
     const d = m.drops[item] || (m.drops[item] = { name: item, count: 0 });
     d.count += 1;
@@ -123,6 +204,7 @@ function create({ dataDir, getWin, noteWrite }) {
 
   // batched mob combat observations: max melee hit, hit counts, casts seen
   function recordMobStats(entries) {
+    note('recordMobStats', [entries]);
     for (const s of entries || []) {
       const m = lootEntry(s.mob, s.zone);
       m.maxHit = Math.max(m.maxHit || 0, s.maxHit || 0);
@@ -136,11 +218,12 @@ function create({ dataDir, getWin, noteWrite }) {
     saveLootDBSoon(); pushLootDBSoon();
   }
 
-  return {
+  const api = {
     get db() { return lootDB; },          // loadLootDB() replaces the object: always read it through here
-    lootDbPath, loadLootDB, saveLootDBSoon, pushLootDBSoon, mobKey, lootEntry,
-    recordKill, recordDrop, recordMobStats, addKillTimes
+    lootDbPath, loadLootDB, savesHeld: () => store.blockedWhy(), saveLootDBSoon, pushLootDBSoon, mobKey, lootEntry,
+    recordKill, recordDrop, recordMobStats, addKillTimes, hasKillAt, newestKillTime
   };
+  return api;
 }
 
 module.exports = { create };
