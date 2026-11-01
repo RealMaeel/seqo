@@ -26,9 +26,37 @@ function create({ dataDir, getWin, noteWrite, backupDir = dataDir, shared = () =
   let lootDB = { mobs: {} };
   let lootSaveTimer = null;
   // 2.7.2: what this session recorded since the last save, so it can be re-applied to a newer file
+  // 2.7.3: KEPT for an hour, not cleared on save — Google Drive can put back an OLDER copy of
+  // the file a minute after SEQO saved (seen Oct 29), and then what SEQO saved is gone from disk.
+  // Re-applying is safe because it's deduplicated: a kill whose exact time the file already has
+  // is skipped, and so are the drops that followed it; mob combat stats aren't re-applied.
+  const JOURNAL_MS = 60 * 60000;
   const journal = [];
   let replaying = false;
-  const note = (fn, args) => { if (!replaying) journal.push([fn, args]); };
+  const note = (fn, args) => { if (!replaying) journal.push([fn, args, Date.now()]); };
+  // → how many kills/drops went back in
+  function replayJournal() {
+    const cut = Date.now() - JOURNAL_MS;
+    while (journal.length && journal[0][2] < cut) journal.shift();
+    const reapplied = new Map();   // zone|mob → was its latest journal kill missing from the file?
+    let n = 0;
+    replaying = true;
+    try {
+      for (const [fn, args] of journal) {
+        if (fn === 'recordKill') {
+          const [mob, zone, when] = args;
+          const k = (zone || '') + '|' + mobKey(mob);
+          const missing = !(when > 0) ? false : !hasKillAt(mob, zone, when);
+          reapplied.set(k, missing);
+          if (missing) { api.recordKill(...args); n++; }
+        } else if (fn === 'recordDrop') {
+          const [mob, , zone] = args;
+          if (reapplied.get((zone || '') + '|' + mobKey(mob))) { api.recordDrop(...args); n++; }
+        } else if (fn === 'addKillTimes') api.addKillTimes(...args);
+      }
+    } finally { replaying = false; }
+    return n;
+  }
 
   // startup: the file, or (if it can't be read yet) an empty one with saves held until it can
   // reload (the shared folder changed on disk): the file, or keep what's in memory → true if reloaded
@@ -39,10 +67,7 @@ function create({ dataDir, getWin, noteWrite, backupDir = dataDir, shared = () =
       lootDB = r.data;
       tidy();
       // anything this session recorded but hadn't saved yet goes on top of the new copy
-      if (journal.length) {
-        replaying = true;
-        try { for (const [fn, args] of journal) api[fn](...args); } finally { replaying = false; }
-      }
+      if (journal.length && replayJournal()) { log('lootdb: the file on disk was missing kills from this session — put back'); saveLootDBSoon(); }
     } else {
       const g = safestore.loadGuarded(store, {
         fresh: () => ({ mobs: {} }),
@@ -96,15 +121,13 @@ function create({ dataDir, getWin, noteWrite, backupDir = dataDir, shared = () =
           const d = store.read();
           if (d.state !== 'ok') { log('lootdb: file changed and can\'t be read — save held'); return; }
           lootDB = d.data; tidy();
-          replaying = true;
-          try { for (const [fn, args] of journal) api[fn](...args); } finally { replaying = false; }
+          const n = replayJournal();
           clearTimeout(lootSaveTimer);
-          log('lootdb: file changed on disk — merged ' + journal.length + ' new change(s) into it');
+          log('lootdb: file changed on disk — ' + n + ' kill(s)/drop(s) from this session put back into it');
           noteWrite();
           r = store.write(JSON.stringify(lootDB));
           pushLootDBSoon();
         }
-        if (r.ok) journal.length = 0;
         if (!r.ok) log('lootdb: save held — ' + (r.skipped || 'file changed'));
         else if (r.backup) log('lootdb: saved much smaller than before; old copy kept at ' + r.backup);
       } catch (e) { log('lootdb: save failed — ' + (e.message || e)); }

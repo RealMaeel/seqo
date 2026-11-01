@@ -516,6 +516,15 @@
   });
   refreshDataStatus();
 
+  // 2.7.3: where you are, read from the log at start (not the zone SEQO last saved)
+  window.overlay.onLogZone((z) => {
+    if (!z || !z.zone || z.zone === currentZone) return;
+    currentZoneVariant = z.variant || '';
+    setZone(z.zone, { autoFetch: true });
+    save({ lastZone: z.zone });
+    toast('📍 Zone from your log: ' + z.zone);
+  });
+
   // 2.7.2: kills and loot read from the log for the time SEQO was closed
   window.overlay.onCatchup((r) => {
     if (!r) return;

@@ -37,12 +37,15 @@
   // weight -10% a tier but never below 30% of the base (and 0.1); delay unchanged; every upgraded
   // item gains SV Void +1 a tier, and every weapon Accuracy +2.5% a tier — even when the
   // base item has none (the wiki lists +0 items, so those lines are added here).
-  const SCALE_STATS = /\b(MANA REGEN|HP REGEN|ENDURANCE REGEN|ENDUR REGEN|AC|HP|MANA|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON))(:\s*\+?)(\d+)/gi;
+  //   Sergeant's Leather Belt +6 (wiki: STA 9, END 20, Haste 32%): STA 15 · End 32 · Haste 38% —
+  //     so Endurance scales like any stat, and Haste goes up just +1% a tier (Ed, Oct 29)
+  const SCALE_STATS = /\b(MANA REGEN|HP REGEN|ENDURANCE REGEN|ENDUR REGEN|AC|HP|MANA|ENDURANCE|END|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON))(:\s*\+?)(\d+)/gi;
   const upStat = (n, T) => (T && n > 0) ? Math.max(Math.floor(n * (1 + 0.10 * T)), n + T) : n;
   const upDmg = upStat;   // weapon damage scales like stats (was +5% before 2.7.2: Windstriker showed 63, the game 81)
   const upRange = (n, T) => (T && n > 0) ? Math.floor(n * (1 + 0.05 * T)) : n;
   const upWeight = (n, T) => T ? Math.max(0.1, +(Math.max(n * 0.3, n * (1 - 0.10 * T))).toFixed(1)) : n;
   const upVoid = (n, T) => (+n || 0) + (T || 0);
+  const upHaste = (n, T) => (T && n > 0) ? n + T : n;   // +1% a tier
   const upAccuracy = (n, T) => (+n || 0) + 2.5 * (T || 0);
   const fmtPct = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
   function scaledStats(block, T) {
@@ -50,6 +53,7 @@
     if (!T) return block;
     const isWeapon = /\bDMG:\s*\+?\d+/i.test(block);
     let out = block.replace(SCALE_STATS, (a, st, sep, n) => st + sep + upStat(+n, T));
+    out = out.replace(/\b(HASTE)(:\s*\+?)(\d+)/gi, (a, st, sep, n) => st + sep + upHaste(+n, T));
     out = out.replace(/\b(DMG)(:\s*\+?)(\d+)/gi, (a, st, sep, n) => st + sep + upDmg(+n, T));
     out = out.replace(/\b(Range)(:\s*)(\d+)/g, (a, st, sep, n) => st + sep + upRange(+n, T));
     out = out.replace(/\b(WT)(:\s*)([\d.]+)/gi, (a, st, sep, n) => st + sep + upWeight(+n, T).toFixed(1));
@@ -76,5 +80,5 @@
       parts.push((/^focus/i.test(m[1]) ? 'Focus: ' : 'Effect: ') + m[2].trim() + (m[3] ? ' (' + m[3].trim() + ')' : ''));
     return parts;
   }
-  return { cleanStatsBlock, decodeEntities, scaledStats, upStat, upDmg, upVoid, upAccuracy, upRange, upWeight, chatParts };
+  return { cleanStatsBlock, decodeEntities, scaledStats, upStat, upDmg, upVoid, upAccuracy, upRange, upWeight, upHaste, chatParts };
 });

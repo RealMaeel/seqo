@@ -15,7 +15,7 @@
 })(typeof self !== 'undefined' ? self : this, function (IT) {
   const EFFECT_TYPES = ['Focus', 'Click', 'Worn', 'Proc', 'Effect'];
   // every "NAME: +n" stat on the block, in order: [{ stat, value, label }]
-  const STAT_RE = /\b(MANA REGEN|HP REGEN|ENDURANCE REGEN|ENDUR REGEN|AC|HP|MANA|ENDURANCE|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|DMG|ACCURACY|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON|VOID|CORRUPTION)|Dmg Bon|BACKSTAB|Atk Delay)(:\s*)([+-]?\d+)/gi;
+  const STAT_RE = /\b(MANA REGEN|HP REGEN|ENDURANCE REGEN|ENDUR REGEN|AC|HP|MANA|ENDURANCE|END|STR|STA|AGI|DEX|WIS|INT|CHA|ATK|HASTE|DMG|ACCURACY|SV (?:FIRE|COLD|MAGIC|DISEASE|POISON|VOID|CORRUPTION)|Dmg Bon|BACKSTAB|Atk Delay)(:\s*)([+-]?\d+)/gi;
   const key = (s) => String(s).toUpperCase().replace(/\s+/g, ' ').trim();
   function parseStats(block) {
     const out = [];
@@ -26,6 +26,7 @@
   const FIXED = new Set(['ATK DELAY', 'BACKSTAB', 'DMG BON']);
   // the upgrade math per stat (itemtext.js, checked against the game in 2.7.2)
   const upFor = (stat) => stat === 'DMG' ? IT.upDmg : stat === 'ACCURACY' ? IT.upAccuracy : stat === 'SV VOID' ? IT.upVoid :
+    stat === 'HASTE' ? IT.upHaste :
     stat === 'RANGE' ? IT.upRange : FIXED.has(stat) ? ((n) => n) : IT.upStat;
 
   // the +0 value that shows as `seen` at tier T (smallest that fits; null = no +0 value can)

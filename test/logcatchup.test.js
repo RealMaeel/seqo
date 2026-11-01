@@ -59,6 +59,15 @@ const mk = (now) => C.create({ parser, lootStore: store, tierNum, cleanZone, fil
   ok(r3 && r3.kills === 1 && r3.drops === 0 && store.db.mobs['Lake Nerius|a lake drake'].kills === 2, 'first start: from the newest kill + 3 min (' + JSON.stringify(r3) + ')');
   // a kill already recorded at that exact time is skipped
   ok(store.hasKillAt('a kiraikuei', 'The Plane of Hate', T('11:00:30')), 'hasKillAt finds it');
+  // zone right now: last zone line of the current log, else your own /who row, else the archive
+  const z1 = await c.zoneNow(log, fs.statSync(log).size);
+  ok(z1 && z1.zone === 'Lake Nerius', 'zoneNow: last "You have entered" in the current log');
+  fs.writeFileSync(log, L('13:00:00', '[50 SHD/RNG/BRD] Maeel (Half Dark Elf) <Graves Avengers> ZONE: Nektropos Castle 2156 (nektropos)') + '\n');
+  const z2 = await c.zoneNow(log, fs.statSync(log).size);
+  ok(z2 && z2.zone === 'Nektropos Castle', 'zoneNow: your own /who row (' + JSON.stringify(z2) + ')');
+  fs.writeFileSync(log, '');
+  const z3 = await c.zoneNow(log, 0);
+  ok(z3 && z3.zone === 'The Plane of Hate', 'zoneNow: empty log → the newest archive (' + JSON.stringify(z3) + ')');
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`logcatchup: ${pass} passed, ${fail} failed`);
   if (fail) process.exit(1);

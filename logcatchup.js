@@ -149,7 +149,33 @@ function create({ parser, lootStore, tierNum, cleanZone, file, now = () => Date.
     return { kills, drops, files, from: since, to: newest };
   }
 
-  return { catchUp, seen, flush, lastSeen, lineTime };
+  // 2.7.3: where you are right now, from the log — the last "You have entered" line, or your own
+  // /who row (ZONE: …), in the current log up to endOffset; else the newest archived log's tail.
+  // SEQO used to start in the zone it last saved, so after zoning while SEQO was closed every
+  // kill went to the wrong zone (Ed, Oct 29: the Game Master filed under the Undercrofts).
+  // → { zone, variant, at } | null
+  async function zoneNow(logPath, endOffset) {
+    const me = (/^eqlog_([^_]+)_/i.exec(path.basename(logPath)) || [])[1] || '';
+    let found = null;
+    if (endOffset > 0) {
+      try {
+        const rl = readline.createInterface({ input: fs.createReadStream(logPath, { start: 0, end: endOffset - 1, encoding: 'latin1' }), crlfDelay: Infinity });
+        for await (const raw of rl) {
+          if (!raw.includes('You have entered') && !raw.includes('ZONE:')) continue;
+          const ev = parser.parseLine(raw);
+          if (!ev) continue;
+          if (ev.type === 'zone') found = { zone: cleanZone(ev.zone), variant: ev.variant || '', at: ev.when || lineTime(raw) };
+          else if (ev.type === 'zonemap' && me && ev.player && ev.player.toLowerCase() === me.toLowerCase())
+            found = { zone: cleanZone(ev.longName), variant: '', at: ev.when || lineTime(raw) };
+        }
+      } catch { /* fall back below */ }
+    }
+    if (found) return found;
+    const z = zoneBefore(logPath, Infinity);
+    return z.zone ? { zone: z.zone, variant: z.variant, at: 0 } : null;
+  }
+
+  return { catchUp, seen, flush, lastSeen, lineTime, zoneNow };
 }
 
 module.exports = { create, lineTime };

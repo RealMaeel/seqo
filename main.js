@@ -1919,6 +1919,9 @@ function startTail(logPath) {
   }
   tail = { path: logPath, offset: size, remainder: '' };
   // read what happened while SEQO was closed (up to where the live tail starts)
+  logCatchup.zoneNow(logPath, size).then((z) => {
+    if (z && z.zone && win) win.webContents.send('log-zone', z);
+  }).catch(() => { /* keep the saved zone */ });
   logCatchup.catchUp(logPath, size).then((r) => {
     if (r && (r.kills || r.drops) && win) win.webContents.send('catchup-done', r);
   }).catch((e) => { try { errorlog.record('logcatchup', 'catch-up failed: ' + (e.message || e)); } catch { /* ok */ } });

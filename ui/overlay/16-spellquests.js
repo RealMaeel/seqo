@@ -39,10 +39,14 @@
     if (!SPQ) return rows;
     for (const q of SPQ.QUESTS) {
       const st = spqState(q.key);
-      if (!st.sel || st.done) continue;
+      // tracked ⭐ — or (2.7.3) a quest for one of your trio's classes, tracked or not
+      const mine = ((settings && settings.myTrio) || []).includes(q.cls);
+      if ((!st.sel && !mine) || st.done) continue;
+      const npcZone = (String(q.npc || '').split(/\s+—\s+/)[1] || '').trim();   // "Kazzel D`Leryt — Rathe Mountains"
       for (const it of q.items) {
-        if (it.kind !== 'drop' && it.kind !== 'ground') continue;
-        if (!it.zone || !zoneEq(it.zone, zone)) continue;
+        // drops/ground spawns where they are; bought/handed-over pieces where the quest NPC stands (2.7.3)
+        const where = it.zone || ((it.kind === 'buy' || it.kind === 'given') ? npcZone : '');
+        if (!where || !zoneEq(where, zone)) continue;
         if (spqHave(st, it)) continue;
         rows.push({ g: 'spellq', item: it.name, mobs: [it.mob || it.where || 'ground spawn'],
                     reason: q.spell + ' (' + q.cls + ') — ' + q.name });

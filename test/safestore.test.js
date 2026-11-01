@@ -79,9 +79,24 @@ ok(g.zones.a === 1 && g.items.x === 1 && g.items.y === 2 && g.spellPages.s === 1
   await new Promise((r) => setTimeout(r, 1200));
   const after = JSON.parse(fs.readFileSync(lootFile, 'utf8'));
   ok(after.mobs['z|a rat'].kills === 501 && after.mobs['z|a wolf'].kills === 7, 'changed on disk → their file + only this session\'s new kill (' + after.mobs['z|a rat'].kills + ')');
+  // Google Drive puts back an OLDER copy after SEQO saved (seen Oct 29): nothing from this session is lost
+  const before = fs.readFileSync(lootFile, 'utf8');            // 501 rat kills
+  store.recordKill('a rat', 'z', 120, 10);
+  store.recordDrop('a rat', 'Rat Ear', 'z');
+  await new Promise((r) => setTimeout(r, 1200));                 // saved: 502, 1 ear
+  ok(JSON.parse(fs.readFileSync(lootFile, 'utf8')).mobs['z|a rat'].kills === 502, 'saved normally');
+  await new Promise((r) => setTimeout(r, 30));
+  fs.writeFileSync(lootFile, before);                            // Drive restores the copy from before that save
+  store.loadLootDB({ reload: true });                            // the watcher reloads it
+  await new Promise((r) => setTimeout(r, 1200));
+  const rv = JSON.parse(fs.readFileSync(lootFile, 'utf8')).mobs['z|a rat'];
+  ok(rv.kills === 502 && rv.drops['Rat Ear'] && rv.drops['Rat Ear'].count === 1, 'Drive revert → the session\'s kill and its drop put back (' + rv.kills + ')');
+  store.loadLootDB({ reload: true });                            // reloading the good file again changes nothing
+  await new Promise((r) => setTimeout(r, 1200));
+  ok(JSON.parse(fs.readFileSync(lootFile, 'utf8')).mobs['z|a rat'].kills === 502, 'nothing counted twice');
   // a reload that hits a half-synced file keeps memory
   fs.writeFileSync(lootFile, '{"mo');
-  ok(store.loadLootDB({ reload: true }) === false && store.db.mobs['z|a rat'].kills === 501, 'reload of a half-synced file → keep what is in memory');
+  ok(store.loadLootDB({ reload: true }) === false && store.db.mobs['z|a rat'].kills === 502, 'reload of a half-synced file → keep what is in memory');
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`safestore: ${pass} passed, ${fail} failed`);
   if (fail) process.exit(1);

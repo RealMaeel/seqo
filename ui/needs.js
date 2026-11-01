@@ -8,7 +8,8 @@
     { g: 'wish', label: '⭐ WISH LIST' },
     { g: 'epic', label: '⚔ EPIC PREP' },
     { g: 'unlock', label: '🔓 UNLOCK TURN-INS' },
-    { g: 'spellq', label: '🧙 SPELL QUESTS' }
+    { g: 'spellq', label: '🧙 SPELL QUESTS' },
+    { g: 'slayer', label: '💀 SLAYER — hunt here' }
   ];
 
   function render(flashItem) {
@@ -66,8 +67,8 @@
           });
         }
         d.append(nm, cnt, mobs, star);
-        d.title = 'Click for item details' + (r.reason ? ' — ' + r.reason : '');
-        d.addEventListener('click', () => window.overlay.needsCmd({ kind: 'item', name: r.item }));
+        d.title = (r.g === 'slayer' ? 'Click to open this achievement' : 'Click for item details') + (r.reason ? ' — ' + r.reason : '');
+        d.addEventListener('click', () => window.overlay.needsCmd(r.g === 'slayer' ? { kind: 'slayer', name: r.ach } : { kind: 'item', name: r.item }));
         list.appendChild(d);
       }
     }

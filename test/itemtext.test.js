@@ -41,5 +41,9 @@ ok(T.cleanStatsBlock(null) === '', 'nothing in, nothing out');
   ok(T.upWeight(4.0, 3) === 2.8 && T.upWeight(4.0, 10) === 1.2 && T.upWeight(0.1, 5) === 0.1, 'weight -10%/tier, never below 30% of base or 0.1');
   ok(T.chatParts('Focus Effect: Improved Damage III\nEffect: Supernova (Combat, Rate -75%)').join(' · ') === 'Focus: Improved Damage III · Effect: Supernova (Combat, Rate -75%)', 'focus and proc on consecutive lines');
 }
+{ // Sergeant's Leather Belt +6 in game (Ed, Oct 29): STA 15, End 32, Haste 38% (wiki +0: STA 9, END 20, Haste 32%)
+  const b = T.scaledStats('Slot: WAIST\nSTA: +9  HP: +35  END: +20  Haste: +32%\nSize: SMALL WT: 0.5', 6);
+  ok(/STA: \+15/.test(b) && /END: \+32/.test(b) && /Haste: \+38%/.test(b), 'belt +6: END scales, Haste +1%/tier: ' + b.replace(/\n+/g, ' | '));
+}
 console.log(`itemtext: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -10,6 +10,56 @@
   $('l-needs').addEventListener('click', () => window.overlay.openNeeds());
   $('n-popout').addEventListener('click', () => window.overlay.openNeeds());
 
+  // 🔓 2.7.3: unfinished race-unlock and key quests — the item a step has you get IN this zone
+  function unlockStepNeeds(zone) {
+    const rows = [];
+    const done = (name) => {
+      for (const s of achSections()) { const a = s.achievements.find(x => x.name === name); if (a) return !!(a.done || achDoneLive.has(name)); }
+      return achDoneLive.has(name);
+    };
+    const quests = [];
+    for (const [race, q] of Object.entries(UNL.RACE_QUESTS || {})) if (!done('Race Unlock - ' + race)) quests.push([race + ' (race unlock)', q]);
+    for (const [name, q] of Object.entries(UNL.KEY_QUESTS || {}))
+      if (!done(name) && !(q.keyItem && invHas(q.keyItem))) quests.push([name, q]);
+    for (const [label, q] of quests)
+      for (const st of q.steps || []) {
+        if (!st.item || !zoneEq(st.zone, zone) || invHas(st.item)) continue;
+        const where = st.text.length > 48 ? st.text.slice(0, 46).replace(/\s+\S*$/, '') + '…' : st.text;
+        rows.push({ g: 'unlock', item: st.item, mobs: [where], reason: label + ' — ' + st.text });
+      }
+    return rows;
+  }
+
+  // 💀 2.7.3: unfinished Slayer counters whose creature family hunts in this zone (slayer.js spots),
+  // closest to done first
+  function slayerNeeds(zone) {
+    const rows = [];
+    if (!SLY || !SLY.FAMILIES) return rows;
+    for (const s of SLY_SECTIONS) {
+      if (s.key === 'general') continue;
+      const sec = achSection(s.re);
+      if (!sec) continue;
+      for (const a of sec.achievements) {
+        if (a.done || achDoneLive.has(a.name)) continue;
+        for (const o of slyObjs(a)) {
+          if (o.done) continue;
+          let spot = null, fam = '';
+          for (const tok of slyTokens(o.text)) {
+            const f = slyFamily(tok);
+            const sp = f && (f.spots || []).find(x => zoneEq(x.zone, zone));
+            if (sp) { spot = sp; fam = f.name; break; }
+          }
+          if (!spot) continue;
+          rows.push({ g: 'slayer', item: fam.charAt(0).toUpperCase() + fam.slice(1), have: o.max ? (o.cur || 0) : 0, need: o.max || 0,
+                      mobs: [spot.note || a.name], ach: a.name,
+                      reason: a.name + ': ' + o.text.replace(/\.$/, ''), pct: o.max ? (o.cur || 0) / o.max : 0 });
+        }
+      }
+    }
+    rows.sort((x, y) => y.pct - x.pct);
+    return rows.slice(0, 6);
+  }
+
   function buildZoneNeeds() {
     if (!currentZone) return { zone: '', rows: [] };
     // candidate items obtainable here: your own loot DB + the wiki's zone page
@@ -27,6 +77,20 @@
     }
     for (const n of (zoneData && zoneData.named) || [])
       for (const d of n.drops || []) addSrc(d.item, n.mob === '(zone drops)' ? '' : n.mob);
+    // 2.7.3: epic pieces whose known source is in this zone ("Rharzar, Rathe Mountains") — even
+    // when you've never looted one here and the zone's wiki page doesn't list it (Ed, Oct 30:
+    // standing in The Rathe Mountains, the Drake Spine for his epic didn't show)
+    const bare = (z) => String(z || '').toLowerCase().replace(/^the /, '').trim();
+    const here = new Set([currentZone, ...wikiCandidates(currentZone)].map(bare));
+    const short = zoneShortName(currentZone);
+    if (short && EQLZones.zones) for (const [long, sh] of Object.entries(EQLZones.zones)) if (sh === short) here.add(bare(long));
+    for (const cls of qSelClasses()) {
+      for (const it of epicItemsFor(cls)) {
+        if (!it || !it.src) continue;
+        const i = it.src.lastIndexOf(', ');
+        if (here.has(bare(i >= 0 ? it.src.slice(i + 2) : it.src))) addSrc(it.n, i >= 0 ? it.src.slice(0, i).replace(/\s*\(raid\)$/i, '') : '');
+      }
+    }
     const rows = [];
     const wishShown = new Set();
     for (const { item, mobs } of sources.values()) {
@@ -54,8 +118,13 @@
       const hit = wishWikiHere(key, [currentZone, zoneData && zoneData.pageTitle, ...wikiCandidates(currentZone)]);
       if (hit) rows.push({ g: 'wish', item: e.name, mobs: hit.mobs.slice(0, 4) });
     }
-    rows.push(...spellQuestNeeds(currentZone)); // 🧙 tracked spell-quest pieces here
-    const order = { wish: 0, epic: 1, unlock: 2, spellq: 3 };
+    rows.push(...spellQuestNeeds(currentZone)); // 🧙 spell-quest pieces here (tracked, or your trio's)
+    rows.push(...unlockStepNeeds(currentZone));  // 🔓 race / key quest items picked up here (2.7.3)
+    rows.push(...slayerNeeds(currentZone));      // 💀 Slayer counters that hunt here (2.7.3)
+    // one row per item and group (an unlock step can also be a grind item, etc.)
+    { const seen = new Set();
+      for (let i = rows.length - 1; i >= 0; i--) { const k = rows[i].g + '|' + normItemName(rows[i].item); if (seen.has(k)) rows.splice(i, 1); else seen.add(k); } }
+    const order = { wish: 0, epic: 1, unlock: 2, spellq: 3, slayer: 4 };
     rows.sort((a, b) => (order[a.g] - order[b.g]) || a.item.localeCompare(b.item));
     return { zone: currentZone, rows };
   }
@@ -76,6 +145,7 @@
     if (!cmd) return;
     if (cmd.kind === 'refresh') pushNeeds();
     else if (cmd.kind === 'item' && cmd.name) openItem(cmd.name);
+    else if (cmd.kind === 'slayer' && cmd.name) { setTab('quests'); setQuestView('__slayer'); slyFindAndExpand(cmd.name); }
     else if (cmd.kind === 'wish' && cmd.name) toggleWish(cmd.name);
   });
 

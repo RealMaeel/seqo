@@ -131,6 +131,7 @@ const api = {
   dataDirStatus: () => ipcRenderer.invoke('data-dir-status'),
   onSharedReload: (cb) => ipcRenderer.on('shared-reload', () => cb()),
   onCatchup: (cb) => ipcRenderer.on('catchup-done', (_e, r) => cb(r)),
+  onLogZone: (cb) => ipcRenderer.on('log-zone', (_e, z) => cb(z)),
   getSyncFiles: () => ipcRenderer.invoke('get-sync-files'),
   addSyncFile: () => ipcRenderer.invoke('add-sync-file'),
   addSyncFolder: () => ipcRenderer.invoke('add-sync-folder'),
