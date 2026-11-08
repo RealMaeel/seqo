@@ -173,12 +173,21 @@ async function main() {
   }
   console.log('');
   const c = compile(batches, { minPlayers });
+  // which uploads it was built from: an hourly run with nothing new skips publishing the same file again
+  c.batches = batches.length; c.lastBatch = batches.length ? batches[batches.length - 1].id : 0;
+  if (!dry && !process.argv.includes('--force')) {
+    try {
+      const cur = await (await fetch(server + '/v1/data.json')).json();
+      if (cur && cur.lastBatch === c.lastBatch && cur.batches === c.batches && cur.minPlayers === c.minPlayers) { console.log('nothing new since ' + cur.built + ' — not re-published'); return; }
+    } catch { /* none published yet: publish */ }
+  }
   const text = JSON.stringify(c);
   console.log(c.installs + ' installs, ' + c.records.toLocaleString() + ' records → ' + Object.keys(c.mobs).length + ' mobs, ' +
     Object.keys(c.npcs).length + ' NPCs, ' + Object.keys(c.tasks).length + ' tasks, ' + (text.length / 1024).toFixed(0) + ' KB');
   if (dry) { require('fs').writeFileSync('compiled.json', text); console.log('wrote compiled.json (nothing uploaded)'); return; }
   const r = await fetch(server + '/v1/admin/compiled', { method: 'PUT', headers: { ...auth, 'content-type': 'application/json' }, body: text });
-  console.log(r.ok ? 'uploaded — ' + server + '/v1/data.json' : 'upload failed: HTTP ' + r.status + ' ' + (await r.text()));
+  if (!r.ok) { console.error('upload failed: HTTP ' + r.status + ' ' + (await r.text())); process.exit(1); }   // a failed run shows red in GitHub Actions
+  console.log('uploaded — ' + server + '/v1/data.json');
 }
 
 if (typeof require !== "undefined" && require.main === module) main().catch((e) => { console.error(e.message || e); process.exit(1); });

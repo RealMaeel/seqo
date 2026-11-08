@@ -1,4 +1,4 @@
-# SEQO community data: every 3 hours, add up everything players have shared and publish the
+# SEQO community data: every hour, add up everything players have shared and publish the
 # compiled file every SEQO downloads. The server is the Cloudflare Worker in server/; the adding-up
 # runs here because Cloudflare's free plan only allows 10 ms of CPU per request.
 #
@@ -10,7 +10,7 @@ name: Community data compile
 
 on:
   schedule:
-    - cron: '23 */3 * * *'    # every 3 hours, at :23 (GitHub may start it a few minutes late)
+    - cron: '23 * * * *'      # every hour, at :23 (GitHub may start it a few minutes late; a run with nothing new skips publishing)
   workflow_dispatch:           # "Run workflow" button for a manual run
 
 permissions:

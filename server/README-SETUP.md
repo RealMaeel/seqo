@@ -75,7 +75,7 @@ Once SEQO is uploading, run this to add everything up and publish the file every
 node tools\compile.cjs
 ```
 
-Or let Windows run it every 3 hours (no window pops up; each run is added to compile-log.txt):
+Or let Windows run it every hour (no window pops up; each run is added to compile-log.txt):
 
 ```
 schtasks /Create /TN "SEQO community compile" /SC HOURLY /MO 3 /TR "wscript.exe C:\test_seqo\_server\compile-hidden.vbs" /F
