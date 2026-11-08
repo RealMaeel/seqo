@@ -356,6 +356,7 @@ function applyLockState() {
     if (!w || w.isDestroyed()) continue;
     if (settings.locked) w.setIgnoreMouseEvents(true, { forward: true });
     else w.setIgnoreMouseEvents(false);
+    reOpacity(w);
     w.webContents.send('lock-state', settings.locked);
   }
   snapDock();  // the drawn panel shifts between edit/locked — children follow
@@ -603,7 +604,7 @@ ipcMain.handle('history-import-logs', async () => {
   let doneBytes = 0;
   try {
     for (const f of files) {
-      if (!byChar.has(f.char)) byChar.set(f.char, createImporter({ parser, char: f.char, prices: require('./prices.js'), spellDB }));
+      if (!byChar.has(f.char)) byChar.set(f.char, createImporter({ parser, char: f.char, prices: require('./prices.js'), spellDB, community: community.session({ me: f.char }) }));
       const imp = byChar.get(f.char);
       const rl = readline.createInterface({ input: fs.createReadStream(f.p, { encoding: 'latin1' }), crlfDelay: Infinity });
       let n = 0;
@@ -635,7 +636,8 @@ ipcMain.handle('history-import-logs', async () => {
     const seen = gameDB.spellsSeen = gameDB.spellsSeen || {};
     for (const [, imp] of byChar) for (const [n, t] of Object.entries(imp.spellsSeen())) if (spellproof.noteSeen(seen, n, t)) spells++;
     if (spells) saveGameDBSoon();
-    return { ok: true, added, skipped, files: files.length, prices, killTimes, spells };
+    community.flush();   // 2.7.5: every kill, drop and faction hit in those logs → local community data
+    return { ok: true, added, skipped, files: files.length, prices, killTimes, spells, community: community.stats() };
   } catch (e) {
     return { error: e.message || String(e) };
   } finally { historyImporting = false; }
@@ -929,8 +931,14 @@ function needsHeight() {
 // attached windows sit at ~the overlay's opacity (floored so they stay usable)
 const childOpacity = () => Math.max(0.3, Math.min(1, settings.opacity !== undefined ? settings.opacity : 0.95));
 function applyChildOpacity() {
-  for (const w of [dockWin, needsWin])
-    if (w && !w.isDestroyed()) { try { w.setOpacity(childOpacity()); } catch { /* ok */ } }
+  for (const w of [dockWin, needsWin]) reOpacity(w);
+}
+// 2.7.4: Windows drops a window's see-through level when its click-through style changes
+// (locking, and every hover-to-interact in locked mode) or it's re-styled (📌 detach) — so
+// the dock popups went solid. Re-apply it after each of those. The overlay itself uses CSS.
+function reOpacity(w) {
+  if (!w || w.isDestroyed() || (w !== dockWin && w !== needsWin)) return;
+  try { w.setOpacity(childOpacity()); } catch { /* ok */ }
 }
 
 // The overlay DRAWS its panel centered inside the window (480×290 design,
@@ -1012,6 +1020,7 @@ function openDock(mode, payload) {
       dockWin.webContents.send('ui-scale', settings.textScale || 'normal');
       if (settings.locked) { // born locked: click-through with hover-to-interact
         dockWin.setIgnoreMouseEvents(true, { forward: true });
+        reOpacity(dockWin);
         dockWin.webContents.send('lock-state', true);
       }
       dockWin.webContents.send('dock-mode', { mode, payload });
@@ -1022,6 +1031,7 @@ function openDock(mode, payload) {
   snapDock();
   dockWin.moveTop();   // never open behind the overlay
   dockWin.focus();
+  reOpacity(dockWin);
   dockWin.webContents.send('dock-mode', { mode, payload });
   if (win && mode === 'cleanup') win.webContents.send('cleanup-state', true);
 }
@@ -1033,6 +1043,7 @@ ipcMain.on('dock-detach', (_e, detached) => {
   dockDetached = !!detached;
   if (!dockDetached) snapDock();
   else if (dockWin && !dockWin.isDestroyed()) dockWin.setResizable(true);
+  reOpacity(dockWin);
 });
 
 // overlay → dock (cleanup rows / scan progress)
@@ -1084,6 +1095,7 @@ function openNeeds() {
     needsWin.webContents.send('needs-min', !!settings.needsPanelMin);
     if (settings.locked) { // born locked: click-through with hover-to-interact
       needsWin.setIgnoreMouseEvents(true, { forward: true });
+      reOpacity(needsWin);
       needsWin.webContents.send('lock-state', true);
     }
     if (win) win.webContents.send('needs-state', true);
@@ -1249,7 +1261,16 @@ ipcMain.handle('problem-report', () => {
       'Data folder': dataDir(),
       'Loot DB': Object.keys((lootStore.db && lootStore.db.mobs) || {}).length + ' mobs',
       'Saves held': [lootStore.savesHeld() && 'lootdb: ' + lootStore.savesHeld(), gameStore.blockedWhy() && 'gamedb: ' + gameStore.blockedWhy()].filter(Boolean).join('; ') || 'no',
-      'Game exports found': exports
+      'Game exports found': exports,
+      'Community data': (() => {
+        try {
+          const u = communityUp.status(), d = communityData.status();
+          return (u.share === true ? 'sharing' : u.share === false ? 'not sharing' : 'not asked yet') +
+            (u.last ? ' · last sent ' + new Date(u.last).toISOString() + ' (' + u.lastRecords + ' records)' : '') +
+            ' · waiting ' + u.waiting + (u.error ? ' · error: ' + u.error : '') +
+            ' · file ' + (d.have ? d.mobs + ' mobs, built ' + d.built + ', fetched ' + new Date(d.fetchedAt).toISOString() : 'not downloaded') + (d.error ? ' (' + d.error + ')' : '');
+        } catch (e) { return 'unavailable: ' + e.message; }
+      })()
     }
   });
   try { require('electron').clipboard.writeText(text); } catch (e) { return { error: e.message }; }
@@ -1319,24 +1340,43 @@ async function refreshCachedPages() {
     ].filter(Boolean))];
     if (!titles.length) return { checked: 0, updated: 0, details: [] };
 
+    const progress = (msg) => { try { if (win) win.webContents.send('check-updates-progress', msg); } catch { /* ok */ } };
+    progress('asking the wiki which of ' + titles.length + ' pages changed…');
     const latest = await updater.getLatestRevisions(titles);
-    const details = [];
+    const details = [], failed = [];
     let updated = 0;
+    // pages cached before SEQO kept revision ids (all of them, before this fix) are taken as current
+    // and stamped, instead of re-reading hundreds of pages; the next real edit on the wiki is caught
+    let stamped = 0;
+    for (const e of [...zoneEntries, ...itemEntries, ...Object.values(gameDB.effects || {}), ...Object.values(gameDB.guidePages || {})]) {
+      if (e && !e.revid && e.pageTitle && latest[e.pageTitle] !== undefined) { e.revid = latest[e.pageTitle]; stamped++; }
+    }
+    const changed = zoneEntries.filter((z) => latest[z.pageTitle] !== undefined && z.revid !== latest[z.pageTitle]).length +
+      itemEntries.filter((i) => latest[i.pageTitle] !== undefined && i.revid !== latest[i.pageTitle]).length;
+    let done = 0;
+    const step = () => { done++; progress('re-reading changed pages… ' + done + ' / ' + changed); };
 
     for (const z of zoneEntries) {
       const cur = latest[z.pageTitle];
       if (cur === undefined) continue;
       if (!z.revid || z.revid !== cur) {
-        const fresh = await updater.fetchZoneData(z.zone);
-        gameDB.zones[z.zone] = fresh;
-        updated++; details.push('zone: ' + z.zone);
+        // re-read it from the page it was found at (the game's zone name may not be a wiki page:
+        // "The Plane of Fear" is "Plane of Fear" there); one failure doesn't stop the rest
+        step();
+        try {
+          const fresh = await updater.fetchZoneData(z.zone, [z.pageTitle]);
+          gameDB.zones[z.zone] = fresh;
+          updated++; details.push('zone: ' + z.zone);
+        } catch (e) { failed.push(z.zone); }
       }
     }
     for (const it of itemEntries) {
       const cur = latest[it.pageTitle];
       if (cur === undefined) continue;
       if (!it.revid || it.revid !== cur) {
-        const fresh = await updater.fetchItemData(it.pageTitle);
+        let fresh;
+        step();
+        try { fresh = await updater.fetchItemData(it.pageTitle); } catch { failed.push(it.name); continue; }
         gameDB.items[it.name.toLowerCase()] = fresh;
         updated++; details.push('item: ' + it.pageTitle);
       }
@@ -1361,7 +1401,7 @@ async function refreshCachedPages() {
       } catch { /* keep the cached copy */ }
     }
     saveGameDBSoon();
-    return { checked: titles.length, updated, details };
+    return { checked: titles.length, updated, details, failed, stamped };
   } catch (err) {
     return { error: err.message };
   }
@@ -1420,6 +1460,11 @@ ipcMain.handle('search-local', (_e, query) => {
       if (d.name.toLowerCase().includes(q))
         results.push({ kind: 'seen', name: d.name, detail: 'looted from ' + m.name + ' ' + d.count + '/' + m.kills + ' (' + (m.kills ? Math.round(d.count / m.kills * 100) : 0) + '%)' });
     }
+  }
+  // 🌐 3.0: community mobs / items you have no record of yourself, after your own
+  if (communityShown()) {
+    const mine = new Set(results.map((r) => r.name.toLowerCase()));
+    for (const r of communityData.search(query, 8)) if (!mine.has(r.name.toLowerCase())) results.push(r);
   }
   // dedupe by kind+name+detail, cap
   const seen = new Set();
@@ -1822,10 +1867,104 @@ const lootStore = require('./lootdb.js').create({
 });
 const { lootDbPath, loadLootDB } = lootStore;
 
+// 2.7.5: local community data store (communitydb.js) — kills, drops, faction hits and mob details,
+// kept on this PC (never the shared folder) for a future community upload. Nothing is sent.
+const community = require('./communitydb.js').create({ dir: () => app.getPath('userData'), log: dbLog });
+let communityLive = community.session();
+// the live log → community records: its own parse + fight tracker, so it reads exactly like the
+// catch-up and 📥 Old logs do (kills, drops, faction hits, quest turn-ins, tasks, NPC dialog)
+const communityFeed = { parser: require('./parser.js'), tracker: null, zone: '', tier: 0, path: '' };
+function communityStart(logPath) {
+  try { community.flush(); } catch { /* ok */ }
+  const me = (/^eqlog_([^_]+)_/i.exec(path.basename(logPath)) || [])[1] || '';
+  communityLive = community.session({ me });
+  communityFeed.tracker = new communityFeed.parser.FightTracker();
+  communityFeed.path = logPath; communityFeed.zone = ''; communityFeed.tier = 0;
+}
+function communityLines(logPath, lines) {
+  if (communityFeed.path !== logPath) return;
+  const f = communityFeed;
+  for (const raw of lines) {
+    try {
+      const ev = f.parser.parseLine(raw);
+      if (ev && ev.type === 'zone') { f.zone = require('./historyimport.js').cleanZone(ev.zone); f.tier = mobstats.tierNum(ev.variant || ''); }
+      if (ev) f.tracker.feed(ev);
+      communityLive.feed(raw, ev, { zone: f.zone, tier: f.tier, isEnemy: (n) => f.tracker.isEnemy(n) });
+    } catch { /* one odd line never stops the rest */ }
+  }
+}
+app.on('before-quit', () => { try { community.flush(); } catch { /* ok */ } });
+
+// 3.0: sending the community data — only after the player said yes (settings.communityShare).
+// communityupload.js; the server is C:\test_seqo\_server (Cloudflare Worker).
+const COMMUNITY_SERVER = 'https://seqo-community.seqo-community.workers.dev';
+const communityUp = require('./communityupload.js').create({
+  dir: () => app.getPath('userData'),
+  getSettings: () => settings,
+  saveSettings: (p) => { settings = { ...settings, ...p }; saveSettings(settings); },
+  server: COMMUNITY_SERVER,
+  appVersion: app.getVersion(),
+  flush: () => community.save(),
+  log: dbLog
+});
+app.whenReady().then(() => communityUp.start());
+
+// 3.0: the compiled community file — downloaded at start and every hour, shared or not
+// (reading it sends nothing about you). communitydata.js.
+const communityData = require('./communitydata.js').create({
+  dir: () => app.getPath('userData'),
+  server: COMMUNITY_SERVER,
+  log: dbLog,
+  onUpdate: (st) => { for (const w of [win, dockWin]) { try { if (w && !w.isDestroyed()) w.webContents.send('community-data-updated', st); } catch { /* ok */ } } }
+});
+app.whenReady().then(() => communityData.start());
+ipcMain.handle('community-data-status', () => communityData.status());
+ipcMain.handle('community-data-refresh', async () => { await communityData.refresh(); return communityData.status(); });
+// ⚙ "Show community numbers" off: every lookup answers empty (the file is still downloaded)
+const communityShown = () => settings.communityShow !== false;
+ipcMain.handle('community-mob', (_e, name) => (communityShown() ? communityData.mob(name) : []));
+ipcMain.handle('community-item', (_e, name) => (communityShown() ? communityData.item(name) : []));
+ipcMain.handle('community-respawns', () => (communityShown() ? communityData.respawns() : {}));
+ipcMain.handle('community-faction', (_e, name) => (communityShown() ? communityData.faction(name) : null));
+ipcMain.handle('community-factions', (_e, q) => (communityShown() ? communityData.factions(q) : []));
+ipcMain.handle('community-show', (_e, on) => {
+  settings = { ...settings, communityShow: !!on };
+  saveSettings(settings);
+  const st = { ...communityData.status(), quiet: true };
+  for (const w of [win, dockWin]) { try { if (w && !w.isDestroyed()) w.webContents.send('community-data-updated', st); } catch { /* ok */ } }
+  return { ok: true };
+});
+ipcMain.handle('community-share', (_e, on) => {
+  settings = { ...settings, communityShare: !!on };
+  saveSettings(settings);
+  if (on) setTimeout(() => communityUp.run({ force: true }).catch(() => { /* next run */ }), 3000);
+  return { ok: true };
+});
+ipcMain.handle('community-upload-status', () => communityUp.status());
+ipcMain.handle('community-preview', () => communityUp.preview());
+ipcMain.handle('community-send-now', () => communityUp.run({ force: true }));
+ipcMain.handle('community-reset-id', () => { communityUp.resetId(); return { ok: true }; });
+
 ipcMain.on('record-kill', (_e, { mob, zone, when, secs, variant, makeup, group }) => lootStore.recordKill(mob, zone, when, secs, mobstats.tierNum(variant), { c: makeup, g: group }));
 ipcMain.on('record-drop', (_e, { mob, item, zone }) => lootStore.recordDrop(mob, item, zone));
 // batched mob combat observations: max melee hit, hit counts, casts seen
-ipcMain.on('record-mob-stats', (_e, entries) => lootStore.recordMobStats(entries));
+ipcMain.on('record-mob-stats', (_e, entries) => { lootStore.recordMobStats(entries); communityLive.mobs(entries); });
+ipcMain.handle('community-stats', () => community.stats());
+ipcMain.handle('community-open', () => {
+  try { fs.mkdirSync(community.folder(), { recursive: true }); } catch { /* ok */ }
+  return require('electron').shell.openPath(community.folder());
+});
+// the bundle a future upload would send, written to a file so you can see exactly what's in it
+ipcMain.handle('community-export', () => {
+  try {
+    const b = community.bundle({ itemFixes: gameDB.itemFixes || {}, spellsSeen: gameDB.spellsSeen || {}, phLinks: gameDB.phLinks || {} });
+    fs.mkdirSync(community.folder(), { recursive: true });
+    const p = path.join(community.folder(), 'community-export.json');
+    fs.writeFileSync(p, JSON.stringify(b));
+    require('electron').shell.showItemInFolder(p);
+    return { ok: true, path: p, records: b.records.length };
+  } catch (e) { return { error: e.message || String(e) }; }
+});
 
 ipcMain.handle('get-loot-db', () => lootStore.db);
 
@@ -1840,6 +1979,7 @@ ipcMain.on('set-interactive', (e, interactive) => {
   if (!w || w.isDestroyed()) return;
   if (interactive) w.setIgnoreMouseEvents(false);
   else w.setIgnoreMouseEvents(true, { forward: true });
+  reOpacity(w);
 });
 
 // ---------------------------------------------------------------------------
@@ -1895,14 +2035,15 @@ const { gameData, watchOutputFiles } = gameexports.create({
   getSettings: () => settings,
   getGameDB: () => gameDB,
   saveGameDBSoon,
-  getWin: () => win
+  getWin: () => win,
+  onInventory: (inv) => { communityLive.settle(Date.now() + 60000); community.inventory(inv); }   // 2.7.5: quest rewards
 });
 
 ipcMain.handle('get-gamedata', () => gameData);
 
 // 2.7.2: kills and loot from while SEQO was closed — see logcatchup.js
 const logCatchup = require('./logcatchup.js').create({
-  parser: require('./parser.js'), lootStore, tierNum: mobstats.tierNum,
+  parser: require('./parser.js'), lootStore, community, tierNum: mobstats.tierNum,
   cleanZone: require('./historyimport.js').cleanZone,
   file: () => path.join(app.getPath('userData'), 'logpos.json')
 });
@@ -1919,7 +2060,9 @@ function startTail(logPath) {
   }
   tail = { path: logPath, offset: size, remainder: '' };
   // read what happened while SEQO was closed (up to where the live tail starts)
+  communityStart(logPath);
   logCatchup.zoneNow(logPath, size).then((z) => {
+    if (z && z.zone && !communityFeed.zone) { communityFeed.zone = z.zone; communityFeed.tier = mobstats.tierNum(z.variant || ''); }
     if (z && z.zone && win) win.webContents.send('log-zone', z);
   }).catch(() => { /* keep the saved zone */ });
   logCatchup.catchUp(logPath, size).then((r) => {
@@ -1945,6 +2088,7 @@ function startTail(logPath) {
       const complete = lines.filter(l => l.length);
       if (complete.length && win) win.webContents.send('log-lines', complete);
       if (complete.length) logCatchup.seen(logPath, complete);
+      if (complete.length) communityLines(logPath, complete);
     });
     stream.on('error', (e) => console.error('Log read error:', e.message));
   });

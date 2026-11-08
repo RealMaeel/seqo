@@ -87,6 +87,26 @@
     return out;
   }
 
+  // 3.0: the same one-liner from the community file's entry for a mob in one zone
+  // e = { zone, mob, kills, players, respawn: { s }, drops: { item: { n } } } (communitydata.js)
+  function communityChatLine(e, max = 240) {
+    if (!e) return '';
+    const kills = e.kills || 0;
+    const resp = e.respawn && e.respawn.s ? ', respawn ~' + (e.respawn.s >= 3600 ? (e.respawn.s / 3600).toFixed(1).replace(/\.0$/, '') + 'h' : Math.round(e.respawn.s / 60) + ' min') : '';
+    const head = e.mob + (e.zone ? ' (' + e.zone + ')' : '') + ', community: ' + kills + ' kills by ' + (e.players || 0) + ' player' + (e.players === 1 ? '' : 's') + resp + ': ';
+    const z = { kills, drops: Object.entries(e.drops || {}).map(([name, d]) => ({ name, count: d.n, rate: pct(d.n, kills) })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)) };
+    if (!z.drops.length) return head + 'no drops shared yet';
+    const drops = chatDrops(z);
+    let out = head, shown = 0;
+    for (const d of drops) {
+      const part = (shown ? ' · ' : '') + d.name + ' ' + d.count + '/' + kills + ' ' + d.rate;
+      const rest = drops.length - shown - 1;
+      if ((out + part + (rest ? ' · +' + rest + ' more' : '')).length > max && shown) return out + ' · +' + (drops.length - shown) + ' more';
+      out += part; shown++;
+    }
+    return out;
+  }
+
   // a Discord / forum post: a fenced block keeps the columns lined up
   function markdown(card) {
     if (!card) return '';
@@ -199,5 +219,5 @@
     return h + 'h' + (m ? ' ' + String(m).padStart(2, '0') + 'm' : '');
   }
 
-  return { find, search, chatLine, markdown, pct, recentKills, fmtGap, fmtSecs, killSpeed, tierNum, tierLabel, tierCounts, fastestKills, byMakeup, soloGroup };
+  return { find, search, chatLine, communityChatLine, markdown, pct, recentKills, fmtGap, fmtSecs, killSpeed, tierNum, tierLabel, tierCounts, fastestKills, byMakeup, soloGroup };
 });

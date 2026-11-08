@@ -469,6 +469,12 @@
       return ev;
     }
 
+    // 2.7.5: was this name an enemy in the live (or last) fight — you hit it or it hit you?
+    isEnemy(name) {
+      const f = this.current || this.last;
+      return !!(f && name && f.enemies.has(normName(name)));
+    }
+
     // wall-clock check: ends a live fight when the log goes quiet
     tick() {
       if (this.current && this.lastFeedWallclock && Date.now() - this.lastFeedWallclock > FIGHT_GAP_MS) this.end();

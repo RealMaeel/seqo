@@ -24,7 +24,7 @@ function gameRootFromLog(logPath) {
 // deps: getSettings() -> current settings object (main.js replaces it on every
 //       update, so never cache it), getGameDB() -> the game DB (reloaded from
 //       disk, so never cache it either), saveGameDBSoon(), getWin() -> overlay or null
-function create({ getSettings, getGameDB, saveGameDBSoon, getWin }) {
+function create({ getSettings, getGameDB, saveGameDBSoon, getWin, onInventory }) {
   let gameData = { inventory: null, factions: null, achievements: null };
   let outputWatcher = null;
   let outputDebounce = null;
@@ -150,6 +150,7 @@ function create({ getSettings, getGameDB, saveGameDBSoon, getWin }) {
       }
       at[loc] = { name, slots: parseInt(cols[4], 10) || 0 };
       addItem(name, loc, parseInt(cols[3], 10) || 1);
+      { const it = items[name.toLowerCase()], id = (cols[2] || '').trim(); if (id && /^\d+$/.test(id) && !it.id) it.id = id; }   // 2.7.5: the item ID
     }
     return { items, keyring, exalts };
   }
@@ -223,6 +224,8 @@ function create({ getSettings, getGameDB, saveGameDBSoon, getWin }) {
       } catch { return null; }
     };
     gameData.inventory = applyDepotCarry(readOne(found.inventory, parseInventoryFile));
+    // 2.7.5: a new inventory file confirms quest rewards (communitydb.inventory)
+    if (onInventory && gameData.inventory) { try { onInventory(gameData.inventory); } catch { /* never blocks the read */ } }
     gameData.achievements = readOne(found.achievements, parseAchievementsFile);
     gameData.factions = readOne(found.factions, parseFactionsFile);
     gameData.spellbook = readOne(found.spellbook, parseSpellbookFile);

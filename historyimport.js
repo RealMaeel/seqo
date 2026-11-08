@@ -22,7 +22,7 @@ function cleanZone(z) {
   return zone;
 }
 
-function createImporter({ parser, char, prices, spellDB }) {
+function createImporter({ parser, char, prices, spellDB, community }) {
   const sessions = [];
   const killTimes = new Map();   // zone + '\u0001' + mob -> [ms…] (2.7: kill card's recent kills)
   // your class makeup at each kill (2.7): /who rows, your casts and — solo — buffs landing on you
@@ -85,6 +85,7 @@ function createImporter({ parser, char, prices, spellDB }) {
     lastT = t; cur.end = t; cur.lines++;
     { const sp = spellproof.castInLine(raw); if (sp) spellproof.noteSeen(spellsSeen, sp, t); }
     if (!ev) {
+      if (community) community.feed(raw, null, { zone: zoneNow, tier: tierNow });   // 2.7.5: quest / task / NPC lines
       if (guess) { const msg = raw.slice(raw.indexOf('] ') + 2); if (!guess.groupLine(msg)) guess.landed(msg, t, t - lastGroupT > SOLO_MS); }
       return;
     }
@@ -101,7 +102,8 @@ function createImporter({ parser, char, prices, spellDB }) {
       case 'levelup': cur.levels++; break;
       case 'aa': cur.aa += ev.gained || 0; break;
       case 'coin': cur.coin += ev.copper || 0; break;
-      case 'loot': cur.items++; if (/\bmote\b/i.test(ev.item || '')) cur.motes++; if (ev.soldFor) cur.coin += ev.soldFor; break;
+      case 'loot': cur.items++; if (/\bmote\b/i.test(ev.item || '')) cur.motes++; if (ev.soldFor) cur.coin += ev.soldFor;
+        break;
       case 'death':
         if (ev.target === YOU) { if (!cur.deaths.length || t - cur.lastDeath > 5000) cur.deaths.push((ev.killer ? 'Slain by ' + ev.killer : 'Died') + ' — ' + new Date(t).toLocaleTimeString()); cur.lastDeath = t; }
         else {
@@ -120,7 +122,8 @@ function createImporter({ parser, char, prices, spellDB }) {
         }
         break;
       case 'skillup': { const e = cur.skills.get(ev.skill) || { from: ev.value - 1, to: ev.value, n: 0 }; e.to = Math.max(e.to, ev.value); e.n++; cur.skills.set(ev.skill, e); break; }
-      case 'faction': { const e = cur.factions.get(ev.faction) || { net: 0, n: 0 }; e.net += ev.delta; e.n++; cur.factions.set(ev.faction, e); break; }
+      case 'faction': { const e = cur.factions.get(ev.faction) || { net: 0, n: 0 }; e.net += ev.delta; e.n++; cur.factions.set(ev.faction, e);
+        break; }
       case 'stance': cur.stance = ev.stance; break;
       case 'chat':
         if (prices && MARKET.has(ev.channel) && ev.from !== YOU)
@@ -134,8 +137,10 @@ function createImporter({ parser, char, prices, spellDB }) {
         }
         break;
     }
+    // 2.7.5: local community data (kills, drops, faction hits, turn-ins…) — after the zone is known
+    if (community) community.feed(raw, ev, { zone: zoneNow, tier: tierNow, isEnemy: (n) => tracker.isEnemy(n) });
   }
-  function finish() { close(); return sessions; }
+  function finish() { close(); if (community) community.end(); return sessions; }
   return {
     line, finish, offers: () => offers, spellsSeen: () => spellsSeen,
     killTimes: () => [...killTimes].map(([k, times]) => { const [zone, mob] = k.split('\u0001'); return { zone, mob, times }; })

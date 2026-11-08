@@ -84,6 +84,13 @@ const sarkis = c.npcs['Neriak|Sarkis Ebonblade'];
 assert.deepStrictEqual(sarkis.turnins[0], { items: [['Silvery Ring', 1], ['Wind Rune Beza', 1]], n: 1, players: 1, coin: 500, xp: 1 });
 assert.deepStrictEqual(sarkis.rewards['Crimson Ring of the Djinni'], { confirmed: 1, likely: 0, id: '27706' });
 assert.strictEqual(sarkis.dialog.length, 1);
+// the same history uploaded again under a new ID (a reinstall): the drop isn't doubled, the kills aren't either
+const again = compile(page.batches.concat([{ install: '33333333-3333-4333-8333-333333333333', body: page.batches.find((b) => b.install === A).body }]), { now: NOW });
+assert.deepStrictEqual(again.mobs['Permafrost Keep|an ice goblin'].drops['Raw-Hide Belt'].n, 1, 'a re-uploaded drop counts once');
+assert.strictEqual(again.mobs['Permafrost Keep|an ice goblin'].kills, 4, 're-uploaded kills merge like a group kill');
+// the batches come back with their bodies as stored JSON (no re-encoding)
+assert.ok(Array.isArray(page.batches[0].body), 'body is the stored array');
+
 // with 2 players required, the drop backed by one player is left out
 assert.strictEqual(compile(page.batches, { minPlayers: 2, now: NOW }).mobs['Permafrost Keep|an ice goblin'].drops, undefined);
 

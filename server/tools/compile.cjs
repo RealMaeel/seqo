@@ -18,6 +18,7 @@
 const SKEW_MS = 3000;
 const RESPAWN_MIN = 60e3, RESPAWN_MAX = 3 * 3600e3;
 
+const { scrubDialog, repairYou, knownWords } = require('./dialogscrub.cjs');
 const median = (a) => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 const mode = (a) => { const c = new Map(); let best, n = 0; for (const v of a) { const k = (c.get(v) || 0) + 1; c.set(v, k); if (k > n) { n = k; best = v; } } return best; };
 
@@ -30,6 +31,8 @@ function compile(batches, { minPlayers = 1, now = Date.now() } = {}) {
   const mobs = new Map();      // z|m -> { l:[], mh, h, ht, s:Set }
   const crawls = new Map();    // z -> { n, who:Set }
   const installs = new Set();
+  const names = new Set();     // every game name seen: what dialog scrubbing may keep
+  const seenDrops = new Set(); // zone|mob|kill time|item|count|loot time: a re-uploaded drop counts once
   let records = 0;
 
   const npc = (z, n) => { const k = z + '|' + n; let e = npcs.get(k); if (!e) npcs.set(k, e = { z, n, turnins: new Map(), dialog: new Set(), promises: new Map(), rewards: new Map(), factions: new Map(), who: new Set() }); return e; };
@@ -42,10 +45,18 @@ function compile(batches, { minPlayers = 1, now = Date.now() } = {}) {
     installs.add(who);
     for (const r of recs || []) {
       records++;
+      for (const k of ['z', 'm', 'n', 'f', 'i', 'k']) if (typeof r[k] === 'string') names.add(r[k]);
       const zm = r.z + '|' + r.m;
       switch (r.r) {
         case 'k': sub(kills, zm, () => []).push({ t: r.t, d: r.d || 0, who }); break;
-        case 'd': { const it = sub(sub(drops, zm, () => new Map()), r.i, () => ({ n: 0, who: new Set() })); it.n += r.q || 1; it.who.add(who); break; }
+        case 'd': {
+          // only the looter sees "You looted", so the same drop (zone, mob, kill time, item) twice is one player's
+          // history uploaded again (a reinstall, a wiped data folder) — count it once
+          const dk = zm + '|' + r.kt + '|' + r.i + '|' + (r.q || 1) + '|' + r.t;
+          if (seenDrops.has(dk)) break;
+          seenDrops.add(dk);
+          const it = sub(sub(drops, zm, () => new Map()), r.i, () => ({ n: 0, who: new Set() })); it.n += r.q || 1; it.who.add(who); break;
+        }
         case 'f':
           if (r.m) { const a = sub(sub(facs, zm, () => new Map()), r.f, () => []); a.push(r.c && !r.v ? r.c : r.v); }
           else if (r.n) { const e = npc(r.z, r.n); sub(e.factions, r.f, () => []).push(r.c && !r.v ? r.c : r.v); }
@@ -122,6 +133,7 @@ function compile(batches, { minPlayers = 1, now = Date.now() } = {}) {
   }
 
   // ---- quest NPCs ----
+  const vocab = knownWords(names);
   const npcOut = {};
   for (const [k, e] of npcs) {
     const who = new Set(e.who); for (const r of e.rewards.values()) for (const w of r.who) who.add(w);
@@ -137,7 +149,8 @@ function compile(batches, { minPlayers = 1, now = Date.now() } = {}) {
     if (e.promises.size) o.promises = Object.fromEntries([...e.promises].map(([p, sigs]) => [p, [...sigs]]));
     if (e.rewards.size) o.rewards = Object.fromEntries([...e.rewards].map(([i, r]) => [i, { confirmed: r.confirmed, likely: r.likely, id: r.id || undefined }]));
     if (e.factions.size) o.factions = Object.fromEntries([...e.factions].map(([f, a]) => [f, { v: mode(a), n: a.length }]));
-    if (e.dialog.size) o.dialog = [...e.dialog];
+    // players' names out of what NPCs said, whatever SEQO version sent it
+    if (e.dialog.size) o.dialog = [...new Set([...e.dialog].map((x) => scrubDialog(repairYou(x), vocab)))];
     npcOut[k] = o;
   }
 
@@ -163,7 +176,7 @@ async function main() {
   const batches = [];
   let after = 0;
   for (;;) {
-    const r = await fetch(server + '/v1/admin/batches?limit=500&after=' + after, { headers: auth });
+    const r = await fetch(server + '/v1/admin/batches?limit=100&after=' + after, { headers: auth });
     if (!r.ok) { console.error('Reading batches failed: HTTP ' + r.status + ' ' + (await r.text())); process.exit(1); }
     const j = await r.json();
     batches.push(...j.batches);

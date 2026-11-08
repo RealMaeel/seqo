@@ -197,13 +197,18 @@
     for (const r of results) {
       const div = document.createElement('div');
       div.className = 'k-result';
-      const icon = r.kind === 'kills' ? '🗡' : r.kind === 'seen' ? '💰' : r.kind === 'wiki' ? '🌐' : r.kind === 'tools' ? '🧰' : r.kind === 'mob' ? '👹' : r.kind === 'price' ? '🏷' : r.kind === 'p99' ? '🏛' : '📦';
+      const icon = r.kind === 'kills' ? '🗡' : r.kind === 'seen' ? '💰' : r.kind === 'wiki' ? '🔎' : r.kind === 'cmob' || r.kind === 'citem' ? '🌐' : r.kind === 'cfaction' ? '⚖' : r.kind === 'tools' ? '🧰' : r.kind === 'mob' ? '👹' : r.kind === 'price' ? '🏷' : r.kind === 'p99' ? '🏛' : '📦';
       div.innerHTML = icon + ' <b></b> <span class="d"></span>';
       div.querySelector('b').textContent = r.name;
-      const pt = r.kind !== 'mob' && r.kind !== 'kills' ? priceTag(r.page || r.itemName || r.name) : '';
+      const pt = r.kind !== 'mob' && r.kind !== 'kills' && r.kind !== 'cmob' && r.kind !== 'cfaction' ? priceTag(r.page || r.itemName || r.name) : '';
       div.querySelector('.d').textContent = '— ' + r.detail + (pt ? ' · sells ' + pt : '');
-      if (r.kind === 'kills') {   // your own kill card: works without a wiki page
+      if (r.kind === 'kills' || r.kind === 'cmob') {   // the kill card: works without a wiki page (🌐 = only the community has it)
         div.addEventListener('click', () => window.overlay.openDock('mob', { name: r.name }));
+        el.appendChild(div);
+        continue;
+      }
+      if (r.kind === 'cfaction') {   // ⚖ what raises / lowers it
+        div.addEventListener('click', () => window.overlay.openDock('faction', { name: r.name }));
         el.appendChild(div);
         continue;
       }

@@ -33,6 +33,7 @@
     $('ccalerts').checked = settings.ccAlerts !== false;
     $('cdtimers').checked = settings.cooldownTimers !== false;
     $('concard').checked = settings.considerCard === true;
+    $('concardsecs').value = settings.conCardSecs != null ? settings.conCardSecs : 8;
     if (document.activeElement !== $('cdmin')) $('cdmin').value = settings.cooldownMin || 30;
     $('tts-on').checked = settings.ttsOn !== false;
     $('tts-rate').value = settings.ttsRate || 1.1;
@@ -230,6 +231,10 @@
   });
   $('cdtimers').addEventListener('change', (e) => save({ cooldownTimers: e.target.checked }));
   $('concard').addEventListener('change', (e) => save({ considerCard: e.target.checked }));
+  $('concardsecs').addEventListener('change', (e) => {
+    const v = Math.max(0, Math.min(120, Math.round(+e.target.value || 0)));
+    e.target.value = v; save({ conCardSecs: v });
+  });
   $('cdmin').addEventListener('change', (e) => save({ cooldownMin: Math.max(20, +e.target.value || 30) }));
   $('deathrecap').addEventListener('change', (e) => save({ deathRecap: e.target.checked }));
   $('alertsound').addEventListener('change', (e) => save({ alertSound: e.target.checked }));
@@ -516,6 +521,31 @@
   });
   refreshDataStatus();
 
+  // 2.7.5: local community data — what's been collected so far
+  async function refreshCommunity() {
+    const el = $('community-status');
+    if (!el || !window.overlay.communityStats) return;
+    try {
+      const s = await window.overlay.communityStats();
+      const d = (t) => new Date(t).toLocaleDateString();
+      const rows = [[s.kills, 'kills'], [s.drops, 'drops'], [s.factions, 'faction hits'], [s.turnins, 'quest turn-ins'], [s.rewards, 'quest rewards'],
+        [s.dialog, 'NPC lines'], [s.tasks, 'task updates'], [s.crawls, 'crawls'], [s.mobs, 'mob notes']];
+      const any = rows.some(([v]) => v);
+      el.innerHTML = any ? rows.map(([v, w]) => '<span><b style="color:#e6e6ee">' + (v || 0).toLocaleString() + '</b> ' + w + '</span>').join('')
+        : '<span style="grid-column:1/-1">nothing yet — fills in as you play, or read your 📥 Old logs</span>';
+      const r = $('community-range'); if (r) r.textContent = any && s.first ? 'from ' + d(s.first) + ' to ' + d(s.last) : '';
+    } catch { el.textContent = 'not available'; }
+  }
+  refreshCommunity();
+  setInterval(refreshCommunity, 60000);
+  // the History modal's 📥 Old logs, reachable from here too (it's two clicks deep in ⚔ Meter → Σ Session → 📚 History)
+  if ($('btn-community-oldlogs')) $('btn-community-oldlogs').addEventListener('click', () => { const b = $('hist-import'); if (b && !b.disabled) { b.click(); toast('📥 Reading your old logs… this takes a minute or two'); } });
+  if ($('btn-community-open')) $('btn-community-open').addEventListener('click', () => window.overlay.communityOpen());
+  if ($('btn-community-export')) $('btn-community-export').addEventListener('click', async () => {
+    const r = await window.overlay.communityExport();
+    toast(r && r.ok ? '📦 Community data exported — ' + r.records.toLocaleString() + ' records' : '⚠ Export failed: ' + ((r && r.error) || 'unknown'), !(r && r.ok));
+  });
+
   // 2.7.3: where you are, read from the log at start (not the zone SEQO last saved)
   window.overlay.onLogZone((z) => {
     if (!z || !z.zone || z.zone === currentZone) return;
@@ -563,12 +593,19 @@
       : '⚠ ' + ((r && r.error) || 'could not copy');
   });
 
+  let updChecking = false;
+  if (window.overlay.onCheckUpdatesProgress) window.overlay.onCheckUpdatesProgress((msg) => { if (updChecking) $('upd-status').textContent = msg; });
   $('btn-checkupd').addEventListener('click', async () => {
-    const st = $('upd-status');
+    const st = $('upd-status'), b = $('btn-checkupd');
+    if (updChecking) return;
+    updChecking = true; b.disabled = true;
     st.textContent = 'checking wiki revisions…';
-    const res = await window.overlay.checkUpdates();
+    let res;
+    try { res = await window.overlay.checkUpdates(); } catch (e) { res = { error: (e && e.message) || 'failed' }; } finally { updChecking = false; b.disabled = false; }
     if (res.error) { st.textContent = '⚠ ' + res.error; return; }
-    st.textContent = res.checked + ' cached pages checked, ' + res.updated + ' refreshed';
+    st.textContent = res.checked + ' cached pages checked, ' + res.updated + ' refreshed' +
+      (res.stamped ? ' (' + res.stamped + ' older ones marked current — later wiki edits to them will be picked up)' : '') +
+      (res.failed && res.failed.length ? ' · ' + res.failed.length + ' couldn’t be re-read (kept as they were): ' + res.failed.slice(0, 3).join(', ') : '');
     if (res.updated && currentZone) setZone(currentZone); // re-render with fresh data
   });
   $('btn-log').addEventListener('click', async () => { await window.overlay.chooseLog(); refreshCharList(); });

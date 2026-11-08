@@ -55,17 +55,26 @@
     dv.className = 'l-divider'; dv.style.marginTop = '6px';
     dv.textContent = '📈 Progress this session';
     rowsEl.appendChild(dv);
-    const line = (txt, title, color) => { const d = document.createElement('div'); d.className = 'q-it'; d.style.cursor = 'default'; d.innerHTML = '<span class="nm" style="white-space:normal"></span>'; d.querySelector('.nm').textContent = txt; if (color) d.querySelector('.nm').style.color = color; if (title) d.title = title; rowsEl.appendChild(d); };
+    const line = (txt, title, color) => { const d = document.createElement('div'); d.className = 'q-it'; d.style.cursor = 'default'; d.innerHTML = '<span class="nm" style="white-space:normal"></span>'; d.querySelector('.nm').textContent = txt; if (color) d.querySelector('.nm').style.color = color; if (title) d.title = title; rowsEl.appendChild(d); return d; };
     if (p.skills.length) line('Skills: ' + p.skills.map(s => s.k + ' ' + s.from + '→' + s.to).join(' · '), p.skills.reduce((a, s) => a + s.n, 0) + ' skill-ups');
-    for (const f of p.factions.slice(0, 12))
-      line((f.net > 0 ? '▲ ' : f.net < 0 ? '▼ ' : '■ ') + f.k + ' ' + (f.net > 0 ? '+' : '') + f.net + (f.capped ? ' (maxed ' + (f.capped === 'better' ? 'ally' : 'out') + ')' : ''),
-        f.n + ' changes this session', f.net > 0 ? '#7dffa0' : f.net < 0 ? '#ff9d9d' : '#aab');
+    for (const f of p.factions.slice(0, 12)) {
+      const d = line((f.net > 0 ? '▲ ' : f.net < 0 ? '▼ ' : '■ ') + f.k + ' ' + (f.net > 0 ? '+' : '') + f.net + (f.capped ? ' (maxed ' + (f.capped === 'better' ? 'ally' : 'out') + ')' : ''),
+        f.n + ' changes this session — click: what raises or lowers it (⚖)', f.net > 0 ? '#7dffa0' : f.net < 0 ? '#ff9d9d' : '#aab');
+      d.style.cursor = 'pointer';
+      d.addEventListener('click', () => window.overlay.openDock('faction', { name: f.k }));   // 3.0
+    }
   }
 
   // ---- 🔎 consider card: what SEQO knows about the mob you just /con'd ----
   let conTimer = null;
+  const conShown = new Map();   // mob → when its card last popped (2.7.4: no re-pop spam)
   function showConsiderCard(ev) {
     if (!(settings && settings.considerCard === true)) return;   // off unless you turn it on
+    // 2.7.4: right-click mouselook /cons whatever is under the cursor, over and over (Ed) — the same
+    // mob pops its card again only after 2 minutes
+    { const k = String(ev.mob || '').toLowerCase(), now = Date.now();
+      if (conShown.has(k) && now - conShown.get(k) < 120000 && $('con-card').style.display !== 'flex') return;
+      conShown.set(k, now); }
     const card = $('con-card');
     const mk = mobKey(ev.mob);
     const low = mk.toLowerCase();
@@ -112,6 +121,11 @@
     } else if (!kills) add('No kills or drops recorded for this mob yet.', '#778');
     card.style.display = 'flex';
     clearTimeout(conTimer);
-    conTimer = setTimeout(() => { if (!card.matches(':hover')) card.style.display = 'none'; }, 15000);
+    // closes by itself after the seconds in ⚙ (0 = stays until you close it); a hovered card waits
+    const secs = settings && settings.conCardSecs != null ? +settings.conCardSecs : 8;
+    if (secs > 0) {
+      const tryClose = () => { if (card.matches(':hover')) conTimer = setTimeout(tryClose, 2000); else card.style.display = 'none'; };
+      conTimer = setTimeout(tryClose, secs * 1000);
+    }
   }
 

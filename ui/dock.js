@@ -8,6 +8,7 @@
     if (mode === 'cleanup') navStack.push({ mode: 'cleanup' });
     else if (mode === 'item' && itemName) navStack.push({ mode: 'item', name: itemName });
     else if (mode === 'mob' && mobName) navStack.push({ mode: 'mob', name: mobName });
+    else if (mode === 'faction') navStack.push({ mode: 'faction', name: typeof factionName === 'string' ? factionName : '' });
     else if (mode === 'guide' && guidePayload && guidePayload.helpTopic !== undefined)
       navStack.push({ mode: 'helptopic', i: guidePayload.helpTopic });
     else if (mode === 'guide' && guidePayload) navStack.push({ mode: 'guide', payload: guidePayload });
@@ -35,6 +36,7 @@
     else if (prev.mode === 'help') showHelp(true);
     else if (prev.mode === 'helptopic') showHelpTopic(prev.i, true);
     else if (prev.mode === 'mob') showMob(prev.name, true);
+    else if (prev.mode === 'faction') showFaction(prev.name, true);
     else showItem(prev.name, false, true);
   }
 
@@ -44,7 +46,8 @@
     $('item-root').classList.toggle('active', m === 'item');
     $('guide-root').classList.toggle('active', m === 'guide');
     $('mob-root').classList.toggle('active', m === 'mob');
-    $('mode-title').textContent = m === 'cleanup' ? '🧹 Cleanup' : m === 'guide' ? '📖 Guide' : m === 'mob' ? '🗡 Your kills' : '🔎 Item detail';
+    if ($('faction-root')) $('faction-root').classList.toggle('active', m === 'faction');
+    $('mode-title').textContent = m === 'cleanup' ? '🧹 Cleanup' : m === 'guide' ? '📖 Guide' : m === 'mob' ? '🗡 Your kills' : m === 'faction' ? '⚖ Faction' : '🔎 Item detail';
   }
 
   // =========================================================================
@@ -76,7 +79,9 @@
     ['Syncing between computers', 'Point ⚙ Game Data & Sync → Shared data folder at Dropbox/Drive/OneDrive and SEQO’s databases (loot history, item knowledge, notes, timers…) follow you between computers. One computer at a time — camp before switching.\n\nSynced game files mirror chosen game files (spell loadouts, UI layouts) through that folder, newest wins, with .seqo.bak backups. The status under Sync now never leaves you guessing: it names what was pushed and pulled, what failed and why, and WHICH computer wrote last — "picked up changes from ED-DESKTOP" means the other machine’s data arrived.\n\nSafety (2.7.2): SEQO never saves over a database it couldn’t read — if Drive isn’t ready yet, the shared-folder line says ⏸ waiting, nothing is overwritten, and what you did meanwhile is added once the file is back. It also keeps a copy before any save that would shrink a big file, and a daily backup of both databases in %APPDATA%\\SEQO\\backups.'],
     ['Updating SEQO', 'When a new version is out, a green ⬆ appears in the title bar (and ⚙ → SEQO updates says so). Click it: SEQO downloads the new installer from its GitHub releases, checks it is exactly the file GitHub published, closes, installs and reopens itself. Your settings and databases stay. Windows may still ask about an unknown publisher — SEQO isn’t code-signed.\n\nThe portable version and SEQO run from source open the download page instead.'],
     ['Something went wrong?', 'SEQO keeps a small log of its own errors on this PC. ⚙ Settings → 📋 Copy problem report (bottom of Settings) copies SEQO’s version, the recent errors and your settings — never your passwords, notes or your Windows user folder — so you can paste it in a message to the author. Each error names the SEQO file it came from, and the report starts with a count per file, so the cause is quick to find.\n\nIt helps to say what you were doing when it happened, and which tab you were on.'],
-    ['FAQ', 'Q: It says I need an item I already turned in.\nA: The inventory export only shows what you hold. On the Epics view, click the row’s checkbox to tick the turn-in off yourself.\n\nQ: My counters aren’t moving.\nA: Loot ticks live; totals ground in your last /outputfile inventory. Run it again — SEQO picks it up in a second.\n\nQ: Why did a respawn timer say ~tentative?\nA: It’s been learned from only one or two of your kill cycles. More cycles = solid ⟲. Or set it yourself with ✎.\n\nQ: A rare list / zone page looks wrong.\nA: Zone data comes from the wiki — ⟳ Update on the Lookup tab refetches it. Click-ignore a wrongly-listed "rare" and SEQO remembers.\n\nQ: What do the loot colors mean?\nA: Green KEEP = something still needs it. Gold WISH = you starred it. Grey = no known use. Orange SELLABLE/SPARE = PoS quest already served.\n\nQ: Where did the 🏆 BiS view go?\nA: It grew into the ⚔ Class tab’s Gear advisor — scored for your whole trio, with your own gear in the comparison. The "Flag best-in-slot drops" alert option still works from ⚙ Alerts & Sounds.\n\nQ: Why does the Gear view say "no catalog"?\nA: Press ⬇ Build catalog once — it reads every item page off the wiki (a few minutes, progress shown). After that, ⟳ updates take seconds because only changed pages are re-read.\n\nQ: Why do some buff countdowns show a ~?\nA: That duration depends on the CASTER\'s level, which SEQO can\'t always know. Your own casts are exact; others\' are honest estimates.\n\nQ: What does "experimental" on the Class tab mean?\nA: The data is the real thing (the game\'s own spell files, the wiki\'s item catalog), but the recommendations are young and still being tuned from field reports. Trust the numbers, sanity-check the advice, and report anything odd.\n\nQ: Where does my data live?\nA: Locally (or in your shared folder) — SEQO only READS the wiki and tool sites, and never sends your data anywhere.']
+    ['🌐 Community data (3.0)', 'SEQO reads everything your log proves about the game. 3.0 keeps those facts on your PC — kills, drops (tied to their kill), faction hits and what caused them, quest turn-ins and their rewards, what quest NPCs say to you, tasks, Dungeon Crawls, mob details — and, only if you said yes, shares them with the SEQO community database every 10 minutes.\n\nWhat goes out: those game facts, a random install ID (not linked to your character; 🎲 New ID makes a fresh one) and the SEQO version. Never your character, account or guild name, anyone else’s name, chat, notes or your log file. Your name in NPC dialog becomes {me} and other players’ names {player}.\n\nWhat comes back: every hour the server adds everyone’s data up (a group kill seen by several players counts once) and SEQO downloads the result. You see it as 🌐 Community boxes on kill cards (with their own 📋 copy for chat), drop sources and quest rewards on item cards, community respawns on camp timers you haven’t timed (marked 🌐), and community mobs, items and factions in Lookup. Your own numbers always come first. A box from fewer than three players starts folded to one line — click it to open.\n\n⚙ Settings → 📊 Community data: the Share switch, Show community numbers (off = only your own), 🔍 Preview (the next upload exactly as it goes out), ⬆ Send now, 🎲 New ID, 📥 Old logs (add your history), Export… and the upload / download status.'],
+    ['⚖ Factions (3.0)', 'The ⚖ Faction view answers "what do I kill or turn in for this faction?" from everyone’s shared data.\n\nOpen it from Lookup (type part of a faction name), by clicking a faction in Σ Session’s 📈 Progress list, or by clicking a faction name in a kill card’s 🌐 box. Its search box finds any other faction.\n\n▲ Raises it and ▼ Lowers it list every kill and quest turn-in players have seen change it, biggest first: per kill with how many kills were seen and the respawn, per turn-in with what to hand in. Click a mob for its kill card, an NPC for the item you hand in. "at limit" means it was only seen by players already at the top or bottom — the direction is known, the amount isn’t yet.\n\nYour standing at the top comes from your last /outputfile faction. Item cards also show what each turn-in does to faction.'],
+    ['FAQ', 'Q: It says I need an item I already turned in.\nA: The inventory export only shows what you hold. On the Epics view, click the row’s checkbox to tick the turn-in off yourself.\n\nQ: My counters aren’t moving.\nA: Loot ticks live; totals ground in your last /outputfile inventory. Run it again — SEQO picks it up in a second.\n\nQ: Why did a respawn timer say ~tentative?\nA: It’s been learned from only one or two of your kill cycles. More cycles = solid ⟲. Or set it yourself with ✎.\n\nQ: A rare list / zone page looks wrong.\nA: Zone data comes from the wiki — ⟳ Update on the Lookup tab refetches it. Click-ignore a wrongly-listed "rare" and SEQO remembers.\n\nQ: What do the loot colors mean?\nA: Green KEEP = something still needs it. Gold WISH = you starred it. Grey = no known use. Orange SELLABLE/SPARE = PoS quest already served.\n\nQ: Where did the 🏆 BiS view go?\nA: It grew into the ⚔ Class tab’s Gear advisor — scored for your whole trio, with your own gear in the comparison. The "Flag best-in-slot drops" alert option still works from ⚙ Alerts & Sounds.\n\nQ: Why does the Gear view say "no catalog"?\nA: Press ⬇ Build catalog once — it reads every item page off the wiki (a few minutes, progress shown). After that, ⟳ updates take seconds because only changed pages are re-read.\n\nQ: Why do some buff countdowns show a ~?\nA: That duration depends on the CASTER\'s level, which SEQO can\'t always know. Your own casts are exact; others\' are honest estimates.\n\nQ: What does "experimental" on the Class tab mean?\nA: The data is the real thing (the game\'s own spell files, the wiki\'s item catalog), but the recommendations are young and still being tuned from field reports. Trust the numbers, sanity-check the advice, and report anything odd.\n\nQ: Where does my data live?\nA: Locally (or in your shared folder) — SEQO only READS the wiki and tool sites. The one thing it ever sends is the 🌐 community data, and only if you said yes: game facts from your log, never anything about you (see 🌐 Community data above; ⚙ Settings → 📊 Community data turns it off).']
   ];
 
   function showHelp(noPush) {
@@ -442,6 +447,7 @@
     $('ifx').innerHTML = ''; $('iexalt').innerHTML = ''; $('ifixnote').style.display = 'none';
     $('ifixed').style.display = 'none'; $('ifixed').innerHTML = '';
     $('idrops').innerHTML = '';
+    if (typeof fillCommunityItem === 'function') fillCommunityItem(itemName);   // 🌐 3.0
     $('isect').innerHTML = '<div class="sect-b">loading…</div>';
     $('isources').innerHTML = '';
     if (!lootDB) lootDB = await window.overlay.getLootDB().catch(() => null);
@@ -506,6 +512,8 @@
     lootDB = await window.overlay.getLootDB().catch(() => lootDB);   // fresh: kills keep coming in
     if (mobName !== name) return;                                     // moved on meanwhile
     mobCard = window.EQLMobStats ? EQLMobStats.find(lootDB, name) : null;
+    // 🌐 3.0: everyone's numbers first (dock-community.js fills it in when the lookup answers)
+    { const cbox = document.createElement('div'); body.appendChild(cbox); if (typeof fillCommunityMob === 'function') fillCommunityMob(cbox, name); }
     const line = (cls, text) => { const d = document.createElement('div'); d.className = cls; d.textContent = text; body.appendChild(d); return d; };
     if (!mobCard) { line('sect-b', 'No kills of this mob in your loot records yet.'); return; }
     $('mtitle').textContent = mobCard.name;
@@ -813,6 +821,7 @@
     if (m.mode === 'item' && m.payload && m.payload.name) showItem(m.payload.name, false, true);
     else if (m.mode === 'guide' && m.payload) showGuide(m.payload, false, true);
     else if (m.mode === 'mob' && m.payload && m.payload.name) showMob(m.payload.name, true);
+    else if (m.mode === 'faction') showFaction(m.payload && m.payload.name, true);
     else if (m.mode === 'help') showHelp(true);
     else { setMode('cleanup'); render(); }
   });
@@ -824,7 +833,9 @@
   // chips and readable text come alive on hover (click + scroll still work
   // there), everywhere else your clicks reach the game underneath
   let lockedMode = false, hoverLive = false;
-  const HOVER_SEL = '#topbar, #chips, .row, #gtext, #gtoc, #gfoot, button, input, select, .q-it';
+  // 2.7.4: + the Cleanup table rows (.crow since 2.7) and every scrolling panel, so the mouse
+  // wheel scrolls the dock while locked (Ed: "I cannot scroll the cleanup tab when locked")
+  const HOVER_SEL = '#topbar, #chips, .row, .crow, #chead, #cfoot, .scroll, #list, #ibody, #mbody, #gtext, #gtoc, #gfoot, button, input, select, .q-it';
   window.overlay.onLockState((locked) => {
     lockedMode = !!locked;
     hoverLive = false;

@@ -12,7 +12,7 @@ const MAX_KEEP = 300;          // entries kept on disk / in memory
 const MAX_TEXT = 1500;         // chars per message / stack
 
 // settings that are never included, whatever their value
-const PRIVATE_KEYS = new Set(['wikiPass', 'wikiPassEnc', 'wikiUser', 'text', 'buffWatch', 'spellTimers', 'bounds']);
+const PRIVATE_KEYS = new Set(['wikiPass', 'wikiPassEnc', 'wikiUser', 'text', 'buffWatch', 'spellTimers', 'bounds', 'communityInstall']);
 
 function clip(s, n = MAX_TEXT) {
   s = String(s == null ? '' : s);

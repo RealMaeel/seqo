@@ -99,5 +99,18 @@ ok(/^\*\*Lord Rikantus Everling\*\*/.test(md) && (md.match(/```/g) || []).length
 ok(/Nektropos Castle · 23 kills · level 55 · max hit 812, avg 400/.test(md), 'zone line with level / hits');
 ok(/Reforged Blade Hilt\s+5\/23\s+22%/.test(md) && /Casts: Lifetap, Curse of the Everlings/.test(md), 'table rows + casts');
 
+// 3.0: community one-liner
+{
+  const e = { zone: 'The Plane of Hate', mob: 'Cleric of Innoruuk', kills: 573, players: 2, respawn: { s: 300 },
+    drops: { 'Crystallized Sulfur': { n: 165 }, 'Mote of Major Potential': { n: 49 }, 'Mote of Infinitesimal Potential': { n: 12 }, 'Ethereal Mist Helm': { n: 22 } } };
+  const cl = S.communityChatLine(e);
+  ok(cl.startsWith('Cleric of Innoruuk (The Plane of Hate), community: 573 kills by 2 players, respawn ~5 min: Crystallized Sulfur 165/573 29%'), 'community chat line: ' + cl);
+  ok(/Motes 61\/573/.test(cl), 'motes folded like your own line');
+  const many = { mob: 'a rat', zone: 'Z', kills: 1000, players: 1, drops: Object.fromEntries(Array.from({ length: 40 }, (_, i) => ['Rat Item Number ' + i, { n: 100 - i }])) };
+  const ml = S.communityChatLine(many);
+  ok(ml.length <= 240 + 12 && / · \+\d+ more$/.test(ml), 'kept under the chat limit: ' + ml.length);
+  ok(S.communityChatLine({ mob: 'x', zone: 'Z', kills: 3, players: 1, drops: {} }).endsWith('no drops shared yet'), 'no drops');
+}
+
 console.log(`mobstats: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

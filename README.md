@@ -6,6 +6,36 @@ SEQO reads the log file the game already writes and turns it into the stuff you 
 
 ![The meter mid-fight](docs/images/seqo-meter.png)
 
+## 🌐 A note on 3.0 from Maeel
+
+![SEQO 3.0 community data, clicked through](docs/images/seqo-3.0-tour.gif)
+
+3.0 is a large update, and one I really wanted to get done once I found the third-party data sources lacking. eqlwiki appears to be mostly data imported from the P99 wiki, and I don't trust much of it anymore. Some other sites seem to be offline now; I'm assuming they folded as the playing population dropped. With Kunark around the corner, I wanted to make sure we players have accurate data on drops and mob availability, without having to hope a wiki page has been updated.
+
+To that end, SEQO now gathers data, **but only if you opt in.** I would never gather anything without your permission, so when you first open 3.0 a window asks you. You can change your mind any time in ⚙ Settings → 📊 Community data.
+
+**What's collected** (game facts from your log, nothing about you):
+- **Kills:** which mob, in which zone and difficulty tier, and when (that's how respawn times are worked out)
+- **Drops:** each tied to the kill it came from, plus Dungeon Crawl reward chests
+- **Faction changes** and what caused them: a kill, a quest turn-in or a task
+- **Quest turn-ins:** what was handed in, the coin and experience you got back, and the item reward
+- **What quest NPCs say to you,** with your name and other players' names taken out
+- **Tasks** and the items they hand out, and **Dungeon Crawl** completions
+- **Mob details:** level from /con, hardest hit, spells cast
+- A **random install ID** (not linked to your character, and you can make a new one any time) and your SEQO version
+
+**Never collected:** your character, account or guild name, anyone else's name, chat or tells, your notes, your log file, file paths, or your IP address. ⚙ Settings → 📊 Community data → 🔍 Preview shows the next upload exactly as it goes out.
+
+With this you'll now see community data on drop rates, mob info, factions and quests on kill cards, item cards, camp timers, in Lookup, and in the new ⚖ Faction view. I hope to add to this later, but it's a good start to test while we wait for Kunark. The data is openly available if you want to look at it: [the community file](https://seqo-community.seqo-community.workers.dev/v1/data.json), rebuilt every hour, and the server code is right here in [`server/`](server/).
+
+As with anything else, the more people use SEQO, the more data is collected and the more accurate it gets. So if you like SEQO, tell your friends about it.
+
+Thank you for all the kind words you've sent me, and always feel free to send me a tell on the Neriak server to **Maeel** or post in the [SEQO Discussions](https://github.com/RealMaeel/seqo/discussions) on GitHub. If something isn't working, please report it in [Issues](https://github.com/RealMaeel/seqo/issues).
+
+> ### v3.0 — 🌐 Community data
+> **Drop rates, respawn times, faction hits and quests from everyone's logs, not just yours.** The wikis fall behind the game; SEQO already reads everything your log proves. 3.0 keeps those game facts on your PC and — only if you say yes when it asks — shares them with the SEQO community database. Every SEQO gets the added-up numbers back each hour: a **🌐 Community** box on kill cards (kills, respawn, drops with rates, faction per kill, 📋 copy for chat), quest rewards and drop sources on item cards, community respawns on camp timers you haven't timed yourself, community mobs and items in Lookup, and a **⚖ Faction** view: pick a faction and see every kill and quest turn-in that raises or lowers it, best first, with your own standing. Your own numbers always come first. [What's shared, and what never is](#-community-data-new-in-30)
+> **Also in 3.0:** the Cleanup list (and every dock panel) scrolls with the mouse wheel while SEQO is locked · the consider card closes by itself after the seconds you pick in ⚙ Combat & timers, and the same mob won't pop it again for 2 minutes · the opacity slider applies to the dock popups again, attached or 📌 detached · ⚙ Check for updates… only re-reads wiki pages that changed (it used to re-read all of them every time), gives up on a site that doesn't answer in 20 s instead of hanging, and shows its progress.
+>
 > **v2.7.3** — Google Drive can quietly put back an older copy of your loot file a minute after SEQO saves it; SEQO now notices and puts the missing kills and drops back (nothing counted twice). the upgrade slider: Endurance now goes up with the tier, and Haste only +1% a tier, as the game's item window shows. SEQO now reads the zone you're in from your log when it starts, so kills after zoning with SEQO closed land in the right zone. Zone needs now cover everything you're working on: epic pieces whose known source is in the zone you're in (Drake Spine in the Rathe Mountains), items your unfinished race and key quests have you get there, your trio's spell-quest pieces (tracked or not, including what the quest NPC sells or hands over), and a new 💀 Slayer group with the counters whose creatures hunt there (click one to open it).
 >
 > ### v2.7.2 — [release notes](https://github.com/RealMaeel/seqo/releases/tag/v2.7.2)
@@ -363,6 +393,22 @@ Every alert type has its own sound, so you know what happened without looking:
 
 **😴 AFK watch:** click **😴** in the title bar before stepping away. If anything attacks you, the siren and border flash repeat every 2.5 seconds until you click AFK off **or your character acts** — a real melee swing or cast. Pets fighting, damage shields, and DoT ticks don't count as "back". A charmed pet turning on you also stops being counted as yours the moment its charm-break is detected.
 
+## 🌐 Community data (new in 3.0)
+
+SEQO reads your log anyway; 3.0 turns what it proves about the game into a shared database, so every player gets drop rates, respawns, faction and quest information that's newer than the wikis.
+
+**What SEQO collects** (on your PC, in `%APPDATA%\SEQO\community`, whether you share or not): kills per mob, zone and difficulty tier · drops, each tied to its kill · faction hits and what caused them (a kill, a quest turn-in or a task) · quest turn-ins (what you handed in, the coin and experience you got back, and the item reward — the one the NPC promised, confirmed by a merge or your next `/outputfile inventory`) · what quest NPCs say to you · tasks and items they hand out · Dungeon Crawl completions · mob details (level from /con, hardest hit, spells cast). **📥 Old logs** fills in your history.
+
+**Sharing — only if you say yes.** The first start of 3.0 asks once (✔ Share / No thanks, with *See exactly what gets sent*); closing the question without choosing asks again next time. Change your mind any time in **⚙ Settings → 📊 Community data**. When it's on, SEQO sends what's new every 10 minutes in the background; the first time, it sends what you've already collected — and right after you say yes it offers to read your old logs, so your history counts too.
+
+**What is sent:** the game facts above, a random install ID made on your PC when you say yes (not linked to your character or account; **🎲 New ID** makes a fresh one), and the SEQO version. **Never sent:** your character, account or guild name, anyone else's name, chat or tells, your notes, your log file, file paths or your Windows user name. Your name in NPC dialog becomes {me} before anything is saved, and other players' names become {player} — on your PC, and again on the server for anything that slipped through. The server keeps no IP addresses and request logging is off. **🔍 Preview** shows the next upload exactly as it goes out; **Export…** writes everything collected to one file.
+
+**⚖ Faction view:** search a faction in Lookup, click one in Σ Session's progress list or on a kill card, and the dock lists everything players have seen raise it and lower it — per kill (with kills seen and respawn) or per quest turn-in (with what to hand in) — plus your standing from `/outputfile faction`. Item cards also show what a turn-in does to faction.
+
+**What you get back:** every hour the server adds everyone's uploads up — a group kill seen by several players counts once — and publishes one file that SEQO downloads hourly (shared or not: reading it sends nothing about you). A number shows how many players it comes from; while that's fewer than three, its box starts folded to one line. **Show community numbers** (on by default) turns all of it off if you only want your own.
+
+The server is a small Cloudflare Worker and the hourly adding-up is a GitHub Action — both are in this repository (`server/`, `.github/workflows/community-compile.yml`), so you can read exactly what's kept and how it's counted.
+
 ## ⚙ Settings
 
 Rebuilt in 2.4 into six clean groups — **General** (character, log, SEQO updates) · **Appearance** (incl. the Normal/Large text size) · **Alerts & Sounds** · **Game Data & Sync** · **Advanced** (wiki contribution + the Wiki export button) · **About** (credits + ⟳ Sync data) — one setting per row with proper toggle switches. Every stored value carries over; nothing resets.
@@ -427,11 +473,12 @@ SEQO is developed by RealMaeel with AI assistance; every change is directed, rev
 
 ### Privacy policy
 
-SEQO has no accounts, analytics, telemetry, ads or tracking. It only goes online for the things listed here; the two automatic checks can be turned off in Settings.
+SEQO has no accounts, analytics, telemetry, ads or tracking. It only goes online for the things listed here; the automatic checks can be turned off in Settings, and community sharing only happens if you say yes.
 
-- **Your game files stay on your PC.** SEQO reads the log file and `/outputfile` exports EverQuest Legends writes, and keeps its own databases (loot, kills, history, settings) in your Windows profile. None of it is uploaded anywhere.
+- **Your game files stay on your PC.** SEQO reads the log file and `/outputfile` exports EverQuest Legends writes, and keeps its own databases (loot, kills, history, settings) in your Windows profile. None of it is uploaded, except the community data below if you choose to share.
 - **Looking things up.** SEQO downloads public pages from community sites when you use its lookups or refresh its data: [eqlwiki.com](https://eqlwiki.com) (items, zones, quests, spells, gear), [eqlegendstools.com](https://eqlegendstools.com) (Plane of Sky quests, gear databases), [eqlforge.com](https://eqlforge.com) (zone named mobs, when you update a zone) and [wiki.project1999.com](https://wiki.project1999.com) (when you open a Project 1999 result). Each request sends only what is needed to fetch the page (a page title or your search words) and identifies itself as SEQO with its version number. Like any website visit, those sites can see your IP address.
 - **Automatic checks you can turn off.** At launch SEQO asks GitHub (api.github.com) whether a newer SEQO release exists (⚙ → *Check for new releases at launch*), and once a week it re-checks the wiki pages its quest data comes from (⚙ → *weekly auto-sync*). Clicking **Install update** downloads the installer from this repository's GitHub releases.
+- **Community data, only if you say yes** *(3.0)*. With sharing on, SEQO sends game facts from your log (kills, drops, faction hits, quest turn-ins, NPC quest dialog, tasks, mob details), a random install ID and its version number to the SEQO community server (seqo-community.seqo-community.workers.dev, a Cloudflare Worker run by the maintainer), every 10 minutes. Never your character, account, guild or anyone else's name, chat, notes, log file or file paths. The server stores no IP address and keeps no request logs; Cloudflare, like any website host, sees the connection. Turn it off, preview what goes out or make a new ID in ⚙ → 📊 Community data. Whether you share or not, SEQO downloads the published community file once an hour.
 - **Wiki uploads, only when you ask.** ⚙ → Advanced → Wiki export logs into eqlwiki.com with the bot password *you* enter and posts *your* observed drop rates. Nothing is posted unless you press the button. The password is stored encrypted on your PC.
 - **Errors stay on your PC.** SEQO keeps a small error log locally; **📋 Copy problem report** only copies it to your clipboard (without passwords, notes or your Windows user folder) for you to paste wherever you choose.
 - **Shared data folder.** If you pick one, SEQO copies its databases into that folder; any syncing between computers is done by the service that folder belongs to (Dropbox, OneDrive, Google Drive), not by SEQO.

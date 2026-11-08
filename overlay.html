@@ -991,6 +991,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         <div class="setrow"><span>Cooldown timers<span class="sub">when you cast a spell with a long reuse time (from the game's spell file), a ⏳ chip counts down and pings when it's ready</span></span><input type="checkbox" id="cdtimers"></div>
         <div class="setrow"><span>Only reuse times of at least<span class="sub">seconds — shorter recasts stay quiet</span></span><input type="number" id="cdmin" min="20" max="3600" step="10" style="width:58px;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px"></div>
         <div class="setrow"><span>Consider card<span class="sub">when you /consider a mob: what SEQO knows — drops, hits, spells, respawn, what you still need from it</span></span><input type="checkbox" id="concard"></div>
+        <div class="setrow"><span>Consider card closes after<span class="sub">seconds — 0 keeps it open until you close it; the same mob won't pop it again for 2 minutes</span></span><input type="number" id="concardsecs" min="0" max="120" step="1" style="width:58px;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;font-size:10.5px"></div>
         <label>Spell timers (countdown on the Meter when you cast)</label>
         <textarea id="spelltimercfg" rows="3" spellcheck="false"
           style="width:100%;background:#26262f;color:#eee;border:1px solid #444;border-radius:4px;padding:4px;font-size:10.5px;resize:vertical"
@@ -1004,12 +1005,12 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
         <div class="setrow"><span>Auto-fetch zone data<span class="sub">pulls the wiki's page when you enter a new zone</span></span><input type="checkbox" id="autozone"></div>
         <label>Game database</label>
         <div class="row" style="margin-top:2px">
-          <span id="upd-status" style="flex:1;color:#bbb;font-size:11px">manual updates only</span>
+          <span id="upd-status" style="flex:1 1 170px;min-width:0;color:#bbb;font-size:11px">manual updates only</span>
           <button id="btn-checkupd">Check for updates&hellip;</button>
         </div>
         <label>Shared data folder</label>
         <div class="row" style="margin-top:2px">
-          <span id="data-status" style="flex:1;color:#bbb;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">local only</span>
+          <span id="data-status" style="flex:1 1 170px;min-width:0;color:#bbb;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">local only</span>
           <button id="btn-datadir">Choose&hellip;</button>
         </div>
         <div class="hint" style="margin-top:4px">Point at a Dropbox / Google Drive / OneDrive folder to sync databases between computers. SEQO restarts after changing. One computer at a time.</div>
@@ -1036,6 +1037,27 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
             &bull; <b>eqclient.ini</b> &mdash; ⚠ avoid syncing between different computers: it holds per-machine video/hardware settings.
           </div>
         </details>
+      </details>
+
+      <details>
+        <summary>📊 Community data <small>collected on this PC, shared only if you say so</small></summary>
+        <div class="setrow"><span>Share with the SEQO community<span class="sub">game facts only &mdash; never your name, anyone else's name, chat or your log file</span></span><input type="checkbox" id="communityshare"></div>
+        <div class="setrow"><span>Show community numbers<span class="sub">on kill cards, item cards, camp timers and in Lookup &mdash; your own numbers always come first</span></span><input type="checkbox" id="communityshow"></div>
+        <div id="community-upload" style="font-size:10px;color:#9ab;margin-top:2px"></div>
+        <div id="community-download" style="font-size:10px;color:#9ab;margin-top:1px"></div>
+        <div class="row" style="margin-top:4px;gap:4px;flex-wrap:wrap">
+          <button id="btn-community-see" style="white-space:nowrap;font-size:10.5px;padding:2px 5px;flex:1 1 auto" title="Show the next upload exactly as it goes out">🔍 Preview</button>
+          <button id="btn-community-send" style="white-space:nowrap;font-size:10.5px;padding:2px 5px;flex:1 1 auto" title="Send what's waiting now instead of within 10 minutes">⬆ Send now</button>
+          <button id="btn-community-newid" style="white-space:nowrap;font-size:10.5px;padding:2px 5px;flex:1 1 auto" title="Make a new random install ID: the server can't link what you send from now on to what you sent before">🎲 New ID</button>
+        </div>
+        <div id="community-status" style="margin-top:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:1px 8px;font-size:10.5px;color:#bbb">&hellip;</div>
+        <div id="community-range" style="font-size:10px;color:#889;margin-top:2px"></div>
+        <div class="row" style="margin-top:5px;gap:4px;flex-wrap:wrap">
+          <button id="btn-community-oldlogs" style="white-space:nowrap;font-size:10.5px;padding:2px 5px;flex:1 1 auto" title="Read your old logs (Logs and Logs\archive) into the community data &mdash; the same as 📥 Old logs in 📚 History; reading them again adds nothing">📥 Old logs</button>
+          <button id="btn-community-open" style="white-space:nowrap;font-size:10.5px;padding:2px 5px;flex:1 1 auto" title="Open the folder the community data is kept in">📂 Folder</button>
+          <button id="btn-community-export" style="white-space:nowrap;font-size:10.5px;padding:2px 5px;flex:1 1 auto" title="Write everything collected to one file, exactly as a future upload would send it">📦 Export&hellip;</button>
+        </div>
+        <div class="hint" style="margin-top:5px">Shared with the SEQO community database when sharing is on (uploads every 10 minutes); otherwise it stays on this PC. Nothing about you is kept &mdash; your name is taken out of NPC dialog. Quest rewards are confirmed by your next <b>/outputfile inventory</b>.</div>
       </details>
 
       <details>
@@ -1134,6 +1156,7 @@ Saves as you type and syncs between your computers." style="flex:1;min-height:0;
 <script defer src="ui/overlay/29-map.js"></script>
 <script defer src="ui/overlay/30-loop.js"></script>
 <script defer src="ui/overlay/31-settings.js"></script>
+<script defer src="ui/overlay/32-community.js"></script>
 <script defer src="ui/overlay/32-clock.js"></script>
 </body>
 </html>

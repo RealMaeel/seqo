@@ -23,7 +23,7 @@ function lineTime(raw) {
   return isNaN(t) ? 0 : t;
 }
 
-function create({ parser, lootStore, tierNum, cleanZone, file, now = () => Date.now(), saveDelayMs = 10000 }) {
+function create({ parser, lootStore, community, tierNum, cleanZone, file, now = () => Date.now(), saveDelayMs = 10000 }) {
   let pos = null, timer = null;
   const keyOf = (p) => path.resolve(String(p)).toLowerCase();
   function load() {
@@ -103,6 +103,7 @@ function create({ parser, lootStore, tierNum, cleanZone, file, now = () => Date.
       since = newest + 3 * 60000;
     }
     const tracker = new parser.FightTracker();
+    const cs = community ? community.session({ me: (/^eqlog_([^_]+)_/i.exec(path.basename(logPath)) || [])[1] || '' }) : null;   // 2.7.5: local community data
     let { zone, variant } = zoneBefore(logPath, since);
     const sameSecond = new Set();
     let lastCorpse = null, kills = 0, drops = 0, newest = since, files = 0;
@@ -120,10 +121,12 @@ function create({ parser, lootStore, tierNum, cleanZone, file, now = () => Date.
         // before the catch-up point only the zone matters (cheap: no full parse)
         if (t <= since && !raw.includes('You have entered')) continue;
         const ev = parser.parseLine(raw);
+        if (cs && t > since && (!ev || !ev.when)) cs.feed(raw, null, { zone, tier: tierNum(variant) });
         if (!ev || !ev.when) continue;
         if (ev.type === 'zone') { zone = cleanZone(ev.zone); variant = ev.variant || ''; }
         tracker.feed(ev);
         if (ev.when <= since) continue;
+        if (cs) cs.feed(raw, ev, { zone, tier: tierNum(variant), isEnemy: (n) => tracker.isEnemy(n) });
         if (ev.when > newest) newest = ev.when;
         if (ev.type === 'death' && ev.target !== parser.YOU && zone) {
           // a kill already in the database at that exact second is skipped — but two mobs of the
@@ -146,6 +149,8 @@ function create({ parser, lootStore, tierNum, cleanZone, file, now = () => Date.
     }
     mark(logPath, newest);
     flush();
+    if (cs) cs.end();
+    if (community) community.flush();
     return { kills, drops, files, from: since, to: newest };
   }
 

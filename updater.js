@@ -6,13 +6,22 @@
 const WIKI_API = 'https://eqlwiki.com/api.php';
 const { cleanStatsBlock } = require('./itemtext.js');
 const UA = 'SEQO/' + require('./package.json').version + ' (personal overlay tool; https://github.com/RealMaeel/seqo)';
+// every request gives up after 20 s, so a slow or unreachable site can't leave "checking…" forever
+const TIMEOUT_MS = 20000;
+async function fetchT(url, opts = {}) {
+  try { return await fetch(url, { ...opts, signal: AbortSignal.timeout(TIMEOUT_MS) }); }
+  catch (e) {
+    if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) throw new Error(new URL(String(url)).hostname + ' didn\u2019t answer in 20 s');
+    throw e;
+  }
+}
 const WIKI_PAGE = (title) => 'https://eqlwiki.com/' + encodeURIComponent(title.replace(/ /g, '_'));
 
 async function api(params) {
   const u = new URL(WIKI_API);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   u.searchParams.set('format', 'json');
-  const res = await fetch(u, {
+  const res = await fetchT(u, {
     headers: { 'User-Agent': UA }
   });
   if (!res.ok) throw new Error('Wiki returned HTTP ' + res.status);
@@ -25,7 +34,7 @@ async function searchTitles(query, limit = 8) {
 }
 
 async function getWikitext(title) {
-  const j = await api({ action: 'parse', page: title, prop: 'wikitext', redirects: '1' });
+  const j = await api({ action: 'parse', page: title, prop: 'wikitext|revid', redirects: '1' });   // revid: so a check can skip unchanged pages
   if (j.error) return null;
   const wt = j.parse && j.parse.wikitext && j.parse.wikitext['*'];
   return wt ? { title: j.parse.title || title, wikitext: wt, revid: j.parse.revid || 0 } : null;
@@ -348,7 +357,7 @@ async function fetchEqlToolsPages() {
   const out = { _updated: Date.now() };
   for (const [name, url] of EQLTOOLS_PAGES) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': UA } });
+      const res = await fetchT(url, { headers: { 'User-Agent': UA } });
       if (res.ok) out[name] = { url, lines: htmlToLines(await res.text()), updated: Date.now() };
     } catch { /* offline or page moved - skip */ }
     await new Promise(r => setTimeout(r, 400)); // be polite
@@ -603,7 +612,7 @@ function forgeSlugs(zoneName, aliases = []) {
 async function fetchForgeRares(zoneName, aliases = []) {
   for (const slug of forgeSlugs(zoneName, aliases)) {
     try {
-      const res = await fetch('https://eqlforge.com/zone/' + slug,
+      const res = await fetchT('https://eqlforge.com/zone/' + slug,
                               { headers: { 'User-Agent': UA } });
       if (!res.ok) continue;
       let html = await res.text();
@@ -820,7 +829,7 @@ async function p99Api(params) {
   const u = new URL(P99_API);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   u.searchParams.set('format', 'json');
-  const res = await fetch(u, { headers: { 'User-Agent': UA } });
+  const res = await fetchT(u, { headers: { 'User-Agent': UA } });
   if (!res.ok) throw new Error('P99 wiki returned HTTP ' + res.status);
   return res.json();
 }
@@ -845,7 +854,7 @@ async function fetchP99Page(title, opts = {}) {
       if (wt) return { wikitext: wt, pageTitle: j.parse.title || t, revid: j.parse.revid || 0, updated: Date.now() };
     } catch { /* api.php unavailable: fall back to the raw page below */ }
     try {
-      const res = await fetch(P99_BASE + 'index.php?action=raw&title=' + encodeURIComponent(t.replace(/ /g, '_')), { headers: { 'User-Agent': UA } });
+      const res = await fetchT(P99_BASE + 'index.php?action=raw&title=' + encodeURIComponent(t.replace(/ /g, '_')), { headers: { 'User-Agent': UA } });
       if (res.ok) { const wt = await res.text(); if (wt && !/^\s*<!DOCTYPE/i.test(wt)) return { wikitext: wt, pageTitle: t, revid: 0, updated: Date.now() }; }
     } catch { offline = true; /* offline */ }
     return null;
@@ -895,7 +904,7 @@ async function apiAuthGet(params) {
   const u = new URL(WIKI_API);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   u.searchParams.set('format', 'json');
-  const res = await fetch(u, { headers: { 'User-Agent': UA, 'Cookie': cookieHeader() } });
+  const res = await fetchT(u, { headers: { 'User-Agent': UA, 'Cookie': cookieHeader() } });
   storeCookies(res);
   if (!res.ok) throw new Error('Wiki returned HTTP ' + res.status);
   return res.json();
@@ -904,7 +913,7 @@ async function apiAuthGet(params) {
 async function apiAuthPost(params) {
   const body = new URLSearchParams(params);
   body.set('format', 'json');
-  const res = await fetch(WIKI_API, {
+  const res = await fetchT(WIKI_API, {
     method: 'POST',
     headers: {
       'User-Agent': UA,

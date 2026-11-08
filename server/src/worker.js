@@ -130,9 +130,15 @@ async function admin(req, env, url) {
   }
   if (p === '/v1/admin/batches' && req.method === 'GET') {
     const after = Math.max(0, parseInt(url.searchParams.get('after') || '0', 10) || 0);
-    const limit = Math.min(500, Math.max(1, parseInt(url.searchParams.get('limit') || '200', 10) || 200));
+    const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '100', 10) || 100));
     const rows = await env.DB.prepare('SELECT id, install, app, received, body FROM batches WHERE id > ? AND install NOT IN (SELECT install FROM ignored) ORDER BY id LIMIT ?').bind(after, limit).all();
-    return json({ batches: rows.results, next: rows.results.length === limit ? rows.results[rows.results.length - 1].id : null });
+    // each stored body is already JSON (written by JSON.stringify above): put it in as it is rather than
+    // parse + re-encode megabytes, which the free plan's 10 ms of CPU per request can't afford
+    const parts = rows.results.map((r) => '{"id":' + r.id + ',"install":' + JSON.stringify(r.install) + ',"app":' + JSON.stringify(r.app || '') +
+      ',"received":' + r.received + ',"body":' + r.body + '}');
+    const next = rows.results.length === limit ? rows.results[rows.results.length - 1].id : null;
+    return new Response('{"batches":[' + parts.join(',') + '],"next":' + (next == null ? 'null' : next) + '}',
+      { headers: { 'content-type': 'application/json; charset=utf-8' } });
   }
   if (p === '/v1/admin/compiled' && req.method === 'PUT') {
     const text = await req.text();

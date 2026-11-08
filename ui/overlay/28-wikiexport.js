@@ -167,13 +167,16 @@
           (r.killTimes ? ', ' + r.killTimes.toLocaleString() + ' kill times' : '') +
           (r.spells ? ', ' + r.spells.toLocaleString() + ' spells seen cast' : '') +
           ' from ' + r.files + ' log file' + (r.files === 1 ? '' : 's') + (r.skipped ? ' (' + r.skipped + ' sessions already saved live)' : ''));
+        // 2.7.5: what the community data now holds (the same logs read again add nothing)
+        if (r.community) { const c = r.community; setTimeout(() => toast('🌐 Community data: ' + c.kills.toLocaleString() + ' kills · ' + c.drops.toLocaleString() + ' drops · ' + c.factions.toLocaleString() + ' faction hits · ' + c.turnins.toLocaleString() + ' quest turn-ins · ' + c.dialog.toLocaleString() + ' NPC lines — ⚙ Game Data & Sync → Export… to see it all'), 4500); }
+        if (typeof refreshCommunity === 'function') refreshCommunity();
         refreshPriceMed();
         histList = (await window.overlay.historyList()) || [];
         renderHistory();
       } else toast('📥 Import: ' + ((r && r.error) || 'failed'));
-    } finally { b.disabled = false; b.textContent = '📥 Old logs'; }
+    } finally { b.disabled = false; b.textContent = '📥 Old logs'; if ($('btn-community-oldlogs')) $('btn-community-oldlogs').textContent = '📥 Old logs'; }
   });
-  window.overlay.onHistoryImportProgress((p) => { for (const id of ['hist-import']) { const b = $(id); if (b && b.disabled) b.textContent = '📥 reading… ' + p.pct + '%'; } });
+  window.overlay.onHistoryImportProgress((p) => { for (const id of ['hist-import', 'btn-community-oldlogs']) { const b = $(id); if (b && (b.disabled || id !== 'hist-import')) b.textContent = '📥 reading… ' + p.pct + '%'; } });
   $('hist-md').addEventListener('click', () => exportHistory('md'));
   $('recap-copy').addEventListener('click', () => {
     if (!lastRecap) return;

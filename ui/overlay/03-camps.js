@@ -5,6 +5,11 @@
   const timers = new Map();        // mob -> {mob, zone, lastDeath, resp, pinned, notified, windowNotified}
   let respawnDB = {};              // "zone|mob" -> seconds (legacy) or respawn entry object
   window.overlay.getRespawns().then(r => { respawnDB = r || {}; });
+  // 🌐 3.0: respawn times from the community file, for camps you haven't timed yourself
+  let communityResp = {};
+  const loadCommunityResp = () => window.overlay.communityRespawns && window.overlay.communityRespawns().then((r) => { communityResp = r || {}; }).catch(() => {});
+  loadCommunityResp();
+  if (window.overlay.onCommunityDataUpdated) window.overlay.onCommunityDataUpdated(loadCommunityResp);
   let namedSet = new Set();        // lowercased named-mob names for current zone
   const rareSeen = new Map();      // mob -> last toast time
 
@@ -77,6 +82,8 @@
   function resolveRespawn(mob, zone) {
     const e = normRespawn(respawnDB[(zone || lootZone()) + '|' + mob]);
     if (e) return e;
+    const c = communityResp[(zone || lootZone()) + '|' + mob];   // 🌐 3.0
+    if (c) return { s: c.s, src: 'community', n: c.n };
     if (zoneData && zoneData.respawnSeconds)
       return { s: zoneData.respawnSeconds, src: 'wiki', n: 0 };
     return null;
@@ -86,6 +93,7 @@
   const respMark = (e) => !e ? ''
     : e.src === 'manual' ? ' ✎'
     : e.src === 'wiki' ? ' ~wiki'
+    : e.src === 'community' ? ' 🌐'
     : (e.n || 0) >= 3 ? ' ⟲'
     : ' ~';
 
