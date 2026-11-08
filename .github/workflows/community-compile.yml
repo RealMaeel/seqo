@@ -1,0 +1,39 @@
+# SEQO community data: every 3 hours, add up everything players have shared and publish the
+# compiled file every SEQO downloads. The server is the Cloudflare Worker in server/; the adding-up
+# runs here because Cloudflare's free plan only allows 10 ms of CPU per request.
+#
+# Needs one repository secret (Settings → Secrets and variables → Actions → New repository secret):
+#   SEQO_ADMIN_KEY   the server's admin key (the same one as server/admin-key.txt on Ed's PC)
+# Optional repository variable:
+#   SEQO_MIN_PLAYERS how many players must back a number before it's published (default 1)
+name: Community data compile
+
+on:
+  schedule:
+    - cron: '23 */3 * * *'    # every 3 hours, at :23 (GitHub may start it a few minutes late)
+  workflow_dispatch:           # "Run workflow" button for a manual run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: community-compile
+  cancel-in-progress: false
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: server
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Compile and publish
+        env:
+          SEQO_SERVER: https://seqo-community.seqo-community.workers.dev
+          SEQO_ADMIN_KEY: ${{ secrets.SEQO_ADMIN_KEY }}
+          SEQO_MIN_PLAYERS: ${{ vars.SEQO_MIN_PLAYERS || '1' }}
+        run: node server/tools/compile.cjs

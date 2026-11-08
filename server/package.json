@@ -1,0 +1,1 @@
+{ "name": "seqo-community", "private": true, "type": "module", "scripts": { "test": "node test/server.test.mjs", "deploy": "wrangler deploy" } }

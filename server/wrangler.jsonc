@@ -1,0 +1,23 @@
+// SEQO community data server. "wrangler deploy" creates the database and storage the first time
+// (and writes their ids in here) — nothing to fill in by hand.
+{
+	"name": "seqo-community",
+	"main": "src/worker.js",
+	"compatibility_date": "2026-10-01",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "seqo-community",
+			"database_id": "ce53b559-0223-4aa5-97c7-91a4123d81a5"
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "DATA",
+			"id": "d214dd468c294d34b5b3ced1a93b9fa4"
+		}
+	],
+	"observability": {
+		"enabled": false
+	}
+}
