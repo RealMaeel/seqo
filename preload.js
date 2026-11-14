@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const api = {
   onSettings: (cb) => ipcRenderer.on('settings', (_e, s) => cb(s)),
+  onSettingsPatch: (cb) => ipcRenderer.on('settings-patch', (_e, p) => cb(p)),
   onLockState: (cb) => ipcRenderer.on('lock-state', (_e, locked) => cb(locked)),
   updateSettings: (partial) => ipcRenderer.send('update-settings', partial),
   toggleLock: () => ipcRenderer.send('toggle-lock'),

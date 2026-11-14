@@ -8,13 +8,69 @@
   const allies = new Set();
   const healSession = new Map();
   const healByFight = new WeakMap();   // tracker fight object -> Map(healer -> agg)
+  // the same with proc heals included, shown when the ✚ Procs chip is on (3.0.1)
+  const healSessionAll = new Map();
+  const healByFightAll = new WeakMap();
   let healScope = 'fight';
+  let healProcs = false;
+  try { healProcs = localStorage.getItem('seqo.healProcs') === '1'; } catch { /* no storage */ }
+  tracker.healProcs = healProcs;
   function healAgg(map, healer) {
     let a = map.get(healer);
     if (!a) map.set(healer, a = { total: 0, pot: 0, count: 0, spells: new Map(), targets: new Map() });
     return a;
   }
+  // 3.0.1: only CAST heals count — not weapon/buff procs (Blessing heal-on-hit, Vampiric
+  // Embrace, Lifetap Strike…), which filled the meter with pets and melee. The game's spell
+  // file decides (spellDB.healKind, spelldb.js): a name missing = cast heal, 'p' = proc only,
+  // 'b' = both share the name (Drain Spirit: cast, or SpellBlade's proc). For 'b', YOUR heal
+  // counts only right after you were seen casting it (one heal per cast); other players'
+  // casts often aren't in your log, so theirs still count.
+  // the cast names the rank, the heal line the base spell:
+  // "You begin casting Spirit Tap VI." → "You healed Maeel for 345 hit points by Spirit Tap."
+  const healBase = (n) => String(n || '').replace(/ (?:Rk\. ?)?[IVXL]+$/, '');
+  const healCasts = new Map();   // healer + '|' + base spell -> [cast times]
+  function noteHealCast(ev) {
+    if (ev.type === 'castfail' && ev.spell) {   // an interrupted cast earns no heal
+      const a = healCasts.get('You|' + healBase(ev.spell));
+      if (a && a.length) a.pop();
+      return;
+    }
+    if (ev.type !== 'cast' || !ev.spell) return;
+    const k = (ev.caster === 'You' ? 'You' : healNorm(ev.caster)) + '|' + healBase(ev.spell);
+    const a = healCasts.get(k) || [];
+    a.push(ev.when || 0);
+    if (a.length > 4) a.shift();
+    healCasts.set(k, a);
+    if (healCasts.size > 400) healCasts.delete(healCasts.keys().next().value);
+  }
+  const healDecided = new WeakMap();   // the same event is asked by the tracker and the meter
+  function isCastHeal(ev) {
+    if (healDecided.has(ev)) return healDecided.get(ev);
+    const r = castHealNow(ev);
+    healDecided.set(ev, r);
+    return r;
+  }
+  function castHealNow(ev) {
+    const hk = spellDB && spellDB.healKind;
+    if (!hk || !ev.spell) return true;            // no spell data / old logs without "by X": count it
+    const kind = hk[ev.spell];
+    if (!kind) return true;
+    if (kind === 'p') return false;
+    const healer = ev.healer === 'You' ? 'You' : healNorm(ev.healer);
+    if (healer !== 'You') return true;
+    const a = healCasts.get('You|' + healBase(ev.spell));
+    if (!a || !a.length) return false;
+    const t = ev.when || 0;
+    if (ev.hot) return a.some((c) => t - c >= 0 && t - c <= 120000);  // ticks of a cast HoT
+    const i = a.findIndex((c) => t - c >= 0 && t - c <= 15000);
+    if (i < 0) return false;
+    a.splice(i, 1);                               // each cast earns one heal
+    return true;
+  }
+  tracker.healFilter = isCastHeal;
   function noteHeal(ev) {
+    noteHealCast(ev);
     if (ev.type === 'damage' && tracker.current) {
       const t = ev.target === 'You' ? 'You' : healNorm(ev.target);
       const a = ev.attacker === 'You' ? 'You' : healNorm(ev.attacker);
@@ -27,25 +83,31 @@
     if (/^(?:him|her|it|your)self$/i.test(target)) target = healer;
     const ours = (n) => n === 'You' || n === charName || petNames.has(n) || allies.has(n) || session.players.has(n);
     if (!ours(healer) && !ours(target)) return;
+    const cast = isCastHeal(ev);
     const pot = Math.max(ev.potential || ev.amount || 0, ev.amount || 0);
     const add = (map) => {
       const a = healAgg(map, healer);
       a.total += ev.amount || 0; a.pot += pot; a.count++;
-      const sp = ev.spell || 'heal';
+      const sp = (ev.spell || 'heal') + (cast ? '' : ' (proc)');
       const e = a.spells.get(sp) || { total: 0, pot: 0, count: 0 };
       e.total += ev.amount || 0; e.pot += pot; e.count++; a.spells.set(sp, e);
       a.targets.set(target, (a.targets.get(target) || 0) + (ev.amount || 0));
     };
-    add(healSession);
     const f = tracker.current;
-    if (f) { if (!healByFight.has(f)) healByFight.set(f, new Map()); add(healByFight.get(f)); }
+    add(healSessionAll);
+    if (f) { if (!healByFightAll.has(f)) healByFightAll.set(f, new Map()); add(healByFightAll.get(f)); }
+    if (cast) {
+      add(healSession);
+      if (f) { if (!healByFight.has(f)) healByFight.set(f, new Map()); add(healByFight.get(f)); }
+    }
     if (activeTab === 'breakdown' && bMode === 'heals') breakdownDirty = true;
   }
   let breakdownDirty = false;
   setInterval(() => { if (breakdownDirty && activeTab === 'breakdown') { breakdownDirty = false; renderBreakdown(); } }, 1000);
   function renderHeals(rowsEl) {
     const fightObj = viewFight || tracker.current || tracker.last;
-    const map = healScope === 'session' ? healSession : (fightObj && healByFight.get(fightObj)) || new Map();
+    const map = healScope === 'session' ? (healProcs ? healSessionAll : healSession)
+      : (fightObj && (healProcs ? healByFightAll : healByFight).get(fightObj)) || new Map();
     const durS = healScope === 'session' ? Math.max(1, session.durS + (tracker.current ? (tracker.current.lastCombat - tracker.current.start) / 1000 : 0))
       : fightObj ? Math.max(1, (fightObj.lastCombat - fightObj.start) / 1000) : 1;
     $('b-title').textContent = '✚ Healing — ' + (healScope === 'session' ? 'this session' : viewFight ? 'that fight' : 'this fight');
@@ -62,6 +124,22 @@
       c.addEventListener('click', () => { healScope = k; renderBreakdown(); });
       chips.appendChild(c);
     }
+    // ✚ Procs: off = cast heals only; on = weapon/buff procs too (Blessing heal-on-hit,
+    // Vampiric Embrace, SpellBlade…), each marked "(proc)" under its healer
+    const pc = document.createElement('span');
+    pc.className = 'qview-chip' + (healProcs ? ' active' : '');
+    pc.style.marginLeft = 'auto';
+    pc.textContent = (healProcs ? '✓ ' : '+ ') + 'Procs';
+    pc.title = healProcs ? 'Showing proc heals too (weapon and buff procs, marked "(proc)"). Click for cast heals only.'
+      : 'Cast heals only. Click to add proc heals (weapon and buff procs: Blessing heal-on-hit, Vampiric Embrace, SpellBlade…).';
+    pc.addEventListener('click', () => {
+      healProcs = !healProcs;
+      tracker.healProcs = healProcs;
+      try { localStorage.setItem('seqo.healProcs', healProcs ? '1' : '0'); } catch { /* no storage */ }
+      renderBreakdown();
+      if (typeof renderMeter === 'function') try { renderMeter(); } catch { /* next tick redraws */ }
+    });
+    chips.appendChild(pc);
     rowsEl.appendChild(chips);
     if (!rows.length) {
       const d = document.createElement('div'); d.className = 'q-npc';

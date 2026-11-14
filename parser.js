@@ -27,7 +27,8 @@
   // "YOU are burned by a skeleton's flames for 7 points of non-melee damage!"
   const RE_NONMELEE = /^(.+?) (?:is|are) \w+ by (.+?) for (\d+) points? of non-melee damage[.!]$/;
   // "You healed Maeel for 222 hit points by Spirit Tap." / "... for 0 (20) hit points by Courage."
-  const RE_HEAL = /^(.+?) healed (.+?) for (\d+)(?: \((\d+)\))? hit points?(?: by (.+?))?\.$/;
+  // heal-over-time ticks: "Scorch healed Scarzam over time for 239 hit points by Celestial Healing."
+  const RE_HEAL = /^(.+?) healed (.+?)( over time)? for (\d+)(?: \((\d+)\))? hit points?(?: by (.+?))?\.$/;
   // misses: "You try to reave Drelzna, but miss!" / "Drelzna tries to pierce YOU, but YOU parry!"
   const RE_MISS = new RegExp('^(.+?) tr(?:ies|y) to ' + VERBS.replace('(?: on)?', '') + ' (.+?), but .+?[.!](?: \\((.+?)\\))?$');
   const RE_SLAIN_BY_YOU = /^You have slain (.+?)!$/;
@@ -133,7 +134,7 @@
 
     if ((m = RE_HEAL.exec(msg)))
       return { type: 'heal', when, healer: isYou(m[1]) ? YOU : m[1], target: isYou(m[2]) ? YOU : m[2],
-               amount: +m[3], potential: m[4] ? +m[4] : +m[3], spell: m[5] };
+               amount: +m[4], potential: m[5] ? +m[5] : +m[4], spell: m[6], ...(m[3] ? { hot: true } : {}) };
 
     // "The Nektropos Library Key has been added to your key ring."
     if ((m = /^(?:The )?(.+?) has been added to your key ring\.$/.exec(msg)))
@@ -442,8 +443,14 @@
           this.current.events.push({ attacker: YOU, target: YOU, amount: ev.amount,
                                      crit: false, source: ev.spell || 'Self', kind: ev.kind, proc: false });
       } else if (ev.type === 'heal' && this.current) {
+        // healFilter (set by the overlay, 3.0.1): healingBy = cast heals only, healingAllBy =
+        // procs too; summary() reports one or the other by this.healProcs (the meter's ✚ Procs chip)
         const healer = ev.healer === YOU ? YOU : normName(ev.healer);
-        this.current.healingBy.set(healer, (this.current.healingBy.get(healer) || 0) + ev.amount);
+        const f = this.current;
+        if (!f.healingAllBy) f.healingAllBy = new Map();
+        f.healingAllBy.set(healer, (f.healingAllBy.get(healer) || 0) + ev.amount);
+        if (!(this.healFilter && !this.healFilter(ev)))
+          f.healingBy.set(healer, (f.healingBy.get(healer) || 0) + ev.amount);
       } else if (ev.type === 'miss' && this.current && ev.target !== YOU) {
         let attacker = ev.attacker === YOU ? YOU : normName(ev.attacker);
         if (attacker !== YOU && this.petOwners && this.petOwners.has(attacker) && !(this.petNames && this.petNames.has(attacker))) attacker = this.petOwners.get(attacker);
@@ -637,7 +644,7 @@
         target: only, targets: targetList,
         rows, you,
         youTaken,
-        youHealed: f.healingBy.get(YOU) || 0,
+        youHealed: ((this.healProcs && f.healingAllBy) || f.healingBy).get(YOU) || 0,
         kills: f.kills.length,
         start: f.start, end: f.lastCombat
       };

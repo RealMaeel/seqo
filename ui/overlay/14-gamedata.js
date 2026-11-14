@@ -212,12 +212,15 @@
     }
   }, 6000);
 
+  // main changed a setting by itself (usedFaction, when the dock's ⚖ Faction view first opens): take it without a restart
+  if (window.overlay.onSettingsPatch) window.overlay.onSettingsPatch((p) => { if (settings && p) Object.assign(settings, p); });
+
   // which exports feed features this person actually uses — the login bar
   // only nags about those (the per-view outfileBar stays view-scoped anyway)
   function outfileWanted(kind) {
     if (kind === 'inventory') return true; // cleanup/needs/epics all read it
     if (kind === 'achievements') return !!((settings && settings.usedSlayer) || qSelClasses().length);
-    if (kind === 'factions') return !!(settings && (settings.usedUnlocks || settings.usedSlayer));
+    if (kind === 'factions') return !!(settings && (settings.usedUnlocks || settings.usedSlayer || settings.usedFaction)); // usedFaction: the dock's ⚖ Faction view (set in main, 3.0.1)
     if (kind === 'spellbook') return false;   // changes only when you scribe — the Spellbook view asks itself
     return true;
   }

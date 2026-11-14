@@ -76,6 +76,9 @@ check("Lord Ollix Everling says, 'Ah, Maeel! Welcome to our castle.'", { type: '
 check("Xonektik says, 'Sorry, Master... calming down.'", { type: 'petsay' });
 check('You healed Maeel for 222 hit points by Spirit Tap.', { type: 'heal', healer: 'You', amount: 222 });
 check('Lyes healed herself for 0 (6) hit points by Blessing of the Lord Commander.', { type: 'heal', healer: 'Lyes', amount: 0, potential: 6 });
+// 3.0.1: heal-over-time ticks — the target is the player, not "Scarzam over time"
+check('Scorch healed Scarzam over time for 239 hit points by Celestial Healing.', { type: 'heal', healer: 'Scorch', target: 'Scarzam', amount: 239, spell: 'Celestial Healing', hot: true });
+check('Worthless healed you for 120 hit points.', { type: 'heal', healer: 'Worthless', target: 'You', amount: 120 });
 
 check('Tormentor Utzain - a rare creature - scowls at you, ready to attack -- looks like he would wipe the floor with you! (Lvl: 54)',
   { type: 'consider', mob: 'Tormentor Utzain', level: 54, rare: true, aggro: true, attitude: 'scowls at you, ready to attack', difficulty: 'looks like he would wipe the floor with you!' });
@@ -143,6 +146,20 @@ for (const line of [
   for (const l of ['[Sat Oct 24 17:03:15 2026] You shoot Lord Rikantus Everling for 269 points of damage. (Double Bow Shot)',
                    '[Sat Oct 24 17:04:59 2026] Lord Rikantus Everling punches YOU for 153 points of damage.']) solo.feed(parseLine(l));
   t(solo.othersInFight().length === 0, 'nobody else hit it: solo');
+}
+
+// --- 3.0.1: healFilter keeps proc heals out of "you healed" ---
+{
+  const { FightTracker } = require('../parser.js');
+  const tr = new FightTracker();
+  tr.healFilter = (ev) => ev.spell !== 'Blessing of the Lord Commander';
+  for (const l of ['[Sat Oct 24 22:24:00 2026] You slash a ghoul for 100 points of damage.',
+                   '[Sat Oct 24 22:24:01 2026] You healed Maeel for 40 hit points by Blessing of the Lord Commander.',
+                   '[Sat Oct 24 22:24:02 2026] You healed Maeel for 222 hit points by Spirit Tap.']) tr.feed(parseLine(l));
+  const ok = tr.summary().youHealed === 222;
+  if (ok) pass++; else { fail++; console.error('FAIL  healFilter: youHealed ' + tr.summary().youHealed); }
+  tr.healProcs = true;   // the meter's Procs chip on: procs count too
+  if (tr.summary().youHealed === 262) pass++; else { fail++; console.error('FAIL  healProcs: youHealed ' + tr.summary().youHealed); }
 }
 
 console.log(pass + ' passed, ' + fail + ' failed');
