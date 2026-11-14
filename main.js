@@ -1925,8 +1925,17 @@ const communityShown = () => settings.communityShow !== false;
 ipcMain.handle('community-mob', (_e, name) => (communityShown() ? communityData.mob(name) : []));
 ipcMain.handle('community-item', (_e, name) => (communityShown() ? communityData.item(name) : []));
 ipcMain.handle('community-respawns', () => (communityShown() ? communityData.respawns() : {}));
-ipcMain.handle('community-faction', (_e, name) => (communityShown() ? communityData.faction(name) : null));
-ipcMain.handle('community-factions', (_e, q) => (communityShown() ? communityData.factions(q) : []));
+// opening the dock's ⚖ Faction view (a faction or its picker) counts as using
+// /outputfile faction: from then on the fresh-login popup asks for that file too (3.0.1)
+function noteFactionUsed() {
+  if (settings.usedFaction) return;
+  settings = { ...settings, usedFaction: true };
+  saveSettings(settings);
+  // a narrow patch, not the whole 'settings' event: that one re-applies every setting and can re-ask the community question
+  try { if (win && !win.isDestroyed()) win.webContents.send('settings-patch', { usedFaction: true }); } catch { /* next start */ }
+}
+ipcMain.handle('community-faction', (_e, name) => { noteFactionUsed(); return communityShown() ? communityData.faction(name) : null; });
+ipcMain.handle('community-factions', (_e, q) => { noteFactionUsed(); return communityShown() ? communityData.factions(q) : []; });
 ipcMain.handle('community-show', (_e, on) => {
   settings = { ...settings, communityShow: !!on };
   saveSettings(settings);

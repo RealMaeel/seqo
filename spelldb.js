@@ -15,6 +15,13 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
+// effects that heal by proc, not by a cast: add melee/range/defensive/spell proc,
+// heal on hit (reverse damage shield, the cleric Blessing line), killshot proc
+const PROC_SPA = new Set(['85', '121', '201', '323', '339', '360', '383', '419', '427', '429']);
+
+// effects that fire another spell as part of the same cast (on fade, on landing)
+const HEAL_TRIGGER_SPA = new Set(['289', '340', '373', '374']);
+
 const CLASSES = ['WAR', 'CLR', 'PAL', 'RNG', 'SHD', 'DRU', 'MNK', 'BRD', 'ROG', 'SHM', 'NEC', 'WIZ', 'MAG', 'ENC', 'BST', 'BER'];
 
 // spells_us.txt columns (verified empirically against known spells)
@@ -59,7 +66,7 @@ function spellFiles(gameRoot) {
 function cacheKeyFor(gameRoot) {
   const f = spellFiles(gameRoot);
   // the leading token is a parser version: bump it and every cache rebuilds
-  return ['v17', fileKey(f.spells), fileKey(f.strs), fileKey(f.stacking)].join('|');
+  return ['v18', fileKey(f.spells), fileKey(f.strs), fileKey(f.stacking)].join('|');
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +218,7 @@ async function parseSpellFiles(gameRoot) {
   // Divine Aura 15m…): name -> { r: recast seconds, c: cast ms }, for the
   // overlay's "ready again in…" cooldown chips
   const recast = {};
+  const healKind = {}, healIdName = {}, healTriggered = new Set();
   await eachLine(f.spells, (line) => {
     const c = line.split('^');
     if (c.length < 60 || !+c[COL.ID]) return;
@@ -231,6 +239,33 @@ async function parseSpellFiles(gameRoot) {
     if (castable && !book[name]) {
       const lo = Math.min(...Object.values(cls));
       if (lo <= 60 && !/^Item (Benefit|Effect)\b/i.test(name)) book[name] = cls;
+    }
+    // 3.0.1 healing meter: is a heal line naming this spell a CAST heal or a proc?
+    // 'c' = every healing version is cast (a cast time, or a spell a class learns);
+    // 'p' = only procs: weapon/buff procs (no cast time, no class) and buffs whose
+    //       heals come from an effect (Blessing heal-on-hit, Vampiric Embrace's proc);
+    // 'b' = both share the name (Drain Spirit: cast, and SpellBlade's proc).
+    {
+      const fx = c[c.length - 1].split('$').map(x => x.split('|'));
+      // a heal: positive HP (instant or over time), a lifetap (negative HP on a lifetap target),
+      // or a resource tap (SPA 457: a share of the damage back as HP — Oathbreaker's Curse)
+      const tap = +c[COL.TARGET] === 13;
+      const heals = fx.some(p => (p[1] === '0' && (+p[2] > 0 || (tap && +p[2] < 0))) || ((p[1] === '79' || p[1] === '100') && +p[2] > 0) || p[1] === '457');
+      const hp = heals || fx.some(p => (p[1] === '0' || p[1] === '79') && +p[2] !== 0);
+      const isCast = +c[COL.CAST] > 0 || castable;
+      const procs = !heals && fx.some(p => PROC_SPA.has(p[1]));
+      // 'c' only for a cast version that heals by itself; any version that isn't cast and
+      // touches HP is a proc (weapon/item procs, whatever effect they heal through); a cast
+      // buff that heals only through a proc effect (Blessing, Vampiric Embrace) is a proc too
+      const k = isCast && heals ? 'c' : (!isCast && hp) || procs ? 'p' : '';
+      if (k) {
+        const o = healKind[name];
+        healKind[name] = !o || o === k ? k : 'b';
+        healIdName[+c[COL.ID]] = name;
+      }
+      // a cast spell's own follow-up heal counts as cast: Blooming Heal → Blooming Heal Trigger,
+      // Promised Renewal (no heal itself) → Promised Renewal Trigger I when it fades
+      if (+c[COL.CAST] > 0 || castable) for (const p of fx) if (HEAL_TRIGGER_SPA.has(p[1]) && +p[2] > 0) healTriggered.add(+p[2]);
     }
     const hasDur = durB > 0 || durF === 50 || durF === 3;
     if (!hasDur) return; // only lasting effects matter (tracking, planning, fades)
@@ -394,6 +429,9 @@ async function parseSpellFiles(gameRoot) {
       if (sp._procId && procData[sp._procId]) sp.procInfo = procData[sp._procId];
     }
   }
+  for (const id of healTriggered) if (healIdName[id]) healKind[healIdName[id]] = 'c';
+  // only the exceptions travel: a name missing from healKind counts as a cast heal
+  for (const n of Object.keys(healKind)) if (healKind[n] === 'c') delete healKind[n];
   const byId = {}, stk = {};
   for (const id of keep) {
     const sp = spells.get(id);
@@ -402,7 +440,7 @@ async function parseSpellFiles(gameRoot) {
       : { id: sp.id, n: sp.n, ben: sp.ben, durF: sp.durF, durB: sp.durB }; // slim: tracker-only
     if (stacking[id]) stk[id] = stacking[id];
   }
-  return { classes: CLASSES, spells: byId, stacking: stk, fadeMap, landMap, desc, cc, book, recast, notInLegends: [...NOT_IN_LEGENDS], builtAt: Date.now() };
+  return { classes: CLASSES, spells: byId, stacking: stk, fadeMap, landMap, desc, cc, book, recast, healKind, notInLegends: [...NOT_IN_LEGENDS], builtAt: Date.now() };
 }
 
 // ---------------------------------------------------------------------------

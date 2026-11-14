@@ -554,13 +554,16 @@
       ok('tracked quest feeds zone needs', before === 0 && after.length === 1 && after[0].item === 'Crystalline Orb', after);
       delete spellQuestState['lifeleech'];
       // login reminder gating
-      const savedUS = settings.usedSlayer, savedPC = settings.posClasses, savedUU = settings.usedUnlocks;
-      settings.usedSlayer = false; settings.usedUnlocks = false; settings.posClasses = [];
+      const savedUS = settings.usedSlayer, savedPC = settings.posClasses, savedUU = settings.usedUnlocks, savedUF = settings.usedFaction;
+      settings.usedSlayer = false; settings.usedUnlocks = false; settings.usedFaction = false; settings.posClasses = [];
       ok('achievements reminder gated OFF when unused', !outfileWanted('achievements') && !outfileWanted('factions'));
+      settings.usedFaction = true;
+      ok('factions reminder ON once the Faction view was opened (achievements still off)', outfileWanted('factions') && !outfileWanted('achievements'));
+      settings.usedFaction = false;
       settings.usedSlayer = true;
       ok('achievements + factions reminder ON for slayer users', outfileWanted('achievements') && outfileWanted('factions'));
       ok('inventory reminder always on', outfileWanted('inventory'));
-      settings.usedSlayer = savedUS; settings.posClasses = savedPC; settings.usedUnlocks = savedUU;
+      settings.usedSlayer = savedUS; settings.posClasses = savedPC; settings.usedUnlocks = savedUU; settings.usedFaction = savedUF;
       // ⭐ wish list + the item page's own "Drops From" -> zone needs
       {
         const wk = verdictKey('Bow of the Underfoot');
